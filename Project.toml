@@ -1,0 +1,4 @@
+name = "WilsonCowanModel"
+uuid = "bdbc91b4-201b-11e9-2b98-89611552dcef"
+authors = ["Graham Smith <grahamas@gmail.com>"]
+version = "0.1.0"
