@@ -1,20 +1,18 @@
-module WCMAnalysis
 
-#region imports
-using Modeling
-using Analysis
-using Records
-import DifferentialEquations: DESolution
-using Meshes
-using RecipesBase
-using Plots
-using Parameters
-using WCM
-using CalculatedParameters
-using Simulating
-using WCMNonlinearity
-using Subsampling
-#endregion
+export SubsampledPlot
+
+export NonlinearityPlot
+export Animate
+export SpaceTimePlot
+
+export NeumanTravelingWavePlot #, TravelingWavePlot
+export PeakTravelingWavePlot #, TravelingWavePlot
+
+export WaveVelocityPlot, WaveNaiveVelocityPlot
+
+export WaveWidthPlot
+
+export WaveStatsPlot
 
 #region Animate
 struct Animate <: AbstractPlotSpecification
@@ -23,11 +21,10 @@ struct Animate <: AbstractPlotSpecification
     kwargs::Dict
 end
 Animate(; fps=20, output_name="animation.mp4", kwargs...) = Animate(fps, output_name, kwargs)
-function Analysis.plot_and_save(plot_spec::Animate, simulation::Simulation)
+function Simulation73.plot_and_save(plot_spec::Animate, simulation::Simulation, output::AbstractOutput)
     save_fn(name, anim) = mp4(anim, name; fps=plot_spec.fps)
-    simulation.output(save_fn, output_name(plot_spec), animate(simulation; plot_spec.kwargs...))
+    output(save_fn, output_name(plot_spec), animate(simulation; plot_spec.kwargs...))
 end
-export Animate
 function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<:WCMSpatial1D}
     solution = simulation.solution
     pop_names = simulation.model.pop_names
@@ -67,7 +64,6 @@ SpaceTimePlot(; output_name = "spacetime.png", kwargs...) = SpaceTimePlot(output
         end
     end
 end
-export SpaceTimePlot
 #endregion
 
 #region NonlinearityPlot
@@ -100,7 +96,6 @@ NonlinearityPlot(; output_name = "nonlinearity.png", kwargs...) = NonlinearityPl
         end
     end
 end
-export NonlinearityPlot
 #endregion
 
 #region NeumanTravelingWavePlot
@@ -124,7 +119,6 @@ NeumanTravelingWavePlot(; output_name="traveling_wave.png", dt::Union{Nothing,T}
         end
     end
 end
-export NeumanTravelingWavePlot #, TravelingWavePlot
 #endregion
 
 function calculate_width(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
@@ -194,7 +188,7 @@ function track_wave_peak(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
     space_max = findmax(single_wave_data, dims=1) # TODO: Make this more robust
 end
 
-
+#region SubsampledPlot
 mutable struct SubsampledPlot <: AbstractPlotSpecification
     plot_type::Type{<:AbstractSpaceTimePlotSpecification}
     time_subsampling::Dict
@@ -230,7 +224,7 @@ SubsampledPlot(; plot_type=nothing, time_subsampling=Dict(), space_subsampling=D
 
     (plot_spec, t, x, wave)
 end
-export SubsampledPlot
+#endregion
 
 #region PeakTravelingWavePlot
 struct PeakTravelingWavePlot <: AbstractPlotSpecification
@@ -257,7 +251,6 @@ PeakTravelingWavePlot(; output_name="peak_traveling_wave.png", kwargs...) = Peak
         ()
     end
 end
-export PeakTravelingWavePlot #, TravelingWavePlot
 #endregion
 
 #region WaveStats
@@ -277,7 +270,6 @@ WaveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing
         ()
     end
 end
-export WaveVelocityPlot
 
 struct WaveNaiveVelocityPlot{T} <: AbstractPlotSpecification
     output_name::String
@@ -295,7 +287,6 @@ WaveNaiveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=no
         ()
     end
 end
-export WaveNaiveVelocityPlot
 
 struct WaveWidthPlot <: AbstractPlotSpecification
     output_name::String
@@ -311,7 +302,6 @@ WaveWidthPlot(; output_name="wave_width.png", kwargs...) = WaveWidthPlot(output_
         ()
     end
 end
-export WaveWidthPlot
 
 struct WaveStatsPlot{T} <: AbstractSpaceTimePlotSpecification
     output_name::String
@@ -346,7 +336,4 @@ WaveStatsPlot(; output_name="wave_stats.png", dt::Union{Nothing,T}=nothing, kwar
     # plot(PeakTravelingWavePlot(dt=dt), simulation, subplot=2)
     # plot(WaveVelocityPlot(dt=dt), wave, t, subplot=3)
 end
-export WaveStatsPlot
 #endregion
-
-end

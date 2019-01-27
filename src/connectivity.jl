@@ -1,19 +1,13 @@
-module WCMConnectivity
 
-using Meshes
-using CalculatedParameters
-import CalculatedParameters: Calculated, update
-using Parameters
+abstract type AbstractConnectivity{T} <: AbstractParameter{T} end
 
-# * Types
-
-abstract type Connectivity{T} <: Parameter{T} end
-
-function update(calc_arr::AA, new_arr::AbstractArray{C,2}, space::Space{T}) where {T, C <: Connectivity{T}, CC <: CalculatedParam{C}, AA<:AbstractArray{CC,2}}
+function update(calc_arr::AA, new_arr::AbstractArray{C,2}, space::Space{T}) where {T, C <: AbstractConnectivity{T}, CC <: CalculatedType{C}, AA<:AbstractArray{CC,2}}
     [calc_arr[i].connectivity != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
-@with_kw struct ShollConnectivity{T} <: Connectivity{T}
+#region ShollConnectivity 
+
+@with_kw struct ShollConnectivity{T} <: AbstractConnectivity{T}
     amplitude::T
     spread::T
 end
@@ -22,7 +16,7 @@ function ShollConnectivity(p)
     ShollConnectivity(p[:("Connectivity.amplitude")], p[:("Connectivity.spread")])
 end
 
-struct CalculatedShollConnectivity{T} <: CalculatedParam{ShollConnectivity{T}}
+struct CalculatedShollConnectivity{T} <: CalculatedType{ShollConnectivity{T}}
     connectivity::ShollConnectivity{T}
     calc_dist_mx::CalculatedDistanceMatrix{T}
     value::Matrix{T}
@@ -63,6 +57,4 @@ function sholl_matrix(amplitude::ValueT, spread::ValueT,
     ) / (2 * spread)
 end
 
-export Connectivity, ShollConnectivity, CalculatedShollConnectivity, Calculated, update
-
-end
+#endregion

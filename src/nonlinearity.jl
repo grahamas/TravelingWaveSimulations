@@ -1,13 +1,6 @@
-module WCMNonlinearity
-# * Types
+abstract type AbstractNonlinearity{T} <: AbstractParameter{T} end
 
-using Parameters
-using CalculatedParameters
-import CalculatedParameters: Calculated, update
-
-abstract type Nonlinearity{T} <: Parameter{T} end
-
-function update(calc_arr::AA, new_arr::AbstractArray{L,1}) where {T, L <: Nonlinearity{T}, CL <: CalculatedParam{L}, AA<:AbstractArray{CL,1}}
+function update(calc_arr::AA, new_arr::AbstractArray{L,1}) where {T, L <: AbstractNonlinearity{T}, CL <: CalculatedType{L}, AA<:AbstractArray{CL,1}}
     [calc_arr[i].nonlinearity != new_arr[i] ? Calculated(new_arr[i]) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
@@ -48,12 +41,14 @@ function neg_domain_sigmoid_diff_fn(input, a, θ, width)
     return max.(0,simple_sigmoid_fn(input, a, θ) - simple_sigmoid_fn(input, a, θ + width))
 end
 
-@with_kw struct SigmoidNonlinearity{T} <: Nonlinearity{T}
+struct SigmoidNonlinearity{T} <: AbstractNonlinearity{T}
     a::T
     θ::T
 end
 
-mutable struct CalculatedSigmoidNonlinearity{T} <: CalculatedParam{SigmoidNonlinearity{T}}
+SigmoidNonlinearity{T}(; a::T=nothing, θ::T=nothing) where T = SigmoidNonlinearity{T}(a,θ)
+
+mutable struct CalculatedSigmoidNonlinearity{T} <: CalculatedType{SigmoidNonlinearity{T}}
     nonlinearity::SigmoidNonlinearity{T}
     a::T
     θ::T # This is nonsense, but fits with Calculated pattern
@@ -72,7 +67,7 @@ function nonlinearity(csn::CalculatedSigmoidNonlinearity{T}, input_arr::AT) wher
     return ret_arr
 end
 
-CalculatedParameters.get_value(csn::CalculatedSigmoidNonlinearity{T}) where T = csn
+CalculatedTypes.get_value(csn::CalculatedSigmoidNonlinearity{T}) where T = csn
 
 ############
 
@@ -82,12 +77,14 @@ function sech2_fn(x, a, θ)
     return @. 1 - tanh(a * (x - θ))^2
 end
 
-@with_kw struct Sech2Nonlinearity{T} <: Nonlinearity{T}
+struct Sech2Nonlinearity{T} <: AbstractNonlinearity{T}
     a::T
     θ::T
 end
 
-mutable struct CalculatedSech2Nonlinearity{T} <: CalculatedParam{Sech2Nonlinearity{T}}
+Sech2Nonlinearity{T}(; a::T=nothing, θ::T=nothing) where T = Sech2Nonlinearity{T}(a,θ) 
+
+mutable struct CalculatedSech2Nonlinearity{T} <: CalculatedType{Sech2Nonlinearity{T}}
     nonlinearity::Sech2Nonlinearity{T}
     a::T
     θ::T # This is nonsense, but fits with Calculated pattern
@@ -106,11 +103,5 @@ function nonlinearity(csn::CalculatedSech2Nonlinearity{T}, input_arr::AT) where 
     return ret_arr
 end
 
-CalculatedParameters.get_value(csn::CalculatedSech2Nonlinearity{T}) where T = csn
+CalculatedTypes.get_value(csn::CalculatedSech2Nonlinearity{T}) where T = csn
 
-
-export Nonlinearity, Calculated, update, nonlinearity!, nonlinearity
-export SigmoidNonlinearity, CalculatedSigmoidNonlinearity
-export Sech2Nonlinearity, CalculatedSech2Nonlinearity
-# * end
-end

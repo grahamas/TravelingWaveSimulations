@@ -1,63 +1,55 @@
-module WCMStimulus
 
-using Parameters
+abstract type AbstractStimulus{T} <: AbstractParameter{T} end
 
-using Meshes
-using CalculatedParameters
-import CalculatedParameters: Calculated, update
-using Random
-
-abstract type Stimulus{T,uType} <: Parameter{T} end
-
-function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::Space{T}) where {T, S <: Stimulus{T}, CS <: CalculatedParam{S}, AA<:AbstractArray{CS,1}}
+function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::Space{T}) where {T, S <: AbstractStimulus{T}, CS <: CalculatedType{S}, AA<:AbstractArray{CS,1}}
     [calc_arr[i].stimulus != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
-# ------------- GaussianNoiseStimulus ----------- #
+#region GaussianNoiseStimulus
 
-function gaussian_noise!(val::AT, mean::T, sd::T) where {T,N, AT<:AbstractArray{T,N}} # assumes signal power is 0db
+function gaussian_noise!(val::AT, mean::T, sd::T) where {T, AT<:AbstractArray{T}} # assumes signal power is 0db
     randn!(val)
     val .*= sd
     val .+= mean
 end
 
-struct GaussianNoiseStimulus{T,N} <: Stimulus{T,N}
+struct GaussianNoiseStimulus{T} <: AbstractStimulus{T}
     mean::T
     SNR::T
 end
 
-function GaussianNoiseStimulus{T,N}(; SNR::T=0.0, mean::T=0.0) where {T,N}
-    GaussianNoiseStimulus{T,N}(mean, SNR)
+function GaussianNoiseStimulus{T}(; SNR::T=0.0, mean::T=0.0) where {T}
+    GaussianNoiseStimulus{T}(mean, SNR)
 end
 
-struct CalculatedGaussianNoiseStimulus{T,N} <: CalculatedParam{GaussianNoiseStimulus{T,N}}
+struct CalculatedGaussianNoiseStimulus{T} <: CalculatedType{GaussianNoiseStimulus{T}}
     stimulus::GaussianNoiseStimulus{T}
-    space::Space{T,N}
+    space::Space{T}
     mean::T
     sd::T
 end
 
 
-function Calculated(wns::GaussianNoiseStimulus{T,N}, space::Space{T,N}) where {T,N}
+function Calculated(wns::GaussianNoiseStimulus{T}, space::Space{T,N}) where {T,N}
     sd = sqrt(1/10 ^ (wns.SNR / 10))
-    CalculatedGaussianNoiseStimulus{T,N}(wns, space, wns.mean, sd)
+    CalculatedGaussianNoiseStimulus{T}(wns, space, wns.mean, sd)
 end
 
-function stimulate!(val::AT, wns::CalculatedGaussianNoiseStimulus{T,N}, t::T) where {T,N, AT<: AbstractArray{T,N}}
+function stimulate!(val::AT, wns::CalculatedGaussianNoiseStimulus{T}, t::T) where {T,AT<: AbstractArray{T}}
     gaussian_noise!(val, wns.mean, wns.sd) # Not actually time dependent
 end
 
-export GaussianNoiseStimulus, CalculatedGaussianNoiseStimulus
+#endregion
 
-# ----------- SharpBumpStimulus ------------ #
+#region SharpBumpStimulus
 
-struct SharpBumpStimulus{T} <: Stimulus{T,1}
+struct SharpBumpStimulus{T} <: AbstractStimulus{T}
     width::T
     strength::T
     window::Tuple{T,T}
 end
 
-function SharpBumpStimulus{T}(; strength=nothing, width=nothing,
+function SharpBumpStimulus{T}(; strength::T=nothing, width::T=nothing,
         duration=nothing, window=nothing) where {T}
     if window == nothing
         return SharpBumpStimulus{T}(width, strength, (zero(T), duration))
@@ -80,7 +72,7 @@ function Calculated(sbs::SharpBumpStimulus{T}, space::PopSegment{T}) where T
     return CalculatedSharpBumpStimulus{T}(sbs, space, onset, offset, on_frame, off_frame)
 end
 
-struct CalculatedSharpBumpStimulus{T} <: CalculatedParam{SharpBumpStimulus{T}}
+struct CalculatedSharpBumpStimulus{T} <: CalculatedType{SharpBumpStimulus{T}}
     stimulus::SharpBumpStimulus{T}
     space::PopSegment{T}
     onset::T
@@ -113,24 +105,24 @@ function stimulate_add!(val::AT, sharp_bump::CalculatedSharpBumpStimulus, t::T) 
     end
 end
 
-export SharpBumpStimulus, CalculatedSharpBumpStimulus
+#endregion
 
+#region NoisySharpBumpStimulus
 
-# ------------- Noisy pulse ----------------- #
-struct NoisySharpBumpStimulus{T} <: Stimulus{T,1}
-    noise::GaussianNoiseStimulus{T,1}
+struct NoisySharpBumpStimulus{T} <: AbstractStimulus{T}
+    noise::GaussianNoiseStimulus{T}
     bump::SharpBumpStimulus{T}
 end
 function NoisySharpBumpStimulus{T}(; strength::T, window::Tuple{T,T}, width::T, SNR::T) where T
     NoisySharpBumpStimulus{T}(
-            GaussianNoiseStimulus{T,1}(SNR = SNR),
+            GaussianNoiseStimulus{T}(SNR = SNR),
             SharpBumpStimulus{T}(strength=strength, window=window,
                 width=width)
         )
 end
-struct CalculatedNoisySharpBumpStimulus{T} <: CalculatedParam{NoisySharpBumpStimulus{T}}
+struct CalculatedNoisySharpBumpStimulus{T} <: CalculatedType{NoisySharpBumpStimulus{T}}
     stimulus::NoisySharpBumpStimulus{T}
-    calc_noise::CalculatedGaussianNoiseStimulus{T,1}
+    calc_noise::CalculatedGaussianNoiseStimulus{T}
     calc_bump::CalculatedSharpBumpStimulus{T}
 end
 Calculated(nsbs::NoisySharpBumpStimulus{T}, space::PopSegment{T}) where T = CalculatedNoisySharpBumpStimulus{T}(nsbs, Calculated(nsbs.noise, space), Calculated(nsbs.bump, space))
@@ -140,14 +132,9 @@ function stimulate!(val::AT, stim_obj::CalculatedNoisySharpBumpStimulus{T},t::T)
     stimulate_add!(val, stim_obj.calc_bump,t)
 end
 
-export NoisySharpBumpStimulus, CalculatedNoisySharpBumpStimulus
-
-#------------------------------------#
+#endregion
 
 
-CalculatedParameters.get_value(c::CalculatedGaussianNoiseStimulus{T}) where T = c
-CalculatedParameters.get_value(c::CalculatedNoisySharpBumpStimulus{T}) where T = c
-CalculatedParameters.get_value(c::CalculatedSharpBumpStimulus{T}) where T = c
-export Stimulus, Calculated, update, stimulate!
-
-end
+CalculatedTypes.get_value(c::CalculatedGaussianNoiseStimulus{T}) where T = c
+CalculatedTypes.get_value(c::CalculatedNoisySharpBumpStimulus{T}) where T = c
+CalculatedTypes.get_value(c::CalculatedSharpBumpStimulus{T}) where T = c
