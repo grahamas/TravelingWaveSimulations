@@ -7,21 +7,21 @@ using DifferentialEquations: Euler
 using JLD2
 
 if !@isdefined(v)
-  const v = MaybeVariable{Float64}
+  const v = Float64
   const BV = BoundedVariable
 end
 N=1
 P=2
-p_search = ParameterSearch(;
-  varying_model = WCMSpatial1D{v,N,P}(;
+simulation = Simulation(;
+  model = WCMSpatial1D{v,N,P}(;
     pop_names = ["E", "I"],
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],
-    τ = v[0.1, 0.18], #REVERSED
+    τ = v[0.1, 0.18],
     space = PopSegment{v,P}(; n_points=301, extent=100.0),
     nonlinearity = pops(Sech2Nonlinearity{v}; 
       a = v[1.2, 1.0],
-      θ = v[8.0, 2.6]),
+      θ = v[2.6, 8.0]),
       # a=v[BV(1.2, (0.1, 2.0)), BV(1.0, (0.1, 2.0))],
       # θ=v[BV(8.0, (2.0, 9.0)), BV(2.6, (2.0,9.0))]),
     stimulus = pops(NoisySharpBumpStimulus{v}; 
@@ -30,7 +30,7 @@ p_search = ParameterSearch(;
       width=v[2.81, 2.81],
       SNR=v[80.0, 80.0]),
     connectivity = pops(ShollConnectivity{v};
-      amplitude = v[16.0 -18.2);
+      amplitude = v[16.0 -18.2
                     27.0 -4.0],
       # spread = v[BV(2.5, (1.0, 4.0)) BV(2.7, (1.0, 4.0));
       #            BV(2.7, (1.0, 4.0)) BV(2.5, (1.0, 4.0))])
@@ -43,11 +43,7 @@ p_search = ParameterSearch(;
     space_save_every=1,
     time_save_every=1,
     algorithm=Euler()
-    ),
-  target=MatchExample(
-    file_name="data/wave_example.jld2"
-    ),
-  MaxSteps=1000
+    )
   )
 
 analyses = [
@@ -72,9 +68,9 @@ SubsampledPlot(
 
 output = SingleOutput(;
   root = "/home/grahams/Dropbox/simulation-73/results/",
-  simulation_name = "broad_search/reversing_e_i_sech2"
+  simulation_name = "neuman/sech2"
   )
 
-@save "parameters.jld2" p_search
+@save "parameters.jld2" simulation
 
-analyse.(analyses, Ref(result_simulation(p_search)), Ref(output))
+analyse.(analyses, Ref(simulation), Ref(output))
