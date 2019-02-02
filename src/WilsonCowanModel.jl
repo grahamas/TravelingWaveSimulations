@@ -7,17 +7,17 @@ import CalculatedTypes: Calculated, update
 using RecipesBase
 using StaticArrays
 using Simulation73
-import Simulation73: update_from_p!, make_calculated_function, loss
+import Simulation73: update_from_p!, make_calculated_function, target_loss
 using JLD2
-using Plots; pyplot()
+using Plots
 using Random
 #endregion
 
 export WCMSpatial1D
 
-export SigmoidNonlinearity, Sech2Nonlinearity
+export SigmoidNonlinearity, Sech2Nonlinearity, GaussianNonlinearity
 
-export SharpBumpStimulus, NoisySharpBumpStimulus, GaussianNoiseStimulus
+export SharpBumpStimulus, Sech2BumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
 
 export ShollConnectivity
 

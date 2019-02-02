@@ -22,7 +22,7 @@ space_array(model::WCMSpatial1D) = Calculated(model.space).value
 
 
 # * Calculated WC73 Simulation Type
-mutable struct CalculatedWCMSpatial1D{T,N,P,C,L,S,CC<:CalculatedType{C},CL <: CalculatedType{L},CS <: CalculatedType{S}} <: CalculatedType{WCMSpatial1D{T,N,P,C,L,S}}
+mutable struct CalculatedWCMSpatial1D{T,N,P,C,L,S,CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType} <: CalculatedType{WCMSpatial1D{T,N,P,C,L,S}}
     α::SVector{P,T}
     β::SVector{P,T}
     τ::SVector{P,T}
@@ -67,13 +67,15 @@ function update_from_p!(cwc::CalculatedWCMSpatial1D{T}, new_p::Array{T}, model, 
     cwc.stimulus = update(cwc.stimulus, new_model.stimulus, new_model.space)
 end
 
-function make_calculated_function(cwc::CalculatedWCMSpatial1D{T,1,P,C,L,S,CC,CL,CS}) where {T,P,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},CC<:CalculatedType{C},CL <: CalculatedType{L},CS <: CalculatedType{S}}
+function make_calculated_function(cwc::CalculatedWCMSpatial1D{T,1,P,C,L,S,CC,CL,CS}) where {T,P,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType}
     (α, β, τ, connectivity_mx, nonlinearity_objs, stimulus_objs) = get_values(cwc)
 
+    @show stimulus_objs
     let α::SVector{P,T}=α, β::SVector{P,T}=β, τ::SVector{P,T}=τ, connectivity_mx::SMatrix{P,P,Matrix{T}}=connectivity_mx, nonlinearity_objs::SVector{P,CL}=nonlinearity_objs, stimulus_objs::SVector{P,CS}=stimulus_objs
         (dA::Array{T,2}, A::Array{T,2}, p::Union{Array{T,1},Nothing}, t::T) -> (
             @views for i in 1:P
                 stimulate!(dA[:,i], stimulus_objs[i], t) # I'll bet it goes faster if we pull this out of the loop
+                @show sum(dA[:,i])
                 for j in 1:P
                     dA[:,i] .+= connectivity_mx[i,j] * A[:,j]
                 end

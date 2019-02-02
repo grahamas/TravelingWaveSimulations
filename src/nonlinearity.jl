@@ -105,3 +105,38 @@ end
 
 CalculatedTypes.get_value(csn::CalculatedSech2Nonlinearity{T}) where T = csn
 
+############
+
+### Gaussian ###
+
+function gaussian_fn(x, sd, θ)
+    return @. exp(-((x - θ) / sd)^2 ) - exp(-(-θ / sd))
+end
+
+struct GaussianNonlinearity{T} <: AbstractNonlinearity{T}
+    sd::T
+    θ::T
+end
+
+GaussianNonlinearity{T}(; sd::T=nothing, θ::T=nothing) where T = GaussianNonlinearity{T}(sd,θ) 
+
+mutable struct CalculatedGaussianNonlinearity{T} <: CalculatedType{GaussianNonlinearity{T}}
+    nonlinearity::GaussianNonlinearity{T}
+    sd::T
+    θ::T # This is nonsense, but fits with Calculated pattern
+end
+
+function Calculated(gaussian::GaussianNonlinearity{T}) where T
+    CalculatedGaussianNonlinearity{T}(gaussian, gaussian.sd, gaussian.θ)
+end
+
+function nonlinearity!(output::AT, cgn::CalculatedGaussianNonlinearity{T}) where {T, AT<:AbstractArray{T}}
+    output .= gaussian_fn.(output,cgn.sd,cgn.θ)
+end
+function nonlinearity(cgn::CalculatedGaussianNonlinearity{T}, input_arr::AT) where {T, AT<:Array{T}}
+    ret_arr = copy(input_arr)
+    nonlinearity!(ret_arr, cgn)
+    return ret_arr
+end
+
+CalculatedTypes.get_value(cgn::CalculatedGaussianNonlinearity{T}) where T = cgn

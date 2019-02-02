@@ -1,5 +1,17 @@
 
-abstract type AbstractExampleTarget{T} <: LossFunction{T} end
+abstract type AbstractExampleTarget{T} <: Target{T} end
+abstract type AbstractFunctionTarget{T} <: Target{T} end
+
+#region Sech2Target
+
+struct TravelingSech2Target{T} <: AbstractFunctionTarget{T}
+	velocity::T
+	width::T
+	decay::T
+end
+
+
+#endregion
 
 #region MatchExample
 
@@ -17,7 +29,7 @@ function (p::MatchExample{T})(soln::AbstractArray{T}, x_dxs::AbstractArray{Int,1
 	sum((soln[x_dxs, pop_dxs, t_dxs] .- p.data) .^ 2)
 end
 
-function loss(fn::MatchExample{T}, model::WCMSpatial1D{T}, solver::Solver{T}) where T
+function target_loss(fn::MatchExample{T}, model::WCMSpatial1D{T}, solver::Solver{T}) where T
 	t_target, x_target = fn.t, fn.x
 	t_dxs = subsampling_time_idxs(t_target, solver)
 	x_dxs = subsampling_space_idxs(x_target, model, solver)
@@ -44,7 +56,7 @@ function (p::StretchExample{T})(soln::AbstractArray{T}, x_dxs::AbstractArray{Int
 	sum((soln[x_dxs, pop_dxs, t_dxs] .- p.data) .^ 2)
 end
 
-function loss(fn::StretchExample{T}, model::WCMSpatial1D{T}, solver::Solver{T}) where T
+function target_loss(fn::StretchExample{T}, model::WCMSpatial1D{T}, solver::Solver{T}) where T
 	t_target, x_target = fn.t, fn.x
 	t_dxs = subsampling_time_idxs(t_target, solver)
 	x_dxs = subsampling_space_idxs(x_target, model, solver)

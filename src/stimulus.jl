@@ -5,6 +5,21 @@ function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::Space{T}) wher
     [calc_arr[i].stimulus != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
+#region NoStimulus
+
+struct NoStimulus{T} <: AbstractStimulus{T} end
+struct CalculatedNoStimulus{T} <: CalculatedType{NoStimulus{T}}
+    stimulus::NoStimulus{T}
+end
+function Calculated(stimulus::NoStimulus{T}, args...) where T
+    CalculatedNoStimulus{T}(stimulus)
+end
+function stimulate!(val::AT, calcnostim::CalculatedNoStimulus{T}, t::T) where {T,AT<: AbstractArray{T}}
+    val[:] .= 0
+end
+
+#endregion
+
 #region GaussianNoiseStimulus
 
 function gaussian_noise!(val::AT, mean::T, sd::T) where {T, AT<:AbstractArray{T}} # assumes signal power is 0db
@@ -41,9 +56,31 @@ end
 
 #endregion
 
+
+abstract type TransientBumpStimulus{T} <: AbstractStimulus{T} end
+
+function stimulate!(val::AT, bump::CTBS, t::T) where {T, AT <: AbstractArray{T,1}, CTBS<:CalculatedType{<:TransientBumpStimulus}}
+    if bump.onset <= t < bump.offset
+        val .= bump.on_frame
+    else
+        val .= bump.off_frame
+    end
+end
+function stimulate_add!(val::AT, bump::CTBS, t::T) where {T, AT<: AbstractArray{T,1}, CTBS<:CalculatedType{<:TransientBumpStimulus}}
+    if bump.onset <= t < bump.offset
+        val .+= bump.on_frame
+    end
+end
+
+
+
+
+
+
+
 #region SharpBumpStimulus
 
-struct SharpBumpStimulus{T} <: AbstractStimulus{T}
+struct SharpBumpStimulus{T} <: TransientBumpStimulus{T}
     width::T
     strength::T
     window::Tuple{T,T}
@@ -63,14 +100,19 @@ function SharpBumpStimulus(p)
     SharpBumpStimulus(p[:(Stimulus.width)], p[:(Stimulus.strength)], p[:(Stimulus.window)])
 end
 
-function Calculated(sbs::SharpBumpStimulus{T}, space::PopSegment{T}) where T
-    calculated_space = Calculated(space)
-    on_frame = make_sharp_bump_frame(calculated_space.value[:,1], sbs.width, sbs.strength)
-    off_frame = zero(on_frame)
-    onset = sbs.window[1]
-    offset = sbs.window[2]
-    return CalculatedSharpBumpStimulus{T}(sbs, space, onset, offset, on_frame, off_frame)
+
+
+function make_bump_frame(sbs::SharpBumpStimulus, mesh_coords::AbstractArray{DistT,1}) where {DistT}
+    mid_dx = floor(Int, size(mesh_coords, 1) / 2)
+    mid_point = mesh_coords[mid_dx,1]
+    frame = zero(mesh_coords)
+    half_width = sbs.width / 2      # using truncated division
+    start_dx = findfirst(mesh_coords .>= mid_point - half_width)
+    stop_dx = findlast(mesh_coords .<= mid_point + half_width)
+    frame[start_dx:stop_dx] .= sbs.strength
+    return frame
 end
+
 
 struct CalculatedSharpBumpStimulus{T} <: CalculatedType{SharpBumpStimulus{T}}
     stimulus::SharpBumpStimulus{T}
@@ -81,60 +123,91 @@ struct CalculatedSharpBumpStimulus{T} <: CalculatedType{SharpBumpStimulus{T}}
     off_frame::Array{T,1}
 end
 
-function make_sharp_bump_frame(mesh_coords::AbstractArray{DistT,1}, width::DistT, strength::T) where {DistT,T}
+function Calculated(tbs::SharpBumpStimulus{T}, space::PopSegment{T}) where T
+    calculated_space = Calculated(space)
+    on_frame = make_bump_frame(tbs, calculated_space.value[:,1])
+    off_frame = zero(on_frame)
+    onset = tbs.window[1]
+    offset = tbs.window[2]
+    return CalculatedSharpBumpStimulus{T}(tbs, space, onset, offset, on_frame, off_frame)
+end
+
+#endregion
+
+#region Sech2BumpStimulus
+struct Sech2BumpStimulus{T} <: TransientBumpStimulus{T}
+    width::T
+    strength::T
+    window::Tuple{T,T}
+end
+
+function sech2(x, A, a)
+    A * (sech(a * x))^2
+end
+
+function Sech2BumpStimulus{T}(; strength::T=nothing, width::T=nothing,
+        duration=nothing, window=nothing) where {T}
+    if window == nothing
+        return Sech2BumpStimulus{T}(width, strength, (zero(T), duration))
+    else
+        @assert duration == nothing
+        return Sech2BumpStimulus{T}(width, strength, window)
+    end
+end
+
+function make_bump_frame(s2bs::Sech2BumpStimulus, mesh_coords::AbstractArray{DistT,1}) where {DistT}
     mid_dx = floor(Int, size(mesh_coords, 1) / 2)
     mid_point = mesh_coords[mid_dx,1]
-    frame = zero(mesh_coords)
-    half_width = width / 2      # using truncated division
-    start_dx = findfirst(mesh_coords .>= mid_point - half_width)
-    stop_dx = findlast(mesh_coords .<= mid_point + half_width)
-    frame[start_dx:stop_dx] .= strength
+    frame = sech2.(mesh_coords, s2bs.strength, s2bs.width)
     return frame
 end
 
-function stimulate!(val::AT, sharp_bump::CalculatedSharpBumpStimulus, t::T) where {T, AT <: AbstractArray{T,1}}
-    if sharp_bump.onset <= t < sharp_bump.offset
-        val .= sharp_bump.on_frame
-    else
-        val .= sharp_bump.off_frame
-    end
+
+struct CalculatedSech2BumpStimulus{T} <: CalculatedType{Sech2BumpStimulus{T}}
+    stimulus::Sech2BumpStimulus{T}
+    space::PopSegment{T}
+    onset::T
+    offset::T
+    on_frame::Array{T,1}
+    off_frame::Array{T,1}
 end
-function stimulate_add!(val::AT, sharp_bump::CalculatedSharpBumpStimulus, t::T) where {T, AT<: AbstractArray{T,1}}
-    if sharp_bump.onset <= t < sharp_bump.offset
-        val .+= sharp_bump.on_frame
-    end
+
+function Calculated(tbs::Sech2BumpStimulus{T}, space::PopSegment{T}) where T
+    calculated_space = Calculated(space)
+    on_frame = make_bump_frame(tbs, calculated_space.value[:,1])
+    off_frame = zero(on_frame)
+    onset = tbs.window[1]
+    offset = tbs.window[2]
+    return CalculatedSech2BumpStimulus{T}(tbs, space, onset, offset, on_frame, off_frame)
 end
 
 #endregion
 
 #region NoisySharpBumpStimulus
 
-struct NoisySharpBumpStimulus{T} <: AbstractStimulus{T}
+struct NoisyStimulus{T,STIM} <: AbstractStimulus{T}
     noise::GaussianNoiseStimulus{T}
-    bump::SharpBumpStimulus{T}
+    stim::STIM
 end
-function NoisySharpBumpStimulus{T}(; strength::T, window::Tuple{T,T}, width::T, SNR::T) where T
-    NoisySharpBumpStimulus{T}(
+function NoisyStimulus{T}(; stim_type::Type=SharpBumpStimulus{T}, SNR::T, kwargs...) where T
+    NoisyStimulus{T,stim_type}(
             GaussianNoiseStimulus{T}(SNR = SNR),
-            SharpBumpStimulus{T}(strength=strength, window=window,
-                width=width)
+            stim_type(; kwargs...)
         )
 end
-struct CalculatedNoisySharpBumpStimulus{T} <: CalculatedType{NoisySharpBumpStimulus{T}}
-    stimulus::NoisySharpBumpStimulus{T}
+struct CalculatedNoisyStimulus{T,STIM} <: CalculatedType{NoisyStimulus{T,STIM}}
+    stimulus::NoisyStimulus{T,STIM}
     calc_noise::CalculatedGaussianNoiseStimulus{T}
-    calc_bump::CalculatedSharpBumpStimulus{T}
+    calc_stim::CalculatedType{STIM}
 end
-Calculated(nsbs::NoisySharpBumpStimulus{T}, space::PopSegment{T}) where T = CalculatedNoisySharpBumpStimulus{T}(nsbs, Calculated(nsbs.noise, space), Calculated(nsbs.bump, space))
+Calculated(ns::NoisyStimulus{T,STIM}, space::PopSegment{T}) where {T,STIM} = CalculatedNoisyStimulus{T,STIM}(ns, Calculated(ns.noise, space), Calculated(ns.stim, space))
 
-function stimulate!(val::AT, stim_obj::CalculatedNoisySharpBumpStimulus{T},t::T) where {T, AT<: AbstractArray{T,1}}
+function stimulate!(val::AT, stim_obj::CalculatedNoisyStimulus{T},t::T) where {T, AT<: AbstractArray{T,1}}
     stimulate!(val, stim_obj.calc_noise,t)
-    stimulate_add!(val, stim_obj.calc_bump,t)
+    stimulate_add!(val, stim_obj.calc_stim,t)
 end
 
 #endregion
 
 
-CalculatedTypes.get_value(c::CalculatedGaussianNoiseStimulus{T}) where T = c
-CalculatedTypes.get_value(c::CalculatedNoisySharpBumpStimulus{T}) where T = c
-CalculatedTypes.get_value(c::CalculatedSharpBumpStimulus{T}) where T = c
+CalculatedTypes.get_value(c::CalculatedType{<:AbstractStimulus}) = c

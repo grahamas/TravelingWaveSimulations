@@ -2,3 +2,6 @@
 /parameters.jld2
 
 /examples/prerefactor/*
+
+*.png
+*_res.jld2

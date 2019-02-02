@@ -19,7 +19,7 @@ simulation = Simulation(;
     β = v[1.1, 1.1],
     τ = v[0.1, 0.18],
     space = PopSegment{v,P}(; n_points=301, extent=100.0),
-    nonlinearity = pops(Sech2Nonlinearity{v}; 
+    nonlinearity = pops(SigmoidNonlinearity{v}; 
       a = v[1.2, 1.0],
       θ = v[2.6, 8.0]),
       # a=v[BV(1.2, (0.1, 2.0)), BV(1.0, (0.1, 2.0))],
@@ -27,7 +27,7 @@ simulation = Simulation(;
     stimulus = pops(NoisyStimulus{v}; 
       strength=v[1.2, 1.2],
       window=Tuple{v,v}[(0.0,0.55), (0.0,0.55)],
-      width=v[2.81, 2.81],
+      width=v[0.2, 0.2],
       SNR=v[80.0, 80.0],
       stim_type=[Sech2BumpStimulus{v}, Sech2BumpStimulus{v}]),
     connectivity = pops(ShollConnectivity{v};
@@ -48,9 +48,9 @@ simulation = Simulation(;
   )
 
 analyses = [
-# Animate(;
-#   fps = 20
-#   ),
+Animate(;
+  fps = 20
+  ),
 # NonlinearityPlot(;
 #   fn_bounds = (-1,15)
 #   ),
@@ -69,7 +69,7 @@ SubsampledPlot(
 
 output = SingleOutput(;
   root = "/home/grahams/Dropbox/simulation-73/results/",
-  simulation_name = "neuman/sech2"
+  simulation_name = "neuman/sigmoid"
   )
 
 @save "parameters.jld2" simulation
