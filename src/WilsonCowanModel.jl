@@ -9,7 +9,7 @@ using StaticArrays
 using Simulation73
 import Simulation73: update_from_p!, make_calculated_function, target_loss
 using JLD2
-using Plots
+using Plots; pyplot()
 using Random
 #endregion
 
@@ -17,7 +17,7 @@ export WCMSpatial1D
 
 export SigmoidNonlinearity, Sech2Nonlinearity, GaussianNonlinearity
 
-export SharpBumpStimulus, Sech2BumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
+export SharpBumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
 
 export ShollConnectivity
 
@@ -29,5 +29,12 @@ include("connectivity.jl")
 include("models.jl")
 include("target.jl")
 include("analysis.jl")
+
+function run_example(example_name)
+    include(example_name)
+    filecopy(output, example_name, "parameters.jl")
+end
+
+export run_example
 
 end #module

@@ -19,17 +19,25 @@ simulation = Simulation(;
     β = v[1.1, 1.1],
     τ = v[0.1, 0.18],
     space = PopSegment{v,P}(; n_points=301, extent=100.0),
-    nonlinearity = pops(SigmoidNonlinearity{v}; 
+    nonlinearity = pops(SigmoidNonlinearity{v};
       a = v[1.2, 1.0],
       θ = v[2.6, 8.0]),
       # a=v[BV(1.2, (0.1, 2.0)), BV(1.0, (0.1, 2.0))],
       # θ=v[BV(8.0, (2.0, 9.0)), BV(2.6, (2.0,9.0))]),
-    stimulus = pops(NoisyStimulus{v}; 
-      strength=v[1.2, 1.2],
-      window=Tuple{v,v}[(0.0,0.55), (0.0,0.55)],
-      width=v[0.2, 0.2],
-      SNR=v[80.0, 80.0],
-      stim_type=[Sech2BumpStimulus{v}, Sech2BumpStimulus{v}]),
+    # stimulus = pops(NoisyStimulus{v};
+    #   strength=v[1.2, 1.2],
+    #   window=Tuple{v,v}[(0.0,0.55), (0.0,0.55)],
+    #   width=v[0.2, 0.2],
+    #   SNR=v[80.0, 80.0],
+    #   stim_type=[Sech2BumpStimulus{v}, Sech2BumpStimulus{v}]),
+    stimulus = [NoisyStimulus{v}(;
+      strength=1.2,
+      window=Tuple{v,v}((0.0,0.55)),
+      width=0.2,
+      SNR= 80.0,
+      stim_type=SharpBumpStimulus{v}),
+      NoStimulus{v}()
+    ],
     connectivity = pops(ShollConnectivity{v};
       amplitude = v[16.0 -18.2
                     27.0 -4.0],
@@ -68,10 +76,12 @@ SubsampledPlot(
 ]
 
 output = SingleOutput(;
-  root = "/home/grahams/Dropbox/simulation-73/results/",
-  simulation_name = "neuman/sigmoid"
+  root = joinpath(homedir(), "simulation-results"),
+  simulation_name = "neuman"
   )
 
 @save "parameters.jld2" simulation
 
 analyse.(analyses, Ref(simulation), Ref(output))
+
+output(((name, obj) -> @save name obj), "parameters.jld2", simulation)

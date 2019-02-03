@@ -82,7 +82,7 @@ struct Sech2Nonlinearity{T} <: AbstractNonlinearity{T}
     θ::T
 end
 
-Sech2Nonlinearity{T}(; a::T=nothing, θ::T=nothing) where T = Sech2Nonlinearity{T}(a,θ) 
+Sech2Nonlinearity{T}(; a::T=nothing, θ::T=nothing) where T = Sech2Nonlinearity{T}(a,θ)
 
 mutable struct CalculatedSech2Nonlinearity{T} <: CalculatedType{Sech2Nonlinearity{T}}
     nonlinearity::Sech2Nonlinearity{T}
@@ -110,7 +110,7 @@ CalculatedTypes.get_value(csn::CalculatedSech2Nonlinearity{T}) where T = csn
 ### Gaussian ###
 
 function gaussian_fn(x, sd, θ)
-    return @. exp(-((x - θ) / sd)^2 ) - exp(-(-θ / sd))
+    return @. exp(-((x - θ) / sd)^2 ) - exp(-(-θ / sd)^2)
 end
 
 struct GaussianNonlinearity{T} <: AbstractNonlinearity{T}
@@ -118,7 +118,7 @@ struct GaussianNonlinearity{T} <: AbstractNonlinearity{T}
     θ::T
 end
 
-GaussianNonlinearity{T}(; sd::T=nothing, θ::T=nothing) where T = GaussianNonlinearity{T}(sd,θ) 
+GaussianNonlinearity{T}(; sd::T=nothing, θ::T=nothing) where T = GaussianNonlinearity{T}(sd,θ)
 
 mutable struct CalculatedGaussianNonlinearity{T} <: CalculatedType{GaussianNonlinearity{T}}
     nonlinearity::GaussianNonlinearity{T}

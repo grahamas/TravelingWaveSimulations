@@ -1,6 +1,6 @@
 
-abstract type AbstractExampleTarget{T} <: Target{T} end
-abstract type AbstractFunctionTarget{T} <: Target{T} end
+abstract type AbstractExampleTarget{T} <: AbstractTarget{T} end
+abstract type AbstractFunctionTarget{T} <: AbstractTarget{T} end
 
 #region Sech2Target
 
@@ -36,7 +36,7 @@ function target_loss(fn::MatchExample{T}, model::WCMSpatial1D{T}, solver::Solver
 	pop_dxs = [1]
 	(soln) -> fn(soln, x_dxs, pop_dxs, t_dxs)
 end
-	
+
 #endregion
 
 #region StretchExample
@@ -63,5 +63,5 @@ function target_loss(fn::StretchExample{T}, model::WCMSpatial1D{T}, solver::Solv
 	pop_dxs = [1]
 	(soln) -> fn(soln, x_dxs, pop_dxs, t_dxs)
 end
-	
+
 #endregion

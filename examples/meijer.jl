@@ -18,12 +18,12 @@ simulation = Simulation(;
     pop_names = ["E", "I"],
     α = v[1.0, 1.0],
     β = v[1.0, 1.0],
-    τ = v[1.0, 1.0],
+    τ = v[0.1, 0.1],
     space = PopSegment{v,P}(; n_points=301, extent=1000.0),
-    nonlinearity = pops(GaussianNonlinearity{v}; 
+    nonlinearity = pops(GaussianNonlinearity{v};
       sd = v[6.7, 3.2],
-      θ = v[18.0, 10.0]),
-    stimulus = [NoisyStimulus{v}(; 
+      θ = v[9.0, 10.0]),
+    stimulus = [NoisyStimulus{v}(;
       strength=10.0,
       window=Tuple{v,v}((0.0,10.0)),
       width=100.0,
@@ -67,7 +67,7 @@ SubsampledPlot(
 ]
 
 output = SingleOutput(;
-  root = "/home/grahams/Dropbox/simulation-73/results/",
+  root = joinpath(homedir(), "simulation-results"),
   simulation_name = "meijer"
   )
 
