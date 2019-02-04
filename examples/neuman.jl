@@ -33,10 +33,15 @@ simulation = Simulation(;
     stimulus = [NoisyStimulus{v}(;
       strength=1.2,
       window=Tuple{v,v}((0.0,0.55)),
-      width=0.2,
+      width=2.81,
       SNR= 80.0,
       stim_type=SharpBumpStimulus{v}),
-      NoStimulus{v}()
+      NoisyStimulus{v}(;
+        strength=1.2,
+        window=Tuple{v,v}((0.0,0.55)),
+        width=2.81,
+        SNR= 80.0,
+        stim_type=SharpBumpStimulus{v})
     ],
     connectivity = pops(ShollConnectivity{v};
       amplitude = v[16.0 -18.2

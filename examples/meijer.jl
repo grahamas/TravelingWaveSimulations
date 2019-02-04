@@ -18,21 +18,25 @@ simulation = Simulation(;
     pop_names = ["E", "I"],
     α = v[1.0, 1.0],
     β = v[1.0, 1.0],
-    τ = v[0.1, 0.1],
+    τ = v[1.0, 1.0] * 10.0,
     space = PopSegment{v,P}(; n_points=301, extent=1000.0),
     nonlinearity = pops(GaussianNonlinearity{v};
       sd = v[6.7, 3.2],
-      θ = v[9.0, 10.0]),
+      θ = v[18.0, 10.0]),
+    # nonlinearity = pops(SigmoidNonlinearity{v};
+    #   a = v[2.0, 0.95],
+    #   θ = v[12.41, 7.33]),
     stimulus = [NoisyStimulus{v}(;
       strength=10.0,
       window=Tuple{v,v}((0.0,10.0)),
       width=100.0,
-      SNR= 80.0,
+      mean = 1.0,
+      SNR = 80.0,
       stim_type=SharpBumpStimulus{v}),
       NoStimulus{v}()
     ],
-    connectivity = pops(ShollConnectivity{v};
-      amplitude = v[2.0 -1.65
+    connectivity = pops(MeijerConnectivity{v};
+      amplitude = v[2.0 -1.65;
                     1.5 -0.01],
       spread = v[70.0 90.0;
                  90.0 70.0])
@@ -48,7 +52,7 @@ simulation = Simulation(;
 
 analyses = [
 Animate(;
-  fps = 20
+  fps = 15
   ),
 # NonlinearityPlot(;
 #   fn_bounds = (-1,15)

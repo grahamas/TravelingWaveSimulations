@@ -69,11 +69,11 @@ end
 
 function make_calculated_function(cwc::CalculatedWCMSpatial1D{T,1,P,C,L,S,CC,CL,CS}) where {T,P,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType}
     (α, β, τ, connectivity_mx, nonlinearity_objs, stimulus_objs) = get_values(cwc)
-    @show stimulus_objs
 
     let α::SVector{P,T}=α, β::SVector{P,T}=β, τ::SVector{P,T}=τ, connectivity_mx::SMatrix{P,P,Matrix{T}}=connectivity_mx, nonlinearity_objs::SVector{P,CL}=nonlinearity_objs, stimulus_objs::SVector{P,CS}=stimulus_objs
         (dA::Array{T,2}, A::Array{T,2}, p::Union{Array{T,1},Nothing}, t::T) -> (
             @views for i in 1:P
+                @show i
                 stimulate!(dA[:,i], stimulus_objs[i], t) # I'll bet it goes faster if we pull this out of the loop
                 for j in 1:P
                     dA[:,i] .+= connectivity_mx[i,j] * A[:,j]
@@ -83,6 +83,8 @@ function make_calculated_function(cwc::CalculatedWCMSpatial1D{T,1,P,C,L,S,CC,CL,
                 dA[:,i] .*= β[i] .* (1.0 .- A[:,i])
                 dA[:,i] .+= -α[i] .* A[:,i]
                 dA[:,i] ./= τ[i]
+                @show sum(dA[:,i])
+                @show maximum(dA[:,i])                
             end
         )
     end

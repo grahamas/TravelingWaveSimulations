@@ -189,9 +189,9 @@ struct NoisyStimulus{T,STIM} <: AbstractStimulus{T}
     noise::GaussianNoiseStimulus{T}
     stim::STIM
 end
-function NoisyStimulus{T}(; stim_type::Type=SharpBumpStimulus{T}, SNR::T, kwargs...) where T
+function NoisyStimulus{T}(; stim_type::Type=SharpBumpStimulus{T}, SNR::T, mean::T=0.0, kwargs...) where T
     NoisyStimulus{T,stim_type}(
-            GaussianNoiseStimulus{T}(SNR = SNR),
+            GaussianNoiseStimulus{T}(SNR = SNR, mean=mean),
             stim_type(; kwargs...)
         )
 end

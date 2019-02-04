@@ -131,7 +131,7 @@ function Calculated(gaussian::GaussianNonlinearity{T}) where T
 end
 
 function nonlinearity!(output::AT, cgn::CalculatedGaussianNonlinearity{T}) where {T, AT<:AbstractArray{T}}
-    output .= gaussian_fn.(output,cgn.sd,cgn.θ)
+    output[:] .= gaussian_fn.(output,cgn.sd,cgn.θ)
 end
 function nonlinearity(cgn::CalculatedGaussianNonlinearity{T}, input_arr::AT) where {T, AT<:Array{T}}
     ret_arr = copy(input_arr)

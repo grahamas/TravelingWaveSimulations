@@ -19,7 +19,7 @@ export SigmoidNonlinearity, Sech2Nonlinearity, GaussianNonlinearity
 
 export SharpBumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
 
-export ShollConnectivity
+export ShollConnectivity, MeijerConnectivity
 
 export MatchExample, StretchExample
 

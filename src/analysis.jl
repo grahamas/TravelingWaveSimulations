@@ -78,7 +78,7 @@ NonlinearityPlot(; output_name = "nonlinearity.png", kwargs...) = NonlinearityPl
 
     nonlinearity_fns = get_value.(Calculated(simulation.model).nonlinearity)
 
-    one_pop_x = 
+    one_pop_x =
     #delete!.(Ref(plotattributes),[:resolution,:fn_bounds])
 
     xlab := "Input current"
@@ -135,7 +135,7 @@ end
 """
     During sparse movement (velocity as difference of location usually 0),
     calculate velocity as the amount of movement divided by the length of
-    the window in which no movement but that was recorded. The window is 
+    the window in which no movement but that was recorded. The window is
     determined by bisecting each run of no-movement.
 
     Discard first and last movements.
@@ -149,7 +149,7 @@ end
 #     if n_moves < 3
 #         return (T[], T[])
 #     end
-    
+
 #     first_movement = findfirst(nonzero_vel)[1]
 #     second_movement = findfirst(nonzero_vel[first_movement+1:end])[1]
 #     prev_leading_window = dt * (second_movement - first_movement) / 2.0
@@ -206,10 +206,10 @@ SubsampledPlot(; plot_type=nothing, time_subsampling=Dict(), space_subsampling=D
     x_dxs = subsampling_idxs(save_dx(simulation), length(x); origin_idx=space_origin, subsampledplot.space_subsampling...)
     pop_dxs = 1
 
-    dt = get(subsampledplot.time_subsampling, :Δsubsampled) do 
+    dt = get(subsampledplot.time_subsampling, :Δsubsampled) do
         save_dt(simulation)
     end
-    dx = get(subsampledplot.space_subsampling, :Δsubsampled) do 
+    dx = get(subsampledplot.space_subsampling, :Δsubsampled) do
         save_dx(simulation)
     end
 
