@@ -1,7 +1,7 @@
 
 abstract type AbstractStimulus{T} <: AbstractParameter{T} end
 
-function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::Space{T}) where {T, S <: AbstractStimulus{T}, CS <: CalculatedType{S}, AA<:AbstractArray{CS,1}}
+function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::Space{T}) where {T, S <: AbstractStimulus{T}, AA<:AbstractArray{<:CalculatedType,1}}
     [calc_arr[i].stimulus != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
