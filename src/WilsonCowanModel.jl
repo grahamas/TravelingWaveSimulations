@@ -30,11 +30,18 @@ include("models.jl")
 include("target.jl")
 include("analysis.jl")
 
-function run_example(example_name)
+function run_simulation_example(example_name)
     include(example_name)
     filecopy(output, example_name, "parameters.jl")
+    return simulation
 end
 
-export run_example
+function run_search_example(example_name)
+    include(example_name)
+    filecopy(output, example_name, "parameters.jl")
+    return p_search
+end
+
+export run_simulation_example, run_search_example
 
 end #module

@@ -75,8 +75,6 @@ output = SingleOutput(;
   simulation_name = "meijer"
   )
 
-@save "parameters.jld2" simulation
-
 analyse.(analyses, Ref(simulation), Ref(output))
 
 output(((name, obj) -> @save name obj), "parameters.jld2", simulation)
