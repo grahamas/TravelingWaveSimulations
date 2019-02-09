@@ -11,6 +11,7 @@ import Simulation73: update_from_p!, make_calculated_function, target_loss
 using JLD2
 using Plots; pyplot()
 using Random
+using MacroTools, IterTools
 #endregion
 
 export WCMSpatial1D
