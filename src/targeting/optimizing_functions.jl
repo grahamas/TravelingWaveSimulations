@@ -98,7 +98,7 @@ function optim_bounds(params_list...)
 	return zip(param_bounds.(varying_params_list)...)
 end
 
-macro optim_st_target(input_fn_expr)
+macro function_target(input_fn_expr)
 	input_fn_dict = splitdef(input_fn_expr)
 
 	number_type = :T
