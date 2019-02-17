@@ -24,6 +24,7 @@ export ShollConnectivity, MeijerConnectivity
 
 export MatchExample, StretchExample, SpatioTemporalFnTarget, @optim_st_target
 
+include("helpers.jl")
 include("nonlinearity.jl")
 include("stimulus.jl")
 include("connectivity.jl")
