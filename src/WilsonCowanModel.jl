@@ -11,7 +11,7 @@ import Simulation73: update_from_p!, make_calculated_function, target_loss
 using JLD2
 using Plots; pyplot()
 using Random
-using MacroTools, IterTools
+using MacroTools, IterTools, Espresso
 #endregion
 
 export WCMSpatial1D
@@ -22,7 +22,7 @@ export SharpBumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
 
 export ShollConnectivity, MeijerConnectivity
 
-export MatchExample, StretchExample
+export MatchExample, StretchExample, SpatioTemporalFnTarget, @optim_st_target
 
 include("nonlinearity.jl")
 include("stimulus.jl")

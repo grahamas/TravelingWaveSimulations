@@ -198,13 +198,8 @@ mutable struct SubsampledPlot <: AbstractPlotSpecification
 end
 SubsampledPlot(; plot_type=nothing, time_subsampling=Dict(), space_subsampling=Dict(), output_name="", kwargs...) = SubsampledPlot(plot_type, time_subsampling, space_subsampling, output_name, kwargs)
 @recipe function f(subsampledplot::SubsampledPlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial1D}
-    space_origin::Int = get_origin(simulation)
-    t = time_arr(simulation)
-    x = space_arr(simulation)
 
-    t_dxs = subsampling_idxs(save_dt(simulation), length(t); origin_idx=1, subsampledplot.time_subsampling...)
-    x_dxs = subsampling_idxs(save_dx(simulation), length(x); origin_idx=space_origin, subsampledplot.space_subsampling...)
-    pop_dxs = 1
+    t, x, wave = subsample(simulation, time_subsampling, space_subsampling)
 
     dt = get(subsampledplot.time_subsampling, :Δsubsampled) do
         save_dt(simulation)
@@ -212,10 +207,6 @@ SubsampledPlot(; plot_type=nothing, time_subsampling=Dict(), space_subsampling=D
     dx = get(subsampledplot.space_subsampling, :Δsubsampled) do
         save_dx(simulation)
     end
-
-    t = t[t_dxs]
-    x = x[x_dxs] # TODO: Remove 1D return assumption
-    wave = simulation.solution[x_dxs,pop_dxs,t_dxs]
 
     plot_spec = subsampledplot.plot_type(dt=dt, dx=dx, subsampledplot.kwargs...)
     if subsampledplot.output_name == ""

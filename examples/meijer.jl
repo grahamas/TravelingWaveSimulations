@@ -41,7 +41,7 @@ simulation = Simulation(;
       spread = v[70.0 90.0;
                  90.0 70.0])
     ),
-  solver = Solver(;
+  solver = Solver{v}(;
     stop_time = 100.0,
     dt = 1.0,
     space_save_every=1,

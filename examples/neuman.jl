@@ -5,6 +5,7 @@ using Simulation73
 using WilsonCowanModel
 using DifferentialEquations: Euler
 using JLD2
+using Plots; pyplot()
 
 if !@isdefined(v)
   const v = Float64

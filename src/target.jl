@@ -1,35 +1,57 @@
 
+#### Helper ####
+# from MikeInnes
+# Speed up anonymous functions 10x
+# @dotimed 10^8 (x -> x^2)(rand()) # 3.9 s
+# @dotimed 10^8 (@fn x -> x^2)(rand()) # 0.36 s
+macro fn(expr::Expr)
+  @assert expr.head in (:function, :->)
+  name = gensym()
+  args = expr.args[1]
+  args = typeof(args) == Symbol ? [args] : args.args
+  body = expr.args[2]
+  @eval $name($(args...)) = $body
+  name
+end
+################
+
 abstract type AbstractExampleTarget{T} <: AbstractTarget{T} end
-abstract type AbstractFunctionTarget{T} <: AbstractTarget{T} end
+abstract type AbstractFunctionTarget{T,F<:Function} <: AbstractTarget{T} end
 
-struct SpatioTemporalFnTarget{F<:Function} <: AbstractFunctionTarget{T} end
+function sumsqdiff(a::AbstractArray,b::AbstractArray)
+	sum((a .- b) .^ 2)
+end
 
+# Fitting function with spatiotemporal domain
+struct SpatioTemporalFnTarget{T,F} <: AbstractFunctionTarget{T,F}
+	fn::F
+	p0::Array{T,1}
+	lower::Array{T,1}
+	upper::Array{T,1}
+end
 
-function make_target_fn(...)
-	@fn (xt, p) -> begin
-		subs(body, x=xt[1:end-1,:], t=xt[end,:])
-	end
+function spatiotemporal_input(x::AbstractArray{T,1},t::AbstractArray{T,1}) where T
+	xs = repeat([x...,0], outer=(1,length(t)))
+	xs[end,:] = t
+	return xs
+end
+
+function target_loss(target::SpatioTemporalFnTarget{T,F}, initial_model::Model{T}, solver)
+	t = time_arr(solver)
+	x = space_arr(initial_model, solver)
+	x_dx, pop_dx, t_dx = subsample_dxs(initial_model, solver, target.subsampler)
+	x = x[x_dx]
+	t = t[t_dx]
+	target_data = target.fn.(spatiotemporal_input(x,t))
+	return @fn (soln) -> sumsqdiff(soln[x_dx, 1, t_dx], target_data)
 end
 
 #region Sech2Target
 
-#goal @optim_target sech2(x, t; amplitude, width, velocity) = amplitude * sech(width * (x - velocity * t)) ^ 2
-
-function params_as_args_expr(params, type)
-	[:($(param)::MaybeVariable{$type}=UnboundVariable()) for param in params]
-end
-
-function optim_fn_conditional_expr(; name, fn_args, varying_params, fixed_params, fn_body, generic_fn_dict)
-	fn_name = gensym(name)
-	fn_def = combine_def(merge(generic_fn_dict, Dict(:name => fn_name, :args => fn_args, :body => fn_body)))
-	condition_exprs = [:(isnothing($param)) for param in varying_params]
-	quote
-		if all([$(condition_exprs...)])
-			$fn_def
-			return $fn_name
-		end
-	end
-end
+#goal: @optim_target sech2(x, t; amplitude, width, velocity) = amplitude * sech(width * (x - velocity * t)) ^ 2
+# leads to:
+#	target = SpatioTemporalFnTarget(sech2; ...)
+#	target = Subsampled(target=target, time_subsampling = ..., space_subsampling = ...)
 
 # Definitions
 # kw-fn means function that takes kwargs
@@ -55,35 +77,86 @@ end
 #	arg-fn(arg1, arg2, arg3)
 # end
 
-function optim_st_target(fn_expr)
-	fn_dict = splitdef(fn_expr)
-	completely_specified_subs_dict = Dict(:x=>:(xt[1:end-1,:]), :t=>:(xt[end,:]), [:($arg) => :($arg) for arg in fn_dict[:kwargs]]...)
-	param_subset_dxs = subsets(1:length(fn_dict[:kwargs]))
-	factory_definition_exprs = map(param_subset_dxs) do subset_dx
-		varying_params = params[subset_dx]
-		this_subs_dict = copy(subs_dict)
-		for (i, varying_param) in enumerate(varying_params)
-			this_subs_dict[varying_param] = :(p[$i])
-		end
-		this_body = subs(body; this_subs_dict...)
-		optim_fn_conditional_expr(; fn_args=[:xt, :p], varying_params=varying_params, fixed_params, fn_body=this_body, fn_dict)
-	end
-	type = :T
+function make_arg_fns(optim_fn_default_body, optim_fn_args, param_syms, paramvec_sym, arg_fn_name, number_type)
+	# Now keep in mind two dicts:
+	# 	arg_fn_dict -- Outer fn, takes all three parameters, of type either T or Variable
+	#	optim_fn_dict -- Inner fn, takes xt, p
 
+	arg_fn_dict_skeleton = Dict(:name => arg_fn_name,
+							   :kwargs => [],
+							   :whereparams => (number_type,)
+							   )
+	optim_fn_default_dict = Dict(:name => Symbol(:_optim, arg_fn_name),
+					   :args => optim_fn_args,
+					   :kwargs => [],
+					   :whereparams => (number_type,),
+					   :body => optim_fn_default_body
+					   )
+	optim_fn_default_expr = MacroTools.combinedef(optim_fn_default_dict)
+	l_varying_param_dxs = subsets(1:length(param_syms), length(param_syms)) #TODO: Remove second param when bug #30741 is resolved
+	arg_fn_exprs = map(l_varying_param_dxs) do varying_param_dxs
+		varying_params = param_syms[varying_param_dxs]
+		free_variables_subs_dict = Dict(:($param) => :($(paramvec_sym)[$i]) for (i, param) in enumerate(varying_params))
+		optim_fn_overwritten_expr = subs(optim_fn_default_expr, free_variables_subs_dict)
+		arg_fn_args = map(enumerate(param_syms)) do (i, param)
+			if i in varying_param_dxs
+				:($(param)::AbstractVariable{$number_type})
+			else
+				:($(param)::$number_type)
+			end
+		end
+		MacroTools.combinedef(merge(arg_fn_dict_skeleton, Dict(:args => arg_fn_args, :body => optim_fn_overwritten_expr)))
 	end
-	constructor_expr = quote
-		function SpatioTemporalFnTarget(fn::typeof($name); $(kwargs...))
-			param_vec = [$(kwargs...)]
-			target_fn = make_target_fn($(kwargs...))
-			inital_p = default_value.(param_vec)
-			lower, upper = bounds(param_vec)
+	return arg_fn_exprs
+end
+
+function param_bounds(var::BoundedVariable)
+	return (var.value, var.bounds...)
+end
+function param_bounds(var::UnboundedVariable)
+	return (var.value, -Inf, Inf)
+end
+function optim_bounds(params_list...)
+	varying_params_list = filter((x) -> x isa AbstractVariable, [params_list...])
+	return zip(param_bounds.(varying_params_list)...)
+end
+
+macro optim_st_target(input_fn_expr)
+	input_fn_dict = splitdef(input_fn_expr)
+
+	number_type = :T
+
+	spacetime_sym = :xt
+	paramvec_sym = :p
+	optim_fn_args = [:($(sym)::AbstractArray{$number_type}) for sym in [spacetime_sym, paramvec_sym]]
+	optim_fn_default_body = subs(input_fn_dict[:body], Dict(:x=>:($(spacetime_sym)[1:end-1,:]), :t=>:($(spacetime_sym)[end,:])))
+
+	param_exprs = input_fn_dict[:kwargs]
+	param_names = param_exprs
+
+	# Define all arg-fns
+	arg_fn_name = Symbol(:_, input_fn_dict[:name])
+	arg_fn_exprs = make_arg_fns(optim_fn_default_body, optim_fn_args, param_names, paramvec_sym, arg_fn_name, number_type)
+	# Define kw-fn
+	params = input_fn_dict[:kwargs]
+	kw_fn_dict = Dict(
+		:name => :(SpatioTemporalFnTarget),
+		:args => [:(::typeof($(input_fn_dict[:name])))],
+		:kwargs => [Expr(:kw, sym, :(UnboundedVariable(0.0))) for sym in params],
+		:whereparams => (),
+		:body => quote
+			p0, lower, upper = optim_bounds($(params...))
+			SpatioTemporalFnTarget($(arg_fn_name)($(params...)), [p0...], [lower...], [upper...])
+		end
+	)
+	return quote
+		$(esc(input_fn_expr))
+		$(esc.(arg_fn_exprs)...)
+		$(esc(MacroTools.combinedef(kw_fn_dict)))
 	end
 end
 
-
-#endregion
-
-#region MatchExample
+@optim_st_target sech2(; amplitude, width, velocity) = amplitude * sech(width * (x - velocity * t)) ^ 2
 
 struct MatchExample{T} <: AbstractExampleTarget{T}
 	data::Array{T}
@@ -96,7 +169,7 @@ function MatchExample(; file_name::String="")
 end
 
 function (p::MatchExample{T})(soln::AbstractArray{T}) where T#, x_dxs::AbstractArray{Int,1}, pop_dxs::AbstractArray{Int,1}, t_dxs::AbstractArray{Int,1}) where {T}
-	res = sum((soln .- p.data) .^ 2)
+	res = sumsqdiff(soln, p.data)
 	return res
 end
 
@@ -105,34 +178,5 @@ function target_loss(fn::MatchExample{T}, model::WCMSpatial1D{T}, solver::Solver
 	t_dxs = subsampling_time_idxs(t_target, solver)
 	x_dxs = subsampling_space_idxs(x_target, model, solver)
 	pop_dxs = 1
-	(soln) -> (fn(soln[x_dxs, pop_dxs, t_dxs]))
+	@fn (soln) -> (fn(soln[x_dxs, pop_dxs, t_dxs]))
 end
-
-#endregion
-
-#region StretchExample
-
-struct StretchExample{T} <: AbstractExampleTarget{T}
-	data::Array{T}
-	x::Array{T,1}
-	t::Array{T,1}
-	stretch_dx::Int
-end
-function StretchExample(; file_name::String="", stretch_dx=nothing)
-	@load file_name wave x t
-	StretchExample(wave, x, t, stretch_dx)
-end
-
-function (p::StretchExample{T})(soln::AbstractArray{T}, x_dxs::AbstractArray{Int,1}, pop_dxs::AbstractArray{Int,1}, t_dxs::AbstractArray{Int,1}) where {T}
-	sum((soln[x_dxs, pop_dxs, t_dxs] .- p.data) .^ 2)
-end
-
-function target_loss(fn::StretchExample{T}, model::WCMSpatial1D{T}, solver::Solver{T}) where T
-	t_target, x_target = fn.t, fn.x
-	t_dxs = subsampling_time_idxs(t_target, solver)
-	x_dxs = subsampling_space_idxs(x_target, model, solver)
-	pop_dxs = [1]
-	(soln) -> fn(soln, x_dxs, pop_dxs, t_dxs)
-end
-
-#endregion
