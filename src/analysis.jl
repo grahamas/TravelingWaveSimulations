@@ -199,7 +199,7 @@ end
 SubsampledPlot(; plot_type=nothing, time_subsampling=Dict(), space_subsampling=Dict(), output_name="", kwargs...) = SubsampledPlot(plot_type, time_subsampling, space_subsampling, output_name, kwargs)
 @recipe function f(subsampledplot::SubsampledPlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial1D}
 
-    t, x, wave = subsample(simulation, time_subsampling, space_subsampling)
+    t, x, wave = subsample(simulation, time_subsampling=subsampledplot.time_subsampling, space_subsampling=subsampledplot.space_subsampling)
 
     dt = get(subsampledplot.time_subsampling, :Δsubsampled) do
         save_dt(simulation)
@@ -223,7 +223,7 @@ struct PeakTravelingWavePlot <: AbstractPlotSpecification
     kwargs::Dict
 end
 PeakTravelingWavePlot(; output_name="peak_traveling_wave.png", kwargs...) = PeakTravelingWavePlot(output_name, kwargs)
-@recipe function f(plot_spec::PeakTravelingWavePlot, t::AT1, x::AT1, wave::AT2) where {T,AT1<: AbstractArray{T,1},AT2<:AbstractArray{T,2}}
+@recipe function f(plot_spec::PeakTravelingWavePlot, t::AbstractArray{T,1}, x::AbstractArray{T,1}, wave::AbstractArray{T,2}) where {T}
     title := "Traveling wave with labeled peaks"
     for time_dx in 1:length(t)
         @series begin
@@ -251,7 +251,7 @@ struct WaveVelocityPlot{T} <: AbstractPlotSpecification
     kwargs::Dict
 end
 WaveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveVelocityPlot{T}(output_name, dt, kwargs)
-@recipe function f(plot_spec::WaveVelocityPlot{T}, t::AT1, wave::AT2, transform::Function=identity, naive=false) where {T,AT1<: AbstractArray{T,1},AT2<:AbstractArray{T,2}}
+@recipe function f(plot_spec::WaveVelocityPlot{T}, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform::Function=identity, naive=false) where {T}
     @series begin
         title --> "Wave velocity over time"
         seriestype := :scatter
@@ -268,7 +268,7 @@ struct WaveNaiveVelocityPlot{T} <: AbstractPlotSpecification
     kwargs::Dict
 end
 WaveNaiveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveNaiveVelocityPlot{T}(output_name, dt, kwargs)
-@recipe function f(plot_spec::WaveNaiveVelocityPlot{T}, t::AT1, wave::AT2, transform::Function=identity) where {T,AT1<: AbstractArray{T,1},AT2<:AbstractArray{T,2}}
+@recipe function f(plot_spec::WaveNaiveVelocityPlot{T}, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform::Function=identity) where {T}
     @series begin
         title --> "Wave velocity over time"
         seriestype := :scatter
@@ -284,7 +284,7 @@ struct WaveWidthPlot <: AbstractPlotSpecification
     kwargs::Dict
 end
 WaveWidthPlot(; output_name="wave_width.png", kwargs...) = WaveWidthPlot(output_name, kwargs)
-@recipe function f(plot_spec::WaveWidthPlot, t::AT1, wave::AT2, transform=identity) where {T,AT1<: AbstractArray{T,1},AT2<:AbstractArray{T,2}}
+@recipe function f(plot_spec::WaveWidthPlot, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform=identity) where {T}
     @series begin
         title --> "Wave width over time"
         seriestype := :scatter
@@ -300,7 +300,7 @@ struct WaveStatsPlot{T} <: AbstractSpaceTimePlotSpecification
     kwargs::Dict
 end
 WaveStatsPlot(; output_name="wave_stats.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveStatsPlot{T}(output_name, dt, kwargs)
-@recipe function f(plot_spec::WaveStatsPlot{T}, t::AT1, x::AT1, wave::AT2)  where {T,AT1<: AbstractArray{T,1},AT2<:AbstractArray{T,2}}
+@recipe function f(plot_spec::WaveStatsPlot{T}, t::AbstractArray{T,1}, x::AbstractArray{T,1}, wave::AbstractArray{T,2})  where {T}
     layout := (2,2)
     legend := false
 

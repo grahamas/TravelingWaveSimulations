@@ -10,19 +10,23 @@ struct SpatioTemporalFnTarget{T,F} <: AbstractFunctionTarget{T,F}
 end
 
 function spatiotemporal_input(x::AbstractArray{T,1},t::AbstractArray{T,1}) where T
-	xs = repeat([x...,0], outer=(1,length(t)))
-	xs[end,:] = t
-	return xs
+	xt = repeat([x...,0], outer=(1,length(t)))
+	xt[end,:] = t
+	return xt
 end
 
-function target_loss(target::SpatioTemporalFnTarget{T,F}, initial_model::Model{T}, solver)
+function target_loss(target::SpatioTemporalFnTarget{T,F}, initial_model::Model{T}, solver) where {T,F}
 	t = time_arr(solver)
 	x = space_arr(initial_model, solver)
 	x_dx, pop_dx, t_dx = subsample_dxs(initial_model, solver, target.subsampler)
 	x = x[x_dx]
 	t = t[t_dx]
-	target_data = target.fn.(spatiotemporal_input(x,t))
-	return @fn (soln) -> sumsqdiff(soln[x_dx, 1, t_dx], target_data)
+	xt = spatiotemporal_input(x, t)
+	fit_loss(p) = sumsqdiff(soln[x_dx, 1, t_dx] - target.fn(xt,p))
+	return function optim_fit(soln)
+	 	result = optim(fit_loss, target.lower, target.upper, target.p0, Fminbox(LBFGS()))
+		return Optim.minimum(result)
+	end
 end
 
 #goal: @optim_target sech2(x, t; amplitude, width, velocity) = amplitude * sech(width * (x - velocity * t)) ^ 2
