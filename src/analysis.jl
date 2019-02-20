@@ -191,22 +191,19 @@ end
 #region SubsampledPlot
 mutable struct SubsampledPlot <: AbstractPlotSpecification
     plot_type::Type{<:AbstractSpaceTimePlotSpecification}
-    time_subsampling::Dict
-    space_subsampling::Dict
+    time_subsampler::Subsampler
+    space_subsampler::Subsampler
     output_name::String
     kwargs::Iterators.Pairs
 end
-SubsampledPlot(; plot_type=nothing, time_subsampling=Dict(), space_subsampling=Dict(), output_name="", kwargs...) = SubsampledPlot(plot_type, time_subsampling, space_subsampling, output_name, kwargs)
+SubsampledPlot(; plot_type=nothing, time_subsampler=Subsampler(), space_subsampler=Subsampler(), output_name="", kwargs...) = SubsampledPlot(plot_type, time_subsampler, space_subsampler, output_name, kwargs)
 @recipe function f(subsampledplot::SubsampledPlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial1D}
 
-    t, x, wave = subsample(simulation, time_subsampling=subsampledplot.time_subsampling, space_subsampling=subsampledplot.space_subsampling)
+    t, x, wave = subsample(simulation, time_subsampler=subsampledplot.time_subsampler, space_subsampler=subsampledplot.space_subsampler)
 
-    dt = get(subsampledplot.time_subsampling, :Δsubsampled) do
-        save_dt(simulation)
-    end
-    dx = get(subsampledplot.space_subsampling, :Δsubsampled) do
-        save_dx(simulation)
-    end
+    dt = subsampledplot.time_subsampler.Δ == nothing ? save_dt(simulation) : subsampledplot.time_subsampler.Δ
+
+    dx = subsampledplot.space_subsampler.Δ == nothing ? save_dx(simulation) : subsampledplot.space_subsampler.Δ
 
     plot_spec = subsampledplot.plot_type(dt=dt, dx=dx, subsampledplot.kwargs...)
     if subsampledplot.output_name == ""
@@ -299,7 +296,7 @@ struct WaveStatsPlot{T} <: AbstractSpaceTimePlotSpecification
     dt::T
     kwargs::Dict
 end
-WaveStatsPlot(; output_name="wave_stats.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveStatsPlot{T}(output_name, dt, kwargs)
+WaveStatsPlot(; output_name="wave_stats.png", dt::T=nothing, kwargs...) where T = WaveStatsPlot{T}(output_name, dt, kwargs)
 @recipe function f(plot_spec::WaveStatsPlot{T}, t::AbstractArray{T,1}, x::AbstractArray{T,1}, wave::AbstractArray{T,2})  where {T}
     layout := (2,2)
     legend := false
