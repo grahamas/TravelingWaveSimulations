@@ -14,6 +14,8 @@ if !@isdefined(v)
 end
 N=1
 P=2
+
+
 p_search = ParameterSearch(;
   varying_model = WCMSpatial1D{MV,N,P}(;
     pop_names = ["E", "I"],
@@ -55,9 +57,16 @@ p_search = ParameterSearch(;
     time_save_every=1,
     algorithm=Euler()
     ),
-  target=MatchData(
-    file_name="data/wave_example.jld2"
-    ),
+  target=@function_target function desai_decaying_wave(x∈(5.0,Inf),t∈(1.2,1.8,0.01);
+        amplitude ∈ (0.01, 0.4) : 0.1,
+        velocity ∈ (0.0, 100.0) : 5.0,
+        decay ∈ (1.0, 100.0) : 10.0,
+        n ∈ (0.0, 10.0) : 1.0)
+    	A = @. amplitude * exp(-decay * t')
+    	B = n / sqrt(2 * velocity * (n + 1) * (n + 2))
+    	@. A * sech(B * (x - (velocity * t')))^(2/n)
+    end
+  ,
   MaxSteps=10000
   )
 

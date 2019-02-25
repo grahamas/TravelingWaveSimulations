@@ -18,8 +18,9 @@ end
 
 function target_loss(fn::MatchData{T}, model::WCMSpatial1D{T}, solver::Solver{T}) where T
 	t_target, x_target = fn.t, fn.x
-	t_dxs = subsampling_time_idxs(t_target, solver)
-	x_dxs = subsampling_space_idxs(x_target, model, solver)
+	t_dxs = subsampling_time_idxs(solver, t_target)
+	x_dxs = subsampling_space_idxs(model, solver, x_target)
 	pop_dxs = 1
-	@fn (soln) -> (fn(soln[x_dxs, pop_dxs, t_dxs]))
+	loss_fn(soln) = fn(soln[x_dxs, pop_dxs, t_dxs])
+	return loss_fn
 end

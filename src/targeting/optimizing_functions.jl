@@ -2,11 +2,13 @@
 abstract type AbstractFunctionTarget{T,F<:Function} <: AbstractTarget{T} end
 
 # Fitting function with spatiotemporal domain
-struct SpatioTemporalFnTarget{T,F} <: AbstractFunctionTarget{T,F}
+@with_kw struct SpatioTemporalFnTarget{T,F} <: AbstractFunctionTarget{T,F}
 	fn::F
 	p0::Array{T,1}
 	lower::Array{T,1}
 	upper::Array{T,1}
+	time_subsampler::Subsampler
+	space_subsampler::Subsampler
 end
 
 function spatiotemporal_input(x::AbstractArray{T,1},t::AbstractArray{T,1}) where T
@@ -18,121 +20,89 @@ end
 function target_loss(target::SpatioTemporalFnTarget{T,F}, initial_model::Model{T}, solver) where {T,F}
 	t = time_arr(solver)
 	x = space_arr(initial_model, solver)
-	x_dx, pop_dx, t_dx = subsample_dxs(initial_model, solver, target.subsampler)
+	x_dx, pop_dx, t_dx = subsampling_idxs(initial_model, solver, target.time_subsampler, target.space_subsampler)
 	x = x[x_dx]
 	t = t[t_dx]
 	xt = spatiotemporal_input(x, t)
-	fit_loss(p) = sumsqdiff(soln[x_dx, 1, t_dx] - target.fn(xt,p))
 	return function optim_fit(soln)
-	 	result = optim(fit_loss, target.lower, target.upper, target.p0, Fminbox(LBFGS()))
+		fit_loss(p) = sumsqdiff(soln[x_dx, 1, t_dx], target.fn(xt,p))
+		result = optimize(fit_loss, target.lower, target.upper, target.p0, Fminbox(Optim.ConjugateGradient()))
+		@show Optim.minimizer(result)
 		return Optim.minimum(result)
 	end
 end
 
-#goal: @optim_target sech2(x, t; amplitude, width, velocity) = amplitude * sech(width * (x - velocity * t)) ^ 2
-# leads to:
-#	target = SpatioTemporalFnTarget(sech2; ...)
-#	target = Subsampled(target=target, time_subsampling = ..., space_subsampling = ...)
+### REDUX:  Instead of calling the macro before, call the macro as part of the
+### 		target call.
 
-# Definitions
-# kw-fn means function that takes kwargs
-# arg-fn means function that only takes args
-# optim-fn means function that optim takes (i.e. args xt and p)
-# Method:
-# Define kw-fn which returns an optim-fn
-# kw-fn passes to inner arg-fn in canonical order
-# An arg-fn is defined for every possible combination of input types
-#	each arg being either Variable or Number
-#	Variables get p[i] in returned optim-fn
-#	Numbers get fixed
+function parse_xt_args(exprs)
+	@assert length(exprs) == 2
+	@assert (@capture exprs[1] (x | (x ∈ (xlower_,xupper_,dx_)) | (x ∈ (xlower_,xupper_))))# | (x ∈ xwindow_ Δ xΔ_))
+	@assert (@capture exprs[2] (t | (t ∈ (tlower_,tupper_,dt_)) | (t ∈ (tlower_,tupper_))))# | (t ∈ twindow_ Δ tΔ_))
+	x_subsampler = :(Subsampler(; window = ($xlower,$xupper), Δ = $dx))#, Δ = $xΔ))
+	t_subsampler = :(Subsampler(; window = ($tlower,$tupper), Δ = $dt))
+	return (x_subsampler, t_subsampler)
+end
 
-### Generic arg-fn returning optim-fn
-# function arg-fn(arg1::Variable, arg2::NotVariable, arg3::Variable)
-#	function fn-name-gensym(xt, p)
-#		body with xt, p[i], and arg2
-#	end
-# end
+function parse_params(exprs)
+	free_param_names = []
+	lower_bounds = []
+	upper_bounds = []
+	guesses = []
+	fixed_param_mapping = []
 
-### Generic kw-fn calling arg-fn and returning optim-fn
-# function kw-fn(; arg1=UnboundVariable(), arg2=UnboundVariable(), arg3=UnboundVariable())
-#	arg-fn(arg1, arg2, arg3)
-# end
-
-function make_arg_fns(optim_fn_default_body, optim_fn_args, param_syms, paramvec_sym, arg_fn_name, number_type)
-	# Now keep in mind two dicts:
-	# 	arg_fn_dict -- Outer fn, takes all three parameters, of type either T or Variable
-	#	optim_fn_dict -- Inner fn, takes xt, p
-
-	arg_fn_dict_skeleton = Dict(:name => arg_fn_name,
-							   :kwargs => [],
-							   :whereparams => (number_type,)
-							   )
-	optim_fn_default_dict = Dict(:name => Symbol(:_optim, arg_fn_name),
-					   :args => optim_fn_args,
-					   :kwargs => [],
-					   :whereparams => (number_type,),
-					   :body => optim_fn_default_body
-					   )
-	optim_fn_default_expr = MacroTools.combinedef(optim_fn_default_dict)
-	l_varying_param_dxs = subsets(1:length(param_syms), length(param_syms)) #TODO: Remove second param when bug #30741 is resolved
-	arg_fn_exprs = map(l_varying_param_dxs) do varying_param_dxs
-		varying_params = param_syms[varying_param_dxs]
-		free_variables_subs_dict = Dict(:($param) => :($(paramvec_sym)[$i]) for (i, param) in enumerate(varying_params))
-		optim_fn_overwritten_expr = subs(optim_fn_default_expr, free_variables_subs_dict)
-		arg_fn_args = map(enumerate(param_syms)) do (i, param)
-			if i in varying_param_dxs
-				:($(param)::AbstractVariable{$number_type})
-			else
-				:($(param)::$number_type)
-			end
+	for expr in exprs
+		if @capture(expr, freename_ ∈ (lower_, upper_) : guess_)
+			push!(free_param_names, freename)
+			push!(lower_bounds, lower)
+			push!(upper_bounds, upper)
+			push!(guesses, guess)
+		elseif @capture(expr, fixedname_ = value_)
+			push!(fixed_param_mapping, fixedname => value)
+		elseif expr isa Symbol
+			push!(free_param_names, expr)
+			push!(lower_bounds, :(-Inf))
+			push!(upper_bounds, :(Inf))
+			push!(guesses, :(0.0))
+		else
+			error("invalid parameter argument structure: $expr")
 		end
-		MacroTools.combinedef(merge(arg_fn_dict_skeleton, Dict(:args => arg_fn_args, :body => optim_fn_overwritten_expr)))
 	end
-	return arg_fn_exprs
-end
-
-function param_bounds(var::BoundedVariable)
-	return (var.value, var.bounds...)
-end
-function param_bounds(var::UnboundedVariable)
-	return (var.value, -Inf, Inf)
-end
-function optim_bounds(params_list...)
-	varying_params_list = filter((x) -> x isa AbstractVariable, [params_list...])
-	return zip(param_bounds.(varying_params_list)...)
+	return (free_param_names, lower_bounds, upper_bounds, guesses, fixed_param_mapping)
 end
 
 macro function_target(input_fn_expr)
-	input_fn_dict = splitdef(input_fn_expr)
+	input_fn_dict = MacroTools.splitdef(input_fn_expr)
 
 	number_type = :T
 
 	spacetime_sym = :xt
 	paramvec_sym = :p
-	optim_fn_args = [:($(sym)::AbstractArray{$number_type}) for sym in [spacetime_sym, paramvec_sym]]
-	optim_fn_default_body = subs(input_fn_dict[:body], Dict(:x=>:($(spacetime_sym)[1:end-1,:]), :t=>:($(spacetime_sym)[end,:])))
+	fn_args = [:($(sym)::AbstractArray{$number_type}) for sym in [spacetime_sym, paramvec_sym]]
 
-	param_exprs = input_fn_dict[:kwargs]
-	param_names = param_exprs
+	x_subsampler, t_subsampler = parse_xt_args(input_fn_dict[:args])
 
-	# Define all arg-fns
-	arg_fn_name = Symbol(:_, input_fn_dict[:name])
-	arg_fn_exprs = make_arg_fns(optim_fn_default_body, optim_fn_args, param_names, paramvec_sym, arg_fn_name, number_type)
-	# Define kw-fn
-	params = input_fn_dict[:kwargs]
-	kw_fn_dict = Dict(
-		:name => :(SpatioTemporalFnTarget),
-		:args => [:(::typeof($(input_fn_dict[:name])))],
-		:kwargs => [Expr(:kw, sym, :(UnboundedVariable(0.0))) for sym in params],
-		:whereparams => (),
-		:body => quote
-			p0, lower, upper = optim_bounds($(params...))
-			SpatioTemporalFnTarget($(arg_fn_name)($(params...)), [p0...], [lower...], [upper...])
-		end
-	)
+	free_param_names, lower_bounds, upper_bounds, guesses, fixed_param_mapping = parse_params(input_fn_dict[:kwargs])
+	free_param_mapping = Dict(:($param) => :($(paramvec_sym)[$i]) for (i, param) in enumerate(free_param_names))
+
+	fn_body = subs(input_fn_dict[:body], Dict(:x=>:($(spacetime_sym)[1:end-1,:]), :t=>:($(spacetime_sym)[end,:]), free_param_mapping..., fixed_param_mapping...))
+
+	fn_def = MacroTools.combinedef(Dict(
+		:name => input_fn_dict[:name],
+		:args => fn_args,
+		:kwargs => [],
+		:whereparams => (number_type,),
+		:body => fn_body
+	))
+
 	return quote
-		$(esc(input_fn_expr))
-		$(esc.(arg_fn_exprs)...)
-		$(esc(MacroTools.combinedef(kw_fn_dict)))
+		SpatioTemporalFnTarget(
+			fn=$fn_def,
+			p0=[$(guesses...)],
+			lower=[$(lower_bounds...)],
+			upper=[$(upper_bounds...)],
+			space_subsampler=$x_subsampler,
+			time_subsampler=$t_subsampler
+		)
 	end
 end

@@ -12,6 +12,7 @@ using JLD2
 using Plots; pyplot()
 using Random
 using MacroTools, IterTools, Espresso
+using Optim
 #endregion
 
 export WCMSpatial1D

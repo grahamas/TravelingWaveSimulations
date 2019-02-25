@@ -11,10 +11,10 @@ include("targeting/optimizing_functions.jl")
 	bump -= state_inc * tanh((1/bump_wid) * (x - bump_vel * t))
 	return bump
 end
-@function_target function decaying_sech2(x,t; amplitude, velocity, decay, n)
-	A = amplitude * exp(-decay * t)
-	B = n / sqrt(2 * velocity * (n + 1) * (n + 2))
-	A * sech(B * (x - (velocity * t)))^(2/n) 
-end
+# @function_target function decaying_sech2(x,t; amplitude, velocity, decay, n)
+# 	A = amplitude * exp(-decay * t)
+# 	B = n / sqrt(2 * velocity * (n + 1) * (n + 2))
+# 	A * sech(B * (x - (velocity * t)))^(2/n)
+# end
 
 include("targeting/matching_data.jl")
