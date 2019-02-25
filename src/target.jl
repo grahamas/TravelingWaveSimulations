@@ -1,68 +1,20 @@
 
-abstract type AbstractExampleTarget{T} <: AbstractTarget{T} end
-abstract type AbstractFunctionTarget{T} <: AbstractTarget{T} end
-
-#region Sech2Target
-
-struct TravelingSech2Target{T} <: AbstractFunctionTarget{T}
-	velocity::T
-	width::T
-	decay::T
+function sumsqdiff(a::AbstractArray,b::AbstractArray)
+	sum((a .- b) .^ 2)
 end
 
+include("targeting/optimizing_functions.jl")
 
-#endregion
-
-#region MatchExample
-
-struct MatchExample{T} <: AbstractExampleTarget{T}
-	data::Array{T}
-	x::Array{T,1}
-	t::Array{T,1}
+@function_target sech2(x,t; amplitude, width, velocity) = amplitude * sech((1/width) * (x - velocity * t)) ^ 2
+@function_target function sech2_state_change(x,t; bump_amp, bump_wid, bump_vel, state_inc)
+	bump = bump_amp * sech((1/bump_wid) * (x - bump_vel * t)) ^ 2
+	bump -= state_inc * tanh((1/bump_wid) * (x - bump_vel * t))
+	return bump
 end
-function MatchExample(; file_name::String="")
-	@load file_name wave x t
-	MatchExample(wave, x, t)
-end
+# @function_target function decaying_sech2(x,t; amplitude, velocity, decay, n)
+# 	A = amplitude * exp(-decay * t)
+# 	B = n / sqrt(2 * velocity * (n + 1) * (n + 2))
+# 	A * sech(B * (x - (velocity * t)))^(2/n)
+# end
 
-function (p::MatchExample{T})(soln::AbstractArray{T}) where T#, x_dxs::AbstractArray{Int,1}, pop_dxs::AbstractArray{Int,1}, t_dxs::AbstractArray{Int,1}) where {T}
-	res = sum((soln .- p.data) .^ 2)
-	return res
-end
-
-function target_loss(fn::MatchExample{T}, model::WCMSpatial1D{T}, solver::Solver{T}) where T
-	t_target, x_target = fn.t, fn.x
-	t_dxs = subsampling_time_idxs(t_target, solver)
-	x_dxs = subsampling_space_idxs(x_target, model, solver)
-	pop_dxs = 1
-	(soln) -> (fn(soln[x_dxs, pop_dxs, t_dxs]))
-end
-
-#endregion
-
-#region StretchExample
-
-struct StretchExample{T} <: AbstractExampleTarget{T}
-	data::Array{T}
-	x::Array{T,1}
-	t::Array{T,1}
-	stretch_dx::Int
-end
-function StretchExample(; file_name::String="", stretch_dx=nothing)
-	@load file_name wave x t
-	StretchExample(wave, x, t, stretch_dx)
-end
-
-function (p::StretchExample{T})(soln::AbstractArray{T}, x_dxs::AbstractArray{Int,1}, pop_dxs::AbstractArray{Int,1}, t_dxs::AbstractArray{Int,1}) where {T}
-	sum((soln[x_dxs, pop_dxs, t_dxs] .- p.data) .^ 2)
-end
-
-function target_loss(fn::StretchExample{T}, model::WCMSpatial1D{T}, solver::Solver{T}) where T
-	t_target, x_target = fn.t, fn.x
-	t_dxs = subsampling_time_idxs(t_target, solver)
-	x_dxs = subsampling_space_idxs(x_target, model, solver)
-	pop_dxs = [1]
-	(soln) -> fn(soln, x_dxs, pop_dxs, t_dxs)
-end
-
-#endregion
+include("targeting/matching_data.jl")

@@ -5,6 +5,7 @@ using Simulation73
 using WilsonCowanModel
 using DifferentialEquations: Euler
 using JLD2
+using Plots; pyplot()
 
 if !@isdefined(v)
   const v = Float64
@@ -51,9 +52,9 @@ simulation = Simulation(;
       spread = v[2.5 2.7;
                  2.7 2.5])
     ),
-  solver = Solver(;
+  solver = Solver{v}(;
     stop_time = 1.8,
-    dt = 0.005,
+    dt = 0.01,
     space_save_every=1,
     time_save_every=1,
     algorithm=Euler()
@@ -70,12 +71,12 @@ Animate(;
 # SpaceTimePlot(),
 SubsampledPlot(
   plot_type=WaveStatsPlot,
-  time_subsampling=Dict(
-    :Δsubsampled => 0.01,
-    :scalar_window => (1.2, 1.8)
-    ),
-  space_subsampling=Dict(
-    :scalar_window => (5.0,Inf)
+  time_subsampler=Subsampler(
+    Δ = 0.01,
+    window = (1.2, 1.8)
+  ),
+  space_subsampler=Subsampler(
+      window = (5.0,Inf)
     )
   )
 ]
