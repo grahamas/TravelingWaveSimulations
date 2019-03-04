@@ -116,14 +116,14 @@ end
 
 struct CalculatedSharpBumpStimulus{T} <: CalculatedType{SharpBumpStimulus{T}}
     stimulus::SharpBumpStimulus{T}
-    space::Pops{T,<:Segment{T}}
+    space::Pops{T,<:AbstractSpace{T,1}}
     onset::T
     offset::T
     on_frame::Array{T,1}
     off_frame::Array{T,1}
 end
 
-function Calculated(tbs::SharpBumpStimulus{T}, space::Pops{T,<:Segment{T}}) where T
+function Calculated(tbs::SharpBumpStimulus{T}, space::Pops{T,<:AbstractSpace{T,1}}) where T
     calculated_space = Calculated(space)
     on_frame = make_bump_frame(tbs, calculated_space.value[:,1])
     off_frame = zero(on_frame)
@@ -165,14 +165,14 @@ end
 
 struct CalculatedSech2BumpStimulus{T} <: CalculatedType{Sech2BumpStimulus{T}}
     stimulus::Sech2BumpStimulus{T}
-    space::Pops{T,<:Segment{T}}
+    space::Pops{T,<:AbstractSpace{T,1}}
     onset::T
     offset::T
     on_frame::Array{T,1}
     off_frame::Array{T,1}
 end
 
-function Calculated(tbs::Sech2BumpStimulus{T}, space::Pops{T,<:Segment{T}}) where T
+function Calculated(tbs::Sech2BumpStimulus{T}, space::Pops{T,<:AbstractSpace{T,1}}) where T
     calculated_space = Calculated(space)
     on_frame = make_bump_frame(tbs, calculated_space.value[:,1])
     off_frame = zero(on_frame)
@@ -200,7 +200,7 @@ struct CalculatedNoisyStimulus{T,STIM} <: CalculatedType{NoisyStimulus{T,STIM}}
     calc_noise::CalculatedGaussianNoiseStimulus{T}
     calc_stim::CalculatedType{STIM}
 end
-Calculated(ns::NoisyStimulus{T,STIM}, space::Pops{T,<:Segment{T}}) where {T,STIM} = CalculatedNoisyStimulus{T,STIM}(ns, Calculated(ns.noise, space), Calculated(ns.stim, space))
+Calculated(ns::NoisyStimulus{T,STIM}, space::Pops{T,<:AbstractSpace{T,1}}) where {T,STIM} = CalculatedNoisyStimulus{T,STIM}(ns, Calculated(ns.noise, space), Calculated(ns.stim, space))
 
 function stimulate!(val::AT, stim_obj::CalculatedNoisyStimulus{T},t::T) where {T, AT<: AbstractArray{T,1}}
     stimulate!(val, stim_obj.calc_noise,t)

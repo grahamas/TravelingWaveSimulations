@@ -1,7 +1,7 @@
 # Rename to remove N redundancy
-struct WCMSpatial{T,D,P,C<:AbstractConnectivity{T},
+struct WCMSpatial{T,D,P,C<:AbstractConnectivity{T,D},
                             L<:AbstractNonlinearity{T},
-                            S<:AbstractStimulus{T},
+                            S<:AbstractStimulus{T,D},
                             SP<:Pops{T}} <: Model{T,D,P}
     α::SVector{P,T}
     β::SVector{P,T}

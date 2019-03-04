@@ -25,7 +25,7 @@ struct CalculatedShollConnectivity{T} <: CalculatedType{ShollConnectivity{T}}
     end
 end
 
-function Calculated(connectivity::ShollConnectivity{T}, segment::Pops{T,<:Segment{T}}) where T
+function Calculated(connectivity::ShollConnectivity{T}, segment::Pops{T,<:AbstractSpace{T,1}}) where T
     CalculatedShollConnectivity{T}(connectivity, Calculated(DistanceMatrix(segment)))
 end
 
@@ -51,7 +51,7 @@ struct CalculatedMeijerConnectivity{T} <: CalculatedType{MeijerConnectivity{T}}
     end
 end
 
-function Calculated(connectivity::MeijerConnectivity{T}, segment::Pops{T,<:Segment{T}}) where T
+function Calculated(connectivity::MeijerConnectivity{T}, segment::Pops{T,<:AbstractSpace{T,1}}) where T
     CalculatedMeijerConnectivity{T}(connectivity, Calculated(DistanceMatrix(segment)))
 end
 
