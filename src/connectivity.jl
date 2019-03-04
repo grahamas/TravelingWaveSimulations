@@ -1,13 +1,13 @@
 
-abstract type AbstractConnectivity{T} <: AbstractParameter{T} end
+abstract type AbstractConnectivity{T,D} <: AbstractParameter{T} end
 
-function update(calc_arr::AA, new_arr::AbstractArray{C,2}, space::Space{T}) where {T, C <: AbstractConnectivity{T}, CC <: CalculatedType{C}, AA<:AbstractArray{CC,2}}
+function update(calc_arr::AA, new_arr::AbstractArray{C,2}, space::AbstractSpace{T}) where {T, C <: AbstractConnectivity{T}, CC <: CalculatedType{C}, AA<:AbstractArray{CC,2}}
     [calc_arr[i].connectivity != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
 #region ShollConnectivity
 
-@with_kw struct ShollConnectivity{T} <: AbstractConnectivity{T}
+@with_kw struct ShollConnectivity{T} <: AbstractConnectivity{T,1}
     amplitude::T
     spread::T
 end
@@ -25,14 +25,14 @@ struct CalculatedShollConnectivity{T} <: CalculatedType{ShollConnectivity{T}}
     end
 end
 
-function Calculated(connectivity::ShollConnectivity{T}, segment::PopSegment{T}) where T
+function Calculated(connectivity::ShollConnectivity{T}, segment::Pops{T,<:Segment{T}}) where T
     CalculatedShollConnectivity{T}(connectivity, Calculated(DistanceMatrix(segment)))
 end
 
 
 
 
-@with_kw struct MeijerConnectivity{T} <: AbstractConnectivity{T}
+@with_kw struct MeijerConnectivity{T} <: AbstractConnectivity{T,1}
     amplitude::T
     spread::T
 end
@@ -51,7 +51,7 @@ struct CalculatedMeijerConnectivity{T} <: CalculatedType{MeijerConnectivity{T}}
     end
 end
 
-function Calculated(connectivity::MeijerConnectivity{T}, segment::PopSegment{T}) where T
+function Calculated(connectivity::MeijerConnectivity{T}, segment::Pops{T,<:Segment{T}}) where T
     CalculatedMeijerConnectivity{T}(connectivity, Calculated(DistanceMatrix(segment)))
 end
 

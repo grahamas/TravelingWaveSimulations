@@ -1,13 +1,13 @@
 
-abstract type AbstractStimulus{T} <: AbstractParameter{T} end
+abstract type AbstractStimulus{T,D} <: AbstractParameter{T} end
 
-function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::Space{T}) where {T, S <: AbstractStimulus{T}, AA<:AbstractArray{<:CalculatedType,1}}
+function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::AbstractSpace{T}) where {T, S <: AbstractStimulus{T}, AA<:AbstractArray{<:CalculatedType,1}}
     [calc_arr[i].stimulus != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
 #region NoStimulus
 
-struct NoStimulus{T} <: AbstractStimulus{T} end
+struct NoStimulus{T} <: AbstractStimulus{T,0} end
 struct CalculatedNoStimulus{T} <: CalculatedType{NoStimulus{T}}
     stimulus::NoStimulus{T}
 end
@@ -28,7 +28,7 @@ function gaussian_noise!(val::AT, mean::T, sd::T) where {T, AT<:AbstractArray{T}
     val .+= mean
 end
 
-struct GaussianNoiseStimulus{T} <: AbstractStimulus{T}
+struct GaussianNoiseStimulus{T} <: AbstractStimulus{T,1}
     mean::T
     SNR::T
 end
@@ -39,13 +39,13 @@ end
 
 struct CalculatedGaussianNoiseStimulus{T} <: CalculatedType{GaussianNoiseStimulus{T}}
     stimulus::GaussianNoiseStimulus{T}
-    space::Space{T}
+    space::AbstractSpace{T}
     mean::T
     sd::T
 end
 
 
-function Calculated(wns::GaussianNoiseStimulus{T}, space::Space{T,N}) where {T,N}
+function Calculated(wns::GaussianNoiseStimulus{T}, space::AbstractSpace{T,N}) where {T,N}
     sd = sqrt(1/10 ^ (wns.SNR / 10))
     CalculatedGaussianNoiseStimulus{T}(wns, space, wns.mean, sd)
 end
@@ -57,7 +57,7 @@ end
 #endregion
 
 
-abstract type TransientBumpStimulus{T} <: AbstractStimulus{T} end
+abstract type TransientBumpStimulus{T} <: AbstractStimulus{T,1} end
 
 function stimulate!(val::AT, bump::CTBS, t::T) where {T, AT <: AbstractArray{T,1}, CTBS<:CalculatedType{<:TransientBumpStimulus}}
     if bump.onset <= t < bump.offset
@@ -116,14 +116,14 @@ end
 
 struct CalculatedSharpBumpStimulus{T} <: CalculatedType{SharpBumpStimulus{T}}
     stimulus::SharpBumpStimulus{T}
-    space::PopSegment{T}
+    space::Pops{T,<:Segment{T}}
     onset::T
     offset::T
     on_frame::Array{T,1}
     off_frame::Array{T,1}
 end
 
-function Calculated(tbs::SharpBumpStimulus{T}, space::PopSegment{T}) where T
+function Calculated(tbs::SharpBumpStimulus{T}, space::Pops{T,<:Segment{T}}) where T
     calculated_space = Calculated(space)
     on_frame = make_bump_frame(tbs, calculated_space.value[:,1])
     off_frame = zero(on_frame)
@@ -165,14 +165,14 @@ end
 
 struct CalculatedSech2BumpStimulus{T} <: CalculatedType{Sech2BumpStimulus{T}}
     stimulus::Sech2BumpStimulus{T}
-    space::PopSegment{T}
+    space::Pops{T,<:Segment{T}}
     onset::T
     offset::T
     on_frame::Array{T,1}
     off_frame::Array{T,1}
 end
 
-function Calculated(tbs::Sech2BumpStimulus{T}, space::PopSegment{T}) where T
+function Calculated(tbs::Sech2BumpStimulus{T}, space::Pops{T,<:Segment{T}}) where T
     calculated_space = Calculated(space)
     on_frame = make_bump_frame(tbs, calculated_space.value[:,1])
     off_frame = zero(on_frame)
@@ -185,7 +185,7 @@ end
 
 #region NoisySharpBumpStimulus
 
-struct NoisyStimulus{T,STIM} <: AbstractStimulus{T}
+struct NoisyStimulus{T,STIM} <: AbstractStimulus{T,1}
     noise::GaussianNoiseStimulus{T}
     stim::STIM
 end
@@ -200,7 +200,7 @@ struct CalculatedNoisyStimulus{T,STIM} <: CalculatedType{NoisyStimulus{T,STIM}}
     calc_noise::CalculatedGaussianNoiseStimulus{T}
     calc_stim::CalculatedType{STIM}
 end
-Calculated(ns::NoisyStimulus{T,STIM}, space::PopSegment{T}) where {T,STIM} = CalculatedNoisyStimulus{T,STIM}(ns, Calculated(ns.noise, space), Calculated(ns.stim, space))
+Calculated(ns::NoisyStimulus{T,STIM}, space::Pops{T,<:Segment{T}}) where {T,STIM} = CalculatedNoisyStimulus{T,STIM}(ns, Calculated(ns.noise, space), Calculated(ns.stim, space))
 
 function stimulate!(val::AT, stim_obj::CalculatedNoisyStimulus{T},t::T) where {T, AT<: AbstractArray{T,1}}
     stimulate!(val, stim_obj.calc_noise,t)
