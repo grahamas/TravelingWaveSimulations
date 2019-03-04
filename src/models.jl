@@ -1,8 +1,8 @@
 # Rename to remove N redundancy
-struct WCMSpatial1D{T,N,P,C<:AbstractConnectivity{T},
+struct WCMSpatial{T,D,P,C<:AbstractConnectivity{T},
                             L<:AbstractNonlinearity{T},
                             S<:AbstractStimulus{T},
-                            SP<:PopSpace{T,N,P}} <: Model{T,N,P}
+                            SP<:Pops{T}} <: Model{T,D,P}
     α::SVector{P,T}
     β::SVector{P,T}
     τ::SVector{P,T}
@@ -13,16 +13,16 @@ struct WCMSpatial1D{T,N,P,C<:AbstractConnectivity{T},
     pop_names::SVector{P,String}
 end
 
-function WCMSpatial1D{T,N,P}(; pop_names::Array{Str,1}, α::Array{T,1}, β::Array{T,1}, τ::Array{T,1},
-        space::SP, connectivity::Array{C,2}, nonlinearity::Array{L,1}, stimulus::Array{S,1}) where {T,P,N,Str<:AbstractString,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},SP<:Space{T,N}}
-    WCMSpatial1D{T,N,P,C,L,S,SP}(SVector{P,T}(α),SVector{P,T}(β),SVector{P,T}(τ),space,SMatrix{P,P,C}(connectivity),SVector{P,L}(nonlinearity),SVector{P,S}(stimulus),SVector{P,Str}(pop_names))
+function WCMSpatial{T,N,P}(; pop_names::Array{Str,1}, α::Array{T,1}, β::Array{T,1}, τ::Array{T,1},
+        space::SP, connectivity::Array{C,2}, nonlinearity::Array{L,1}, stimulus::Array{S,1}) where {T,P,N,Str<:AbstractString,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},SP<:AbstractSpace{T,N}}
+    WCMSpatial{T,N,P,C,L,S,SP}(SVector{P,T}(α),SVector{P,T}(β),SVector{P,T}(τ),space,SMatrix{P,P,C}(connectivity),SVector{P,L}(nonlinearity),SVector{P,S}(stimulus),SVector{P,Str}(pop_names))
 end
 
-space_array(model::WCMSpatial1D) = Calculated(model.space).value
+space_array(model::WCMSpatial) = Calculated(model.space).value
 
 
 # * Calculated WC73 Simulation Type
-mutable struct CalculatedWCMSpatial1D{T,N,P,C,L,S,CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType} <: CalculatedType{WCMSpatial1D{T,N,P,C,L,S}}
+mutable struct CalculatedWCMSpatial{T,D,P,C,L,S,CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType} <: CalculatedType{WCMSpatial{T,D,P,C,L,S}}
     α::SVector{P,T}
     β::SVector{P,T}
     τ::SVector{P,T}
@@ -31,7 +31,7 @@ mutable struct CalculatedWCMSpatial1D{T,N,P,C,L,S,CC<:CalculatedType{<:C},CL <: 
     stimulus::SVector{P,CS}
 end
 
-function CalculatedWCMSpatial1D(wc::WCMSpatial1D{T,N,P,C,L,S}) where {T<:Real,N,P,
+function CalculatedWCMSpatial(wc::WCMSpatial{T,N,P,C,L,S}) where {T<:Real,N,P,
                                                   C<:AbstractConnectivity{T},
                                                   L<:AbstractNonlinearity{T},
                                                   S<:AbstractStimulus{T}}
@@ -41,20 +41,20 @@ function CalculatedWCMSpatial1D(wc::WCMSpatial1D{T,N,P,C,L,S}) where {T<:Real,N,
     CC = eltype(connectivity)
     CL = eltype(nonlinearity)
     CS = eltype(stimulus)
-    CalculatedWCMSpatial1D{T,N,P,C,L,S,CC,CL,CS}(
+    CalculatedWCMSpatial{T,N,P,C,L,S,CC,CL,CS}(
         wc.α, wc.β, wc.τ,
         connectivity, nonlinearity, stimulus)
 end
 
-function Calculated(wc::WCMSpatial1D)
-    CalculatedWCMSpatial1D(wc)
+function Calculated(wc::WCMSpatial)
+    CalculatedWCMSpatial(wc)
 end
 
-function get_values(cwc::CalculatedWCMSpatial1D{T,N}) where {T,N}
+function get_values(cwc::CalculatedWCMSpatial{T,N}) where {T,N}
     (cwc.α, cwc.β, cwc.τ, get_value.(cwc.connectivity), get_value.(cwc.nonlinearity), get_value.(cwc.stimulus))
 end
 
-function update_from_p!(cwc::CalculatedWCMSpatial1D{T}, new_p::Array{T}, model, variable_map) where T
+function update_from_p!(cwc::CalculatedWCMSpatial{T}, new_p::Array{T}, model, variable_map) where T
     # Use the variable model stored by p_search to create static model
     new_model = model_from_p(model, variable_map, new_p)
 
@@ -67,7 +67,7 @@ function update_from_p!(cwc::CalculatedWCMSpatial1D{T}, new_p::Array{T}, model, 
     cwc.stimulus = update(cwc.stimulus, new_model.stimulus, new_model.space)
 end
 
-function make_calculated_function(cwc::CalculatedWCMSpatial1D{T,1,P,C,L,S,CC,CL,CS}) where {T,P,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType}
+function make_calculated_function(cwc::CalculatedWCMSpatial{T,1,P,C,L,S,CC,CL,CS}) where {T,P,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType}
     (α, β, τ, connectivity_mx, nonlinearity_objs, stimulus_objs) = get_values(cwc)
 
     let α::SVector{P,T}=α, β::SVector{P,T}=β, τ::SVector{P,T}=τ, connectivity_mx::SMatrix{P,P,Matrix{T}}=connectivity_mx, nonlinearity_objs::SVector{P,CL}=nonlinearity_objs, stimulus_objs::SVector{P,CS}=stimulus_objs

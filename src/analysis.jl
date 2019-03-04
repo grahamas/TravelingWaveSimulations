@@ -25,7 +25,7 @@ function Simulation73.plot_and_save(plot_spec::Animate, simulation::Simulation, 
     save_fn(name, anim) = mp4(anim, name; fps=plot_spec.fps)
     output(save_fn, output_name(plot_spec), animate(simulation; plot_spec.kwargs...))
 end
-function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<:WCMSpatial1D}
+function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<:WCMSpatial}
     solution = simulation.solution
     pop_names = simulation.model.pop_names
     x = space_arr(simulation)
@@ -48,7 +48,7 @@ struct SpaceTimePlot <: AbstractPlotSpecification
     kwargs::Dict
 end
 SpaceTimePlot(; output_name = "spacetime.png", kwargs...) = SpaceTimePlot(output_name, kwargs)
-@recipe function f(plot_spec::SpaceTimePlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial1D}
+@recipe function f(plot_spec::SpaceTimePlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial}
     v_space = space_arr(simulation)
     v_time = time_arr(simulation)
     clims := (minimum(simulation), maximum(simulation))
@@ -72,7 +72,7 @@ struct NonlinearityPlot <: AbstractPlotSpecification
     kwargs::Dict
 end
 NonlinearityPlot(; output_name = "nonlinearity.png", kwargs...) = NonlinearityPlot(output_name, kwargs)
-@recipe function f(plot_spec::NonlinearityPlot, simulation::Simulation{T,M}; resolution=100, fn_bounds=(-1.0,15.0)) where {T,M<:WCMSpatial1D}
+@recipe function f(plot_spec::NonlinearityPlot, simulation::Simulation{T,M}; resolution=100, fn_bounds=(-1.0,15.0)) where {T,M<:WCMSpatial}
     pop_names = simulation.model.pop_names
     n_pops = length(pop_names)
 
@@ -105,7 +105,7 @@ struct NeumanTravelingWavePlot{T} <: AbstractPlotSpecification
     kwargs::Dict
 end
 NeumanTravelingWavePlot(; output_name="traveling_wave.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = NeumanTravelingWavePlot{T}(output_name, dt, kwargs)
-@recipe function f(plot_spec::NeumanTravelingWavePlot{T}, simulation::Simulation{T,M}) where {T,M<:WCMSpatial1D}
+@recipe function f(plot_spec::NeumanTravelingWavePlot{T}, simulation::Simulation{T,M}) where {T,M<:WCMSpatial}
     t = time_arr(simulation)
     space_origin::Int = get_origin(simulation) # TODO: Remove 1D return assumption
     di = max(1, round(Int, simulation.solver.simulated_dt / plot_spec.dt))
@@ -197,7 +197,7 @@ mutable struct SubsampledPlot <: AbstractPlotSpecification
     kwargs::Iterators.Pairs
 end
 SubsampledPlot(; plot_type=nothing, time_subsampler=Subsampler(), space_subsampler=Subsampler(), output_name="", kwargs...) = SubsampledPlot(plot_type, time_subsampler, space_subsampler, output_name, kwargs)
-@recipe function f(subsampledplot::SubsampledPlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial1D}
+@recipe function f(subsampledplot::SubsampledPlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial}
 
     t, x, wave = subsample(simulation, time_subsampler=subsampledplot.time_subsampler, space_subsampler=subsampledplot.space_subsampler)
 

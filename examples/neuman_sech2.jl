@@ -13,7 +13,7 @@ end
 N=1
 P=2
 simulation = Simulation(;
-  model = WCMSpatial1D{v,N,P}(;
+  model = WCMSpatial{v,N,P}(;
     pop_names = ["E", "I"],
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],

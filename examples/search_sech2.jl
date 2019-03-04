@@ -14,7 +14,7 @@ end
 N=1
 P=2
 p_search = ParameterSearch(;
-  varying_model = WCMSpatial1D{v,N,P}(;
+  varying_model = WCMSpatial{v,N,P}(;
     pop_names = ["E", "I"],
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],

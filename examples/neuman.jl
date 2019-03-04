@@ -1,5 +1,6 @@
 # ENV["GKSwstype"] = "100" # For headless plotting (on server)
 # ENV["MPLBACKEND"]="Agg"
+#grr
 
 using Simulation73
 using WilsonCowanModel
@@ -14,12 +15,12 @@ end
 N=1
 P=2
 simulation = Simulation(;
-  model = WCMSpatial1D{v,N,P}(;
+  model = WCMSpatial{v,N,P}(;
     pop_names = ["E", "I"],
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],
     τ = v[0.1, 0.18],
-    space = PopSegment{v,P}(; n_points=301, extent=100.0),
+    space = Pops(Segment{v}(; n_points=301, extent=100.0), P),
     nonlinearity = pops(SigmoidNonlinearity{v};
       a = v[1.2, 1.0],
       θ = v[2.6, 8.0]),

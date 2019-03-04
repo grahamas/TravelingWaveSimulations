@@ -15,7 +15,7 @@ using MacroTools, IterTools, Espresso
 using Optim
 #endregion
 
-export WCMSpatial1D
+export WCMSpatial
 
 export SigmoidNonlinearity, Sech2Nonlinearity, GaussianNonlinearity
 
