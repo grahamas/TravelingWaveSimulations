@@ -13,15 +13,16 @@ using Plots; pyplot()
 using Random
 using MacroTools, IterTools, Espresso
 using Optim
+using Einsum
 #endregion
 
 export WCMSpatial
 
-export SigmoidNonlinearity, Sech2Nonlinearity, GaussianNonlinearity
+export AbstractNonlinearity, SigmoidNonlinearity, Sech2Nonlinearity, GaussianNonlinearity
 
-export SharpBumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
+export AbstractStimulus, SharpBumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
 
-export ShollConnectivity, MeijerConnectivity
+export AbstractConnectivity, ShollConnectivity, MeijerConnectivity
 
 export MatchExample, StretchExample, SpatioTemporalFnTarget, @optim_st_target
 

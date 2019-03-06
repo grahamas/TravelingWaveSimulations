@@ -20,7 +20,7 @@ simulation = Simulation(;
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],
     τ = v[0.1, 0.18],
-    space = Pops(Segment{v}(; n_points=301, extent=100.0), P),
+    space = Pops{P}(Segment{v}(; n_points=11, extent=100.0)),
     nonlinearity = pops(SigmoidNonlinearity{v};
       a = v[1.2, 1.0],
       θ = v[2.6, 8.0]),
@@ -46,7 +46,7 @@ simulation = Simulation(;
         stim_type=SharpBumpStimulus{v})
     ],
     connectivity = pops(ShollConnectivity{v};
-      amplitude = v[16.0 -18.2
+      amplitude = v[16.0 -18.2;
                     27.0 -4.0],
       # spread = v[BV(2.5, (1.0, 4.0)) BV(2.7, (1.0, 4.0));
       #            BV(2.7, (1.0, 4.0)) BV(2.5, (1.0, 4.0))])

@@ -2,7 +2,7 @@
 struct WCMSpatial{T,D,P,C<:AbstractConnectivity{T,D},
                             L<:AbstractNonlinearity{T},
                             S<:AbstractStimulus{T,D},
-                            SP<:Pops{T}} <: Model{T,D,P}
+                            SP<:Pops{P,T,D}} <: Model{T,D,P}
     α::SVector{P,T}
     β::SVector{P,T}
     τ::SVector{P,T}
@@ -34,7 +34,7 @@ end
 function CalculatedWCMSpatial(wc::WCMSpatial{T,N,P,C,L,S}) where {T<:Real,N,P,
                                                   C<:AbstractConnectivity{T},
                                                   L<:AbstractNonlinearity{T},
-                                                  S<:AbstractStimulus{T}}
+                                                  S<:AbstractStimulus{T,N}}
     connectivity = Calculated.(wc.connectivity, Ref(wc.space))
     nonlinearity = Calculated.(wc.nonlinearity)
     stimulus = Calculated.(wc.stimulus,Ref(wc.space))
@@ -67,22 +67,45 @@ function update_from_p!(cwc::CalculatedWCMSpatial{T}, new_p::Array{T}, model, va
     cwc.stimulus = update(cwc.stimulus, new_model.stimulus, new_model.space)
 end
 
-function make_calculated_function(cwc::CalculatedWCMSpatial{T,1,P,C,L,S,CC,CL,CS}) where {T,P,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType}
-    (α, β, τ, connectivity_mx, nonlinearity_objs, stimulus_objs) = get_values(cwc)
 
-    let α::SVector{P,T}=α, β::SVector{P,T}=β, τ::SVector{P,T}=τ, connectivity_mx::SMatrix{P,P,Matrix{T}}=connectivity_mx, nonlinearity_objs::SVector{P,CL}=nonlinearity_objs, stimulus_objs::SVector{P,CS}=stimulus_objs
-        (dA::Array{T,2}, A::Array{T,2}, p::Union{Array{T,1},Nothing}, t::T) -> (
-            @views for i in 1:P
-                stimulate!(dA[:,i], stimulus_objs[i], t) # I'll bet it goes faster if we pull this out of the loop
-                for j in 1:P
-                    dA[:,i] .+= connectivity_mx[i,j] * A[:,j]
-                end
-                # dA[:,i] .+= sum(connectivity_mx[i,j] * A[:,j] for j in 1:2)
-                nonlinearity!(dA[:,i], nonlinearity_objs[i])
-                dA[:,i] .*= β[i] .* (1.0 .- A[:,i])
-                dA[:,i] .+= -α[i] .* A[:,i]
-                dA[:,i] ./= τ[i]
+macro make_make_function(num_dims)
+    D = eval(num_dims)
+    to_syms = [Symbol(:to,:_,i) for i in 1:D]
+    from_syms = [Symbol(:from,:_,i) for i in 1:D]
+    space_colons = [:(:) for i in 1:D]
+    D_P = D + 1
+    D_CONN_P = D + D + 2
+    tensor_prod_expr = @eval @macroexpand @einsum dA[$(to_syms...),i] += connectivity_tensor[$(to_syms...),$(from_syms...),i,j] * A[$(from_syms...),j]
+    esc(quote
+        function make_calculated_function(cwc::CalculatedWCMSpatial{T,$D,P,C,L,S,CC,CL,CS}) where {T,P,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType}
+            (α, β, τ, connectivity_sarray, nonlinearity_objs, stimulus_objs) = get_values(cwc)
+            connectivity_tensor = Array{T,$D_CONN_P}(undef, size(connectivity_sarray[1])..., P, P)
+            indices = CartesianIndex.(Iterators.product(1:P, 1:P))
+            for index in indices
+                connectivity_tensor[$(space_colons...), $(space_colons...), index] .= connectivity_sarray[index]#, size(connectivity_sarray[1])..., 1, 1)
             end
-        )
-    end
+            let α::SVector{P,T}=α, β::SVector{P,T}=β, τ::SVector{P,T}=τ, connectivity_tensor::Array{T,$D_CONN_P}=connectivity_tensor, nonlinearity_objs::SVector{P,CL}=nonlinearity_objs, stimulus_objs::SVector{P,CS}=stimulus_objs
+                (dA::Array{T,$D_P}, A::Array{T,$D_P}, p::Union{Array{T,1},Nothing}, t::T) -> (
+                    @views for i in 1:P
+                        stimulate!(dA[$(space_colons...),i], stimulus_objs[i], t) # I'll bet it goes faster if we pull this out of the loop
+                        @show sum(dA[$(space_colons...),i])
+                        #$tensor_prod_expr
+                        for j in 1:$D
+                            dA[:,i] .+= connectivity_tensor[:,:,i,j] * A[:,j]
+                        end
+                        @show sum(dA[$(space_colons...),i])
+                        nonlinearity!(dA[$(space_colons...),i], nonlinearity_objs[i])
+                        @show sum(dA[$(space_colons...),i])
+                        dA[$(space_colons...),i] .*= β[i] .* (1.0 .- A[$(space_colons...),i])
+                        dA[$(space_colons...),i] .+= -α[i] .* A[$(space_colons...),i]
+                        dA[$(space_colons...),i] ./= τ[i]
+                    end
+                )
+            end
+        end
+    end)
 end
+
+@show @macroexpand @make_make_function 1
+@make_make_function 1
+@make_make_function 2
