@@ -7,30 +7,20 @@ end
 
 #region ShollConnectivity
 
-@with_kw struct ShollConnectivity{T} <: AbstractConnectivity{T,1}
+@calculated_type(struct ShollConnectivity{T} <: AbstractConnectivity{T,1}
     amplitude::T
     spread::T
+end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,1}}) where T
+    directed_weights(source, calculated_space)
 end
-
-struct CalculatedShollConnectivity{T,SPACE<:CalculatedType{<:AbstractSpace}} <: CalculatedType{ShollConnectivity{T}}
-    connectivity::ShollConnectivity{T}
-    calc_space::SPACE
-    value::Matrix{T}
-    function CalculatedShollConnectivity(c::ShollConnectivity{T},d::SPACE) where {T, SPACE}
-        new{T,SPACE}(c, d, directed_weights(c, d))
-    end
-end
-
-function Calculated(connectivity::ShollConnectivity{T}, pops::Pops) where T
-    CalculatedShollConnectivity(connectivity, Calculated(pops))
-end
+)
 
 @calculated_type(struct GaussianConnectivity{T,MESH} <: AbstractConnectivity{T,2}
     amplitude::T
     spread::Tuple{T,T}
-
-end,
-(x1, x2, step_size) -> exponential_decay_gaussian.(x1, x2, amplitude, Ref(spread), step_size)
+end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,2}}) where T
+    directed_weights(source, calculated_space)
+end
 )
 
 # @with_kw struct MeijerConnectivity{T,COORD_T} <: AbstractConnectivity{T,1}
@@ -58,22 +48,28 @@ function exponential_decay_abs((x1, x2)::Tuple{T,T}, amplitude::T, spread::T, st
     ) / (2 * spread)
 end
 
-function exponential_decay_gaussian((x1, x2)::Tuple{Tup,Tup}, amplitude::T, spread::Tup, step_size::T) where {T, Tup<:Tuple{Vararg{T}}}
-    amplitude * step_size * exp(
+function exponential_decay_gaussian((x1, x2)::Tuple{Tup,Tup}, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
+    amplitude * prod(step_size) * exp(
         -sum( ((x1 .- x2) ./ spread) .^ 2)
     ) / (2 * prod(spread))
 end
 
 # * Sholl connectivity
 
-function directed_weights(connectivity::ShollConnectivity{T}, locations::CalculatedType{<:AbstractSpace{T}}) where {T}
+function directed_weights(connectivity::ShollConnectivity{T}, locations::CalculatedType{<:AbstractSpace{T,1}}) where {T}
     A = connectivity.amplitude
     σ = connectivity.spread
-    edges = ((locations.value[i], locations.value[j]) for (i,j) in Iterators.product(CartesianIndices(locations.value),CartesianIndices(locations.value)))
+    edges = get_edges(locations)
     step_size = step(locations)
     return exponential_decay_abs.(edges, A, σ, step_size)
     # In comparing to Neuman, there is no division by 2 on the edges
     # but the edges are very small, so there's no difference
+end
+
+function directed_weights(connectivity::GaussianConnectivity{T}, locations::CalculatedType{<:AbstractSpace{T,2}}) where {T}
+    edges = get_edges(locations)
+    step_size = step(locations)
+    return exponential_decay_gaussian.(edges, connectivity.amplitude, Ref(connectivity.spread), step_size)
 end
 
 

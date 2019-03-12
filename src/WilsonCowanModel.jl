@@ -13,7 +13,7 @@ using Plots; pyplot()
 using Random
 using MacroTools, IterTools, Espresso
 using Optim
-using Einsum
+using TensorOperations
 #endregion
 
 export WCMSpatial

@@ -17,12 +17,12 @@ end
 N=1
 P=2
 simulation = Simulation(;
-  model = WCMSpatial{v,N,P}(;
+  model = DualModel{v,N,P,WCMSpatial{v,N,P}}(;
     pop_names = ["E", "I"],
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],
     τ = v[0.1, 0.18],
-    space = Pops{P}(Segment{v}(; n_points=301, extent=100.0)),
+    space = Pops{P}(Segment{v}(; n_points=11, extent=100.0)),
     nonlinearity = pops(SigmoidNonlinearity{v};
       a = v[1.2, 1.0],
       θ = v[2.6, 8.0]),
@@ -34,18 +34,18 @@ simulation = Simulation(;
     #   width=v[0.2, 0.2],
     #   SNR=v[80.0, 80.0],
     #   stim_type=[Sech2BumpStimulus{v}, Sech2BumpStimulus{v}]),
-    stimulus = [NoisyStimulus{v,N}(;
+    stimulus = [NoisyStimulus{v}(;
       strength=1.2,
-      time_window=Tuple{v,v}((0.0,0.55)),
+      window=Tuple{v,v}((0.0,0.55)),
       width=2.81,
       SNR= 80.0,
-      stim_type=SharpBumpStimulus{v,N}),
-      NoisyStimulus{v,N}(;
+      stim_type=SharpBumpStimulus{v}),
+      NoisyStimulus{v}(;
         strength=1.2,
-        time_window=Tuple{v,v}((0.0,0.55)),
+        window=Tuple{v,v}((0.0,0.55)),
         width=2.81,
         SNR= 80.0,
-        stim_type=SharpBumpStimulus{v,N})
+        stim_type=SharpBumpStimulus{v})
     ],
     connectivity = pops(ShollConnectivity{v};
       amplitude = v[16.0 -18.2
@@ -60,8 +60,8 @@ simulation = Simulation(;
     dt = 0.01,
     space_save_every=1,
     time_save_every=1,
-    #stiffness=:stiff
-    algorithm=Euler()
+    stiffness=:stiff
+    #algorithm=Euler()
     )
   )
 
