@@ -15,11 +15,13 @@ end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,1}}) 
 end
 )
 
-@calculated_type(struct GaussianConnectivity{T,MESH} <: AbstractConnectivity{T,2}
+@calculated_type(struct GaussianConnectivity{T} <: AbstractConnectivity{T,2}
     amplitude::T
     spread::Tuple{T,T}
 end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,2}}) where T
-    directed_weights(source, calculated_space)
+    edges = get_edges(calculated_space)
+    step_size = step(calculated_space)
+    exponential_decay_gaussian.(edges, amplitude, Ref(spread), Ref(step_size))
 end
 )
 
@@ -48,10 +50,13 @@ function exponential_decay_abs((x1, x2)::Tuple{T,T}, amplitude::T, spread::T, st
     ) / (2 * spread)
 end
 
-function exponential_decay_gaussian((x1, x2)::Tuple{Tup,Tup}, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
+function exponential_decay_gaussian(x::Tup, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
     amplitude * prod(step_size) * exp(
-        -sum( ((x1 .- x2) ./ spread) .^ 2)
+        -sum( (x ./ spread) .^ 2)
     ) / (2 * prod(spread))
+end
+function exponential_decay_gaussian((x1, x2)::Tuple{Tup,Tup}, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
+    exponential_decay_gaussian(x1 .- x2, amplitude, spread, step_size)
 end
 
 # * Sholl connectivity

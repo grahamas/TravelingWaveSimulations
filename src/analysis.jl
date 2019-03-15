@@ -25,19 +25,35 @@ function Simulation73.plot_and_save(plot_spec::Animate, simulation::Simulation, 
     save_fn(name, anim) = mp4(anim, name; fps=plot_spec.fps)
     output(save_fn, output_name(plot_spec), animate(simulation; plot_spec.kwargs...))
 end
-function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<:WCMSpatial}
+function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<:WCMSpatial{T,1}}
     solution = simulation.solution
     pop_names = simulation.model.pop_names
-    x = space_arr(simulation)
-    t = time_arr(simulation)
+    x = saved_space_arr(simulation)
+    t = saved_time_arr(simulation)
     max_val = maximum(simulation)
     @animate for time_dx in 1:length(t) # TODO @views
-        plot(x, solution[:, 1, time_dx]; label=pop_names[1],
+        plot(x, pop_frame(solution, 1, time_dx); label=pop_names[1],
             ylim=(0,max_val), title="t = $(round(t[time_dx], digits=4))", kwargs...)
         for i_pop in 2:length(pop_names)
-            plot!(x, solution[:, i_pop, time_dx]; label=pop_names[i_pop], kwargs...)
+            plot!(x, pop_frame(solution, i_pop, time_dx); label=pop_names[i_pop], kwargs...)
         end
-
+    end
+end
+function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<:WCMSpatial{T,2}}
+    solution = simulation.solution
+    pop_names = simulation.model.pop_names
+    x = saved_space_arr(simulation)
+    xs = [coords[1] for coords in x[1,:]]
+    ys = [coords[2] for coords in x[:,1]]
+    t = saved_time_arr(simulation)
+    max_val = maximum(simulation)
+    @animate for time_dx in 1:length(t) # TODO @views
+        plot(
+            [surface( pop_frame(solution, i_pop, time_dx);
+                zlim=(0,max_val), clim=(0,max_val),
+                title="t = $(round(t[time_dx], digits=4)), $(pop_names[i_pop])", kwargs...)
+                for i_pop in 1:length(pop_names)]...
+                    )
     end
 end
 #endregion
@@ -49,8 +65,8 @@ struct SpaceTimePlot <: AbstractPlotSpecification
 end
 SpaceTimePlot(; output_name = "spacetime.png", kwargs...) = SpaceTimePlot(output_name, kwargs)
 @recipe function f(plot_spec::SpaceTimePlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial}
-    v_space = space_arr(simulation)
-    v_time = time_arr(simulation)
+    v_space = saved_space_arr(simulation)
+    v_time = saved_time_arr(simulation)
     clims := (minimum(simulation), maximum(simulation))
     grid := false
     layout := (2,1)
@@ -106,10 +122,10 @@ struct NeumanTravelingWavePlot{T} <: AbstractPlotSpecification
 end
 NeumanTravelingWavePlot(; output_name="traveling_wave.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = NeumanTravelingWavePlot{T}(output_name, dt, kwargs)
 @recipe function f(plot_spec::NeumanTravelingWavePlot{T}, simulation::Simulation{T,M}) where {T,M<:WCMSpatial}
-    t = time_arr(simulation)
+    t = saved_time_arr(simulation)
     space_origin::Int = get_origin(simulation) # TODO: Remove 1D return assumption
     di = max(1, round(Int, simulation.solver.simulated_dt / plot_spec.dt))
-    x = space_arr(simulation)[space_origin:di:end] # TODO: Remove 1D return assumption
+    x = saved_space_arr(simulation)[space_origin:di:end] # TODO: Remove 1D return assumption
     for time_dx in 1:length(t)
         @series begin
             seriestype := :line

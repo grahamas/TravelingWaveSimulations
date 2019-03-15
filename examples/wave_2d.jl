@@ -1,6 +1,5 @@
 # ENV["GKSwstype"] = "100" # For headless plotting (on server)
 # ENV["MPLBACKEND"]="Agg"
-#grr
 
 using Simulation73
 using WilsonCowanModel
@@ -15,7 +14,7 @@ if !@isdefined(v)
   const v = Float64
   const BV = BoundedVariable
 end
-N=1
+N=2
 P=2
 simulation = Simulation(;
   model = WCMSpatial{v,N,P}(;
@@ -23,7 +22,7 @@ simulation = Simulation(;
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],
     τ = v[0.1, 0.18],
-    space = Pops{P}(Circle{v}(; n_points=301, extent=100.0)),
+    space = Pops{P}(Grid{v}(; n_points=(51,51), extent=(50.0,50.0))),
     nonlinearity = pops(SigmoidNonlinearity{v};
       a = v[1.2, 1.0],
       θ = v[2.6, 8.0]),
@@ -48,19 +47,20 @@ simulation = Simulation(;
         SNR= 80.0,
         stim_type=SharpBumpStimulus{v,N})
     ],
-    connectivity = pops(ShollConnectivity{v};
+    connectivity = pops(GaussianConnectivity{v};
       amplitude = v[16.0 -18.2
                     27.0 -4.0],
       # spread = v[BV(2.5, (1.0, 4.0)) BV(2.7, (1.0, 4.0));
       #            BV(2.7, (1.0, 4.0)) BV(2.5, (1.0, 4.0))])
-      spread = v[2.5 2.7;
-                 2.7 2.5])
+      spread = Tuple{v,v}[(2.5,2.5) (2.7,2.7);
+                 (2.7,2.7) (2.5,2.5)])
     ),
   solver = Solver{v}(;
     stop_time = 1.8,
     dt = 0.01,
     space_save_every=1,
     time_save_every=1,
+    #stiffness=:stiff
     algorithm=Euler()
     )
   )
@@ -69,25 +69,25 @@ analyses = [
 Animate(;
   fps = 20
   ),
-# NonlinearityPlot(;
-#   fn_bounds = (-1,15)
-#   ),
-# SpaceTimePlot(),
-SubsampledPlot(
-  plot_type=WaveStatsPlot,
-  time_subsampler=Subsampler(
-    Δ = 0.01,
-    window = (1.2, 1.8)
-  ),
-  space_subsampler=Subsampler(
-      window = (5.0,Inf)
-    )
+NonlinearityPlot(;
+  fn_bounds = (-1,15)
   )
+# SpaceTimePlot(),
+# SubsampledPlot(
+#   plot_type=WaveStatsPlot,
+#   time_subsampler=Subsampler(
+#     Δ = 0.01,
+#     window = (1.2, 1.8)
+#   ),
+#   space_subsampler=Subsampler(
+#       window = ((0.0, 0.0),(Inf,Inf))
+#     )
+#   )
 ]
 
 output = SingleOutput(;
   root = joinpath(homedir(), "simulation-results"),
-  simulation_name = "neuman/circle"
+  simulation_name = "neuman"
   )
 
 @save "parameters.jld2" simulation

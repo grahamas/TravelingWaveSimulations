@@ -17,7 +17,7 @@ function Calculated(stimulus::NoStimulus{T,N}, args...) where {T,N}
     CalculatedNoStimulus{T,N}(stimulus)
 end
 function stimulate!(val::AT, calcnostim::CalculatedNoStimulus{T,N}, t::T) where {T,N,AT<: AbstractArray{T,N}}
-    val[:] .= 0
+    val[:] .= zero(T)
 end
 
 #endregion
@@ -36,6 +36,7 @@ struct GaussianNoiseStimulus{T,N} <: AbstractStimulus{T,N}
 end
 
 function GaussianNoiseStimulus{T,N}(; SNR::T=0.0, mean::T=0.0) where {T,N}
+    @show "gn"
     GaussianNoiseStimulus{T,N}(mean, SNR)
 end
 
@@ -87,6 +88,7 @@ end
 
 function SharpBumpStimulus{T,N}(; strength::T=nothing, width::T=nothing,
         duration=nothing, time_window=nothing, center=NTuple{N,T}(zero(T) for i in 1:N)) where {T,N}
+    @show "sbs"
     if time_window == nothing
         return SharpBumpStimulus{T,N}(width, strength, (zero(T), duration), center)
     else
@@ -106,9 +108,9 @@ end
 #     return frame
 # end
 
-function make_bump_frame(sbs::SharpBumpStimulus, mesh::CalculatedType{<:Pops}) where {DistT}
+function make_bump_frame(sbs::SharpBumpStimulus{T}, mesh::CalculatedType{<:Pops{P,T}}) where {P,T}
     pop = one_pop(mesh)
-    frame = zero(pop)
+    frame = zeros(T,size(pop)...)
     half_width = sbs.width / 2.0
     frame[distance.(pop, Ref(sbs.center)) .<= half_width] .= sbs.strength
     return frame
@@ -119,8 +121,8 @@ struct CalculatedSharpBumpStimulus{T,N} <: CalculatedType{SharpBumpStimulus{T,N}
     calc_space::CalculatedType{<:Pops}
     onset::T
     offset::T
-    on_frame::Array{T,1}
-    off_frame::Array{T,1}
+    on_frame::Array{T,N}
+    off_frame::Array{T,N}
 end
 
 function Calculated(tbs::SharpBumpStimulus{T,N}, calc_space::CalculatedType{<:Pops{P,T,N,<:AbstractSpace{T,N}}}) where {P,T,N}
@@ -187,6 +189,7 @@ struct NoisyStimulus{T,N,STIM} <: AbstractStimulus{T,N}
     stim::STIM
 end
 function NoisyStimulus{T,N}(; stim_type::Type=SharpBumpStimulus{T,N}, SNR::T, mean::T=0.0, kwargs...) where {T,N}
+    @show stim_type
     NoisyStimulus{T,N,stim_type}(
             GaussianNoiseStimulus{T,N}(SNR = SNR, mean=mean),
             stim_type(; kwargs...)

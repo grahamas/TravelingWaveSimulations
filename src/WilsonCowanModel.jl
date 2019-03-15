@@ -22,7 +22,7 @@ export AbstractNonlinearity, SigmoidNonlinearity, Sech2Nonlinearity, GaussianNon
 
 export AbstractStimulus, SharpBumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
 
-export AbstractConnectivity, ShollConnectivity, MeijerConnectivity
+export AbstractConnectivity, ShollConnectivity, MeijerConnectivity, GaussianConnectivity
 
 export MatchExample, StretchExample, SpatioTemporalFnTarget, @optim_st_target
 
