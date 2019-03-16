@@ -38,9 +38,9 @@ simulation = Simulation(;
       stim_type=SharpBumpStimulus{v,N}),
       NoStimulus{v,N}()
     ],
-    connectivity = pops(MeijerConnectivity{v};
-      amplitude = v[2.0 -1.65;
-                    1.5 -0.01],
+    connectivity = pops(ShollConnectivity{v};
+      amplitude = v[280.0 -297.0;
+                    270.0 -1.4],
       spread = v[70.0 90.0;
                  90.0 70.0])
     ),

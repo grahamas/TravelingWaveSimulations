@@ -115,11 +115,7 @@ function make_bump_frame(sbs::SharpBumpStimulus{T}, mesh::CalculatedType{<:Pops{
     pop = one_pop(mesh)
     frame = zeros(T,size(pop)...)
     half_width = sbs.width / 2.0
-    @show half_width
-    @show distance.(pop, Ref(sbs.center))
     frame[distance.(pop, Ref(sbs.center)) .<= half_width] .= sbs.strength
-    @show frame
-    @show collect(pop)
     return frame
 end
 
