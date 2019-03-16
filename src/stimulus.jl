@@ -5,7 +5,9 @@ function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::AbstractSpace{
     [calc_arr[i].stimulus != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
-distance(x,y) = sum((x .- y).^2)
+function distance(x::T,y) where {T <: Real}
+    sqrt(sum((x .- y).^2))
+end
 
 #region NoStimulus
 
@@ -109,10 +111,15 @@ end
 # end
 
 function make_bump_frame(sbs::SharpBumpStimulus{T}, mesh::CalculatedType{<:Pops{P,T}}) where {P,T}
+    @show sbs
     pop = one_pop(mesh)
     frame = zeros(T,size(pop)...)
     half_width = sbs.width / 2.0
+    @show half_width
+    @show distance.(pop, Ref(sbs.center))
     frame[distance.(pop, Ref(sbs.center)) .<= half_width] .= sbs.strength
+    @show frame
+    @show collect(pop)
     return frame
 end
 

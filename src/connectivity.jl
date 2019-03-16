@@ -25,24 +25,17 @@ end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,2}}) 
 end
 )
 
-# @with_kw struct MeijerConnectivity{T,COORD_T} <: AbstractConnectivity{T,1}
-#     amplitude::T
-#     spread::T
-# end
-#
-#
-# struct CalculatedMeijerConnectivity{T} <: CalculatedType{MeijerConnectivity{T}}
-#     connectivity::MeijerConnectivity{T}
-#     calc_dist_mx::CalculatedDistanceMatrix{COORD_T}
-#     value::Matrix{T}
-#     function CalculatedMeijerConnectivity{T}(c::MeijerConnectivity{T},d::CalculatedDistanceMatrix{COORD_T}) where T
-#         new(c, d, meijer_matrix(c, d))
-#     end
-# end
-#
-# function Calculated(connectivity::MeijerConnectivity{T}, segment::Pops{_,T,1,<:AbstractSpace{T,1}}) where T
-#     CalculatedMeijerConnectivity{T}(connectivity, Calculated(DistanceMatrix(segment)))
-# end
+@calculated_type(struct MeijerConnectivity{T} <: AbstractConnectivity{T,1}
+    amplitude::T
+    spread::T
+end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,1}}) where T
+    edges = get_edges(calculated_space)
+    step_size = step(calculated_space)
+    meijer_fn.(edges, amplitude, Ref(spread), Ref(step_size))
+end
+)
+
+###################
 
 function exponential_decay_abs((x1, x2)::Tuple{T,T}, amplitude::T, spread::T, step_size::T) where {T <: Number}
     amplitude * step_size * exp(
@@ -57,6 +50,12 @@ function exponential_decay_gaussian(x::Tup, amplitude::T, spread::Tup, step_size
 end
 function exponential_decay_gaussian((x1, x2)::Tuple{Tup,Tup}, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
     exponential_decay_gaussian(x1 .- x2, amplitude, spread, step_size)
+end
+
+function meijer_fn((x1, x2)::Tuple{T,T}, amplitude, spread::T, step_size::T) where {T <: Real}
+    @. amplitude * step_size * exp(
+        -abs((x1 - x2) / spread)
+    )
 end
 
 # * Sholl connectivity
@@ -102,11 +101,6 @@ rather than a fundamental one.
 #     # but the edges are very small, so there's no difference
 # end
 #
-# function meijer_matrix(amplitude::ValueT, spread::ValueT,
-#                       dist_mx::Array{ValueT,2}, step_size::ValueT) where {ValueT <: Real}
-#     @. amplitude * step_size * exp(
-#         -abs(dist_mx / spread)
-#     )
-# end
+
 
 #endregion
