@@ -22,7 +22,7 @@ simulation = Simulation(;
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],
     τ = v[0.1, 0.18],
-    space = Pops{P}(Grid{v}(; n_points=(51,51), extent=(50.0,50.0))),
+    space = Pops{P}(Torus{v}(; n_points=(51,51), extent=(50.0,50.0))),
     nonlinearity = pops(SigmoidNonlinearity{v};
       a = v[1.2, 1.0],
       θ = v[2.6, 8.0]),
@@ -56,7 +56,7 @@ simulation = Simulation(;
                  (2.7,2.7) (2.5,2.5)])
     ),
   solver = Solver{v}(;
-    stop_time = 1.8,
+    stop_time = 2.0,
     dt = 0.01,
     space_save_every=1,
     time_save_every=1,
@@ -87,7 +87,7 @@ NonlinearityPlot(;
 
 output = SingleOutput(;
   root = joinpath(homedir(), "simulation-results"),
-  simulation_name = "neuman"
+  simulation_name = "neuman/torus"
   )
 
 @save "parameters.jld2" simulation

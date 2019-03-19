@@ -19,19 +19,9 @@ end
     amplitude::T
     spread::Tuple{T,T}
 end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,2}}) where T
-    edges = get_edges(calculated_space)
+    distances = get_distances(calculated_space)
     step_size = step(calculated_space)
-    exponential_decay_gaussian.(edges, amplitude, Ref(spread), Ref(step_size))
-end
-)
-
-@calculated_type(struct MeijerConnectivity{T} <: AbstractConnectivity{T,1}
-    amplitude::T
-    spread::T
-end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,1}}) where T
-    edges = get_edges(calculated_space)
-    step_size = step(calculated_space)
-    meijer_fn.(edges, amplitude, Ref(spread), Ref(step_size))
+    exponential_decay_gaussian.(distances, amplitude, Ref(spread), Ref(step_size))
 end
 )
 
@@ -52,11 +42,6 @@ end
 #     exponential_decay_gaussian(x1 .- x2, amplitude, spread, step_size)
 # end
 
-function meijer_fn((x1, x2)::Tuple{T,T}, amplitude, spread::T, step_size::T) where {T <: Real}
-    @. amplitude * step_size * exp(
-        -abs((x1 - x2) / spread)
-    )
-end
 
 # * Sholl connectivity
 
