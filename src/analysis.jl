@@ -21,16 +21,17 @@ struct Animate <: AbstractPlotSpecification
     kwargs::Dict
 end
 Animate(; fps=20, output_name="animation.mp4", kwargs...) = Animate(fps, output_name, kwargs)
-function Simulation73.plot_and_save(plot_spec::Animate, simulation::Simulation, output::AbstractOutput)
+function Simulation73.plot_and_save(plot_spec::Animate, execution::Execution, output::AbstractOutput)
     save_fn(name, anim) = mp4(anim, name; fps=plot_spec.fps)
-    output(save_fn, output_name(plot_spec), animate(simulation; plot_spec.kwargs...))
+    output(save_fn, output_name(plot_spec), animate(execution; plot_spec.kwargs...))
 end
-function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<:WCMSpatial{T,1}}
-    solution = simulation.solution
+function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs...) where {T,M<:WCMSpatial{T,1}}
+    solution = execution.solution
+    simulation = execution.simulation
     pop_names = simulation.model.pop_names
     x = saved_space_arr(simulation)
     t = saved_time_arr(simulation)
-    max_val = maximum(simulation)
+    max_val = maximum(solution)
     @animate for time_dx in 1:length(t) # TODO @views
         plot(x, pop_frame(solution, 1, time_dx); label=pop_names[1],
             ylim=(0,max_val), title="t = $(round(t[time_dx], digits=4))", kwargs...)
@@ -39,17 +40,18 @@ function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<
         end
     end
 end
-function RecipesBase.animate(simulation::Simulation{T,M}; kwargs...) where {T,M<:WCMSpatial{T,2}}
-    solution = simulation.solution
+function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs...) where {T,M<:WCMSpatial{T,2}}
+    solution = execution.solution
+    simulation = execution.simulation
     pop_names = simulation.model.pop_names
     x = saved_space_arr(simulation)
     xs = [coords[1] for coords in x[1,:]]
     ys = [coords[2] for coords in x[:,1]]
     t = saved_time_arr(simulation)
-    max_val = maximum(simulation)
+    max_val = maximum(solution)
     @animate for time_dx in 1:length(t) # TODO @views
         plot(
-            [surface( pop_frame(solution, i_pop, time_dx);
+            [heatmap( pop_frame(solution, i_pop, time_dx);
                 zlim=(0,max_val), clim=(0,max_val),
                 title="t = $(round(t[time_dx], digits=4)), $(pop_names[i_pop])", kwargs...)
                 for i_pop in 1:length(pop_names)]...
@@ -64,10 +66,12 @@ struct SpaceTimePlot <: AbstractPlotSpecification
     kwargs::Dict
 end
 SpaceTimePlot(; output_name = "spacetime.png", kwargs...) = SpaceTimePlot(output_name, kwargs)
-@recipe function f(plot_spec::SpaceTimePlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial}
+@recipe function f(plot_spec::SpaceTimePlot, execution::Execution{T,<:Simulation{T,M}}) where {T,M<:WCMSpatial}
+    simulation = execution.simulation
+    solution = execution.solution
     v_space = saved_space_arr(simulation)
     v_time = saved_time_arr(simulation)
-    clims := (minimum(simulation), maximum(simulation))
+    clims := (minimum(solution), maximum(solution))
     grid := false
     layout := (2,1)
     for i_pop in 1:2 # TODO!!
@@ -76,7 +80,7 @@ SpaceTimePlot(; output_name = "spacetime.png", kwargs...) = SpaceTimePlot(output
             subplot := i_pop
             x := v_time
             y := v_space
-            simulation.solution[:,i_pop,:]
+            solution[:,i_pop,:]
         end
     end
 end
@@ -88,7 +92,9 @@ struct NonlinearityPlot <: AbstractPlotSpecification
     kwargs::Dict
 end
 NonlinearityPlot(; output_name = "nonlinearity.png", kwargs...) = NonlinearityPlot(output_name, kwargs)
-@recipe function f(plot_spec::NonlinearityPlot, simulation::Simulation{T,M}; resolution=100, fn_bounds=(-1.0,15.0)) where {T,M<:WCMSpatial}
+@recipe function f(plot_spec::NonlinearityPlot, execution::Execution{T,<:Simulation{T,M}}; resolution=100, fn_bounds=(-1.0,15.0)) where {T,M<:WCMSpatial}
+    simulation = execution.simulation
+
     pop_names = simulation.model.pop_names
     n_pops = length(pop_names)
 
@@ -121,7 +127,9 @@ struct NeumanTravelingWavePlot{T} <: AbstractPlotSpecification
     kwargs::Dict
 end
 NeumanTravelingWavePlot(; output_name="traveling_wave.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = NeumanTravelingWavePlot{T}(output_name, dt, kwargs)
-@recipe function f(plot_spec::NeumanTravelingWavePlot{T}, simulation::Simulation{T,M}) where {T,M<:WCMSpatial}
+@recipe function f(plot_spec::NeumanTravelingWavePlot{T}, execution::Execution{T,<:Simulation{T,M}}) where {T,M<:WCMSpatial}
+    solution = execution.solution
+    simulation = execution.simulation
     t = saved_time_arr(simulation)
     space_origin::Int = get_origin(simulation) # TODO: Remove 1D return assumption
     di = max(1, round(Int, simulation.solver.simulated_dt / plot_spec.dt))
@@ -130,7 +138,7 @@ NeumanTravelingWavePlot(; output_name="traveling_wave.png", dt::Union{Nothing,T}
         @series begin
             seriestype := :line
             x := x
-            y := simulation.solution[space_origin:di:end,:,time_dx] * [1.0, -1.0] # Subtract inhibitory activity...
+            y := solution[space_origin:di:end,:,time_dx] * [1.0, -1.0] # Subtract inhibitory activity...
             ()
         end
     end
@@ -213,9 +221,9 @@ mutable struct SubsampledPlot <: AbstractPlotSpecification
     kwargs::Iterators.Pairs
 end
 SubsampledPlot(; plot_type=nothing, time_subsampler=Subsampler(), space_subsampler=Subsampler(), output_name="", kwargs...) = SubsampledPlot(plot_type, time_subsampler, space_subsampler, output_name, kwargs)
-@recipe function f(subsampledplot::SubsampledPlot, simulation::Simulation{T,M}) where {T,M<:WCMSpatial}
+@recipe function f(subsampledplot::SubsampledPlot, execution::Execution{T,<:Simulation{T,M}}) where {T,M<:WCMSpatial}
 
-    t, x, wave = subsample(simulation, time_subsampler=subsampledplot.time_subsampler, space_subsampler=subsampledplot.space_subsampler)
+    t, x, wave = subsample(execution, time_subsampler=subsampledplot.time_subsampler, space_subsampler=subsampledplot.space_subsampler)
 
     dt = subsampledplot.time_subsampler.Δ == nothing ? save_dt(simulation) : subsampledplot.time_subsampler.Δ
 

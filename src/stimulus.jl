@@ -5,7 +5,7 @@ function update(calc_arr::AA, new_arr::AbstractArray{S,1}, space::AbstractSpace{
     [calc_arr[i].stimulus != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
 end
 
-function distance(x::T,y) where {T <: Real}
+function distance(x,y) where {T <: Real}
     sqrt(sum((x .- y).^2))
 end
 

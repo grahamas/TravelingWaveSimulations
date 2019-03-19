@@ -37,9 +37,9 @@ end
 
 ###################
 
-function exponential_decay_abs((x1, x2)::Tuple{T,T}, amplitude::T, spread::T, step_size::T) where {T <: Number}
+function exponential_decay_abs(distance::T, amplitude::T, spread::T, step_size::T) where {T <: Number}
     amplitude * step_size * exp(
-        -abs((x1 - x2) / spread)
+        -abs(distance / spread)
     ) / (2 * spread)
 end
 
@@ -48,9 +48,9 @@ function exponential_decay_gaussian(x::Tup, amplitude::T, spread::Tup, step_size
         -sum( (x ./ spread) .^ 2)
     ) / (2 * prod(spread))
 end
-function exponential_decay_gaussian((x1, x2)::Tuple{Tup,Tup}, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
-    exponential_decay_gaussian(x1 .- x2, amplitude, spread, step_size)
-end
+# function exponential_decay_gaussian((x1, x2)::Tuple{Tup,Tup}, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
+#     exponential_decay_gaussian(x1 .- x2, amplitude, spread, step_size)
+# end
 
 function meijer_fn((x1, x2)::Tuple{T,T}, amplitude, spread::T, step_size::T) where {T <: Real}
     @. amplitude * step_size * exp(
@@ -63,17 +63,17 @@ end
 function directed_weights(connectivity::ShollConnectivity{T}, locations::CalculatedType{<:AbstractSpace{T,1}}) where {T}
     A = connectivity.amplitude
     σ = connectivity.spread
-    edges = get_edges(locations)
+    distances = get_distances(locations)
     step_size = step(locations)
-    return exponential_decay_abs.(edges, A, σ, step_size)
+    return exponential_decay_abs.(distances, A, σ, step_size)
     # In comparing to Neuman, there is no division by 2 on the edges
     # but the edges are very small, so there's no difference
 end
 
 function directed_weights(connectivity::GaussianConnectivity{T}, locations::CalculatedType{<:AbstractSpace{T,2}}) where {T}
-    edges = get_edges(locations)
+    distances = get_distances(locations)
     step_size = step(locations)
-    return exponential_decay_gaussian.(edges, connectivity.amplitude, Ref(connectivity.spread), step_size)
+    return exponential_decay_gaussian.(distances, connectivity.amplitude, Ref(connectivity.spread), step_size)
 end
 
 
