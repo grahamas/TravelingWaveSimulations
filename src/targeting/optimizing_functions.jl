@@ -17,10 +17,10 @@ function spatiotemporal_input(x::AbstractArray{T,1},t::AbstractArray{T,1}) where
 	return xt
 end
 
-function target_loss(target::SpatioTemporalFnTarget{T,F}, initial_model::Model{T}, solver) where {T,F}
-	t = time_arr(solver)
-	x = space_arr(initial_model, solver)
-	x_dx, pop_dx, t_dx = subsampling_idxs(initial_model, solver, target.time_subsampler, target.space_subsampler)
+function target_loss(target::SpatioTemporalFnTarget{T,F}, simulation::Simulation) where {T,F}
+	t = time_arr(simulation)
+	x = space_arr(simulation)
+	x_dx, pop_dx, t_dx = subsampling_idxs(simulation, target.time_subsampler, target.space_subsampler)
 	x = x[x_dx]
 	t = t[t_dx]
 	xt = spatiotemporal_input(x, t)

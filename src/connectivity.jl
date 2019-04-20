@@ -1,29 +1,43 @@
 
 abstract type AbstractConnectivity{T,D} <: AbstractParameter{T} end
 
-function update(calc_arr::AA, new_arr::AbstractArray{C,2}, space::AbstractSpace{T}) where {T, C <: AbstractConnectivity{T}, CC <: CalculatedType{C}, AA<:AbstractArray{CC,2}}
-    [calc_arr[i].connectivity != new_arr[i] ? Calculated(new_arr[i], space) : calc_arr[i] for i in CartesianIndices(calc_arr)]
+macro make_make_connectivity_mutator(num_dims)
+    D = eval(num_dims)
+    to_syms = [Symbol(:to,:_,i) for i in 1:D]
+    from_syms = [Symbol(:from,:_,i) for i in 1:D]
+    D_P = D + 1
+    D_CONN_P = D + D + 2
+    D_CONN = D + D
+    tensor_prod_expr = @eval @macroexpand @tensor dA[$(to_syms...),i] = dA[$(to_syms...),i] + connectivity_tensor[$(to_syms...),$(from_syms...),i,j] * A[$(from_syms...),j]
+    quote
+        @memoize Dict function make_mutator(conn::AbstractConnectivity{T,$D}) where {T}
+            connectivity_tensor::Array{T,$D_CONN_P} = tensor(conn)
+            function connectivity!(dA::Array{T,$D_P}, A::Array{T,$D_P}, t::T) where T
+                $tensor_prod_expr
+            end
+        end
+    end |> esc
 end
 
-#region ShollConnectivity
+@make_make_connectivity_mutator 1
+@make_make_connectivity_mutator 2
 
-@calculated_type(struct ShollConnectivity{T} <: AbstractConnectivity{T,1}
+#
+@with_kw struct ShollConnectivity{T} <: AbstractConnectivity{T,1}
     amplitude::T
     spread::T
-end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,1}}) where T
-    directed_weights(source, calculated_space)
 end
-)
+function tensor(connectivity::ShollConnectivity{T}, space::AbstractSpace{T,1}) where T
+    directed_weights(connectivity, space)
+end
 
-@calculated_type(struct GaussianConnectivity{T} <: AbstractConnectivity{T,2}
+@with_kw struct GaussianConnectivity{T} <: AbstractConnectivity{T,2}
     amplitude::T
     spread::Tuple{T,T}
-end, function calculate(calculated_space::CalculatedType{<:AbstractSpace{T,2}}) where T
-    distances = get_distances(calculated_space)
-    step_size = step(calculated_space)
-    exponential_decay_gaussian.(distances, amplitude, Ref(spread), Ref(step_size))
 end
-)
+function tensor(connectivity::GaussianConnectivity{T}, space::AbstractSpace{T,2}) where T
+    directed_weights(connectivity, space)
+end
 
 ###################
 
@@ -33,19 +47,15 @@ function exponential_decay_abs(distance::T, amplitude::T, spread::T, step_size::
     ) / (2 * spread)
 end
 
-function exponential_decay_gaussian(x::Tup, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
+function exponential_decay_gaussian(coord_distances::Tup, amplitude::T, spread::Tup, step_size::Tup) where {T,N, Tup<:NTuple{N,T}}
     amplitude * prod(step_size) * exp(
-        -sum( (x ./ spread) .^ 2)
+        -sum( (coord_distances ./ spread) .^ 2)
     ) / (2 * prod(spread))
 end
-# function exponential_decay_gaussian((x1, x2)::Tuple{Tup,Tup}, amplitude::T, spread::Tup, step_size::Tup) where {T, Tup<:Tuple{Vararg{T}}}
-#     exponential_decay_gaussian(x1 .- x2, amplitude, spread, step_size)
-# end
-
 
 # * Sholl connectivity
 
-function directed_weights(connectivity::ShollConnectivity{T}, locations::CalculatedType{<:AbstractSpace{T,1}}) where {T}
+function directed_weights(connectivity::ShollConnectivity{T}, locations::AbstractSpace{T,1}) where {T}
     A = connectivity.amplitude
     σ = connectivity.spread
     distances = get_distances(locations)
@@ -55,7 +65,7 @@ function directed_weights(connectivity::ShollConnectivity{T}, locations::Calcula
     # but the edges are very small, so there's no difference
 end
 
-function directed_weights(connectivity::GaussianConnectivity{T}, locations::CalculatedType{<:AbstractSpace{T,2}}) where {T}
+function directed_weights(connectivity::GaussianConnectivity{T}, locations::AbstractSpace{T,2}) where {T}
     distances = get_distances(locations)
     step_size = step(locations)
     return exponential_decay_gaussian.(distances, connectivity.amplitude, Ref(connectivity.spread), step_size)

@@ -2,12 +2,10 @@ module WilsonCowanModel
 
 #region imports
 using Parameters
-using CalculatedTypes
-import CalculatedTypes: Calculated, update
 using RecipesBase
 using StaticArrays
 using Simulation73
-import Simulation73: update_from_p!, make_calculated_function, target_loss
+import Simulation73: target_loss
 using JLD2
 using Plots; pyplot()
 using Random
@@ -32,7 +30,7 @@ include("stimulus.jl")
 include("connectivity.jl")
 include("models.jl")
 include("target.jl")
-include("analysis.jl")
+#include("analysis.jl")
 
 function run_simulation_example(example_name)
     include(example_name)

@@ -100,9 +100,6 @@ NonlinearityPlot(; output_name = "nonlinearity.png", kwargs...) = NonlinearityPl
 
     nonlinearity_fns = get_value.(Calculated(simulation.model).nonlinearity)
 
-    one_pop_x =
-    #delete!.(Ref(plotattributes),[:resolution,:fn_bounds])
-
     xlab := "Input current"
     ylab := "Proportion pop. reaching at least threshold"
 
@@ -118,6 +115,44 @@ NonlinearityPlot(; output_name = "nonlinearity.png", kwargs...) = NonlinearityPl
         end
     end
 end
+
+struct ConnectivityPlot <: AbstractPlotSpecification
+    output_name::String
+    kwargs::Dict
+end
+ConnectivityPlot(; output_name = "connectivity.png", kwargs...) = ConnectivityPlot(output_name, kwargs)
+# @recipe function f(plot_spec::ConnectivityPlot, execution::E) where {T,P,M<:WCMSpatial{T,1,P}, S<:Simulation{T,M}, E<:Execution{T,S}}
+#     simulation = execution.simulation
+#
+#     pop_names = simulation.model.pop_names
+#
+#     connectivity = calculate.(simulation.model.connectivity, Ref(Calculated(simulation.model.space)))
+#     map(Iterators.product(1:P, 1:P)) do (dst_pop, src_pop)
+#         @series begin
+#             lab --> "$(pop_names[src_pop]) → $(pop_names[dst_pop])"
+#             seriestype := :heatmap
+#             subplot := (dst_pop, src_pop)
+#             connectivity[:,:,dst_pop,src_pop]
+#         end
+#     end
+# end
+@recipe function f(plot_spec::ConnectivityPlot, execution::E) where {T,P,M<:WCMSpatial{T,2,P}, S<:Simulation{T,M}, E<:Execution{T,S}}
+    simulation = execution.simulation
+
+    pop_names = simulation.model.pop_names
+
+    connectivity = calculate.(simulation.model.connectivity, Ref(Calculated(simulation.model.space)))
+    layout := (2,2)
+    for (dst_pop, src_pop) in Iterators.product(1:P, 1:P)
+        @series begin
+            lab --> "$(pop_names[src_pop])[0,0] → $(pop_names[dst_pop])"
+            seriestype := :heatmap
+            subplot := dst_pop + (src_pop-1) * P
+            connectivity[dst_pop,src_pop][:,:,1,1]
+        end
+    end
+end
+
 #endregion
 
 #region NeumanTravelingWavePlot
@@ -155,49 +190,6 @@ function calculate_width(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
     half_end = mapslices(frame_last, above_half, dims=1)
     return half_end - half_start
 end
-
-"""
-    During sparse movement (velocity as difference of location usually 0),
-    calculate velocity as the amount of movement divided by the length of
-    the window in which no movement but that was recorded. The window is
-    determined by bisecting each run of no-movement.
-
-    Discard first and last movements.
-"""
-# function calculate_velocity(single_wave_data::AT, dt::T=one(T)) where {T, AT<:AbstractArray{T,2}}
-#     # [space, time]
-#     naive_velocity = calculate_naive_velocity(single_wave_data, 1.0)'
-#     @show naive_velocity
-#     nonzero_vel = naive_velocity .!= zero(T)
-#     n_moves = sum(nonzero_vel)
-#     if n_moves < 3
-#         return (T[], T[])
-#     end
-
-#     first_movement = findfirst(nonzero_vel)[1]
-#     second_movement = findfirst(nonzero_vel[first_movement+1:end])[1]
-#     prev_leading_window = dt * (second_movement - first_movement) / 2.0
-#     prev_movement = second_movement
-
-#     t = Array{T,1}(undef, n_moves-2) # Doesn't store the first or last move
-#     velocity = similar(t)
-#     i_velocity = 1
-#     for i_naive in (second_movement+1):length(naive_velocity)
-#         vel = naive_velocity[i_naive]
-#         if vel != zero(T)
-#             this_movement = i_naive
-#             leading_window = dt * (this_movement - prev_movement) / 2.0
-#             prev_total_window = prev_leading_window + leading_window
-#             @show i_velocity, i_naive, n_moves, length(naive_velocity)
-#             velocity[i_velocity] = naive_velocity[i_naive] / prev_total_window
-#             t[i_velocity] = prev_movement * dt
-
-#             i_velocity += 1
-#             prev_movement = this_movement
-#         end
-#     end
-#     return (t, velocity)
-# end
 
 function calculate_naive_velocity(single_wave_data::AT, dt::T=one(T)) where {T, AT<:AbstractArray{T,2}}
     # [space, time]

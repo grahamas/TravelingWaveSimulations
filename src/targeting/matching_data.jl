@@ -16,11 +16,10 @@ function (p::MatchData{T})(soln::AbstractArray{T}) where T#, x_dxs::AbstractArra
 	return res
 end
 
-function target_loss(fn::MatchData{T}, model::WCMSpatial{T}, solver::Solver{T}) where T
-	t_target, x_target = fn.t, fn.x
-	t_dxs = subsampling_time_idxs(solver, t_target)
-	x_dxs = subsampling_space_idxs(model, solver, x_target)
+function target_loss(target::MatchData{T}, simulation::Simulation) where T
+	t_target, x_target = target.t, target.x
+	x_dx, pop_dx, t_dx = subsampling_idxs(simulation, t_target, x_target)
 	pop_dxs = 1
-	loss_fn(soln) = fn(soln[x_dxs, pop_dxs, t_dxs])
+	loss_fn(soln) = target(soln[x_dxs, pop_dxs, t_dxs])
 	return loss_fn
 end

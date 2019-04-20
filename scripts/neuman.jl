@@ -1,12 +1,14 @@
 # ENV["GKSwstype"] = "100" # For headless plotting (on server)
 # ENV["MPLBACKEND"]="Agg"
-#grr
-
+using DrWatson
+quickactivate(@__DIR__, "WilsonCowanModel")
 using Simulation73
 using WilsonCowanModel
 using DifferentialEquations: Euler
-using JLD2
 using Plots; pyplot()
+using Random
+
+Random.seed!(9999)
 
 if !@isdefined(v)
   const v = Float64
@@ -20,7 +22,7 @@ simulation = Simulation(;
     α = v[1.1, 1.0],
     β = v[1.1, 1.1],
     τ = v[0.1, 0.18],
-    space = Pops{P}(Circle{v}(; n_points=301, extent=30.0)),
+    space = Pops{P}(Segment{v}(; n_points=301, extent=100.0)),
     nonlinearity = pops(SigmoidNonlinearity{v};
       a = v[1.2, 1.0],
       θ = v[2.6, 8.0]),
@@ -58,38 +60,34 @@ simulation = Simulation(;
     dt = 0.01,
     space_save_every=1,
     time_save_every=1,
+    #stiffness=:stiff
     algorithm=Euler()
-    )
   )
+)
 
-analyses = [
-Animate(;
-  fps = 20
-  ),
+execution = execute(simulation)
+tagsave(savename("neuman/", execution), execution;safe=true)
+
+
+
+# analyses = [
+# Animate(;
+#   fps = 20
+#   ),
 # NonlinearityPlot(;
 #   fn_bounds = (-1,15)
 #   ),
-# SpaceTimePlot(),
-SubsampledPlot(
-  plot_type=WaveStatsPlot,
-  time_subsampler=Subsampler(
-    Δ = 0.01,
-    window = (1.2, 1.8)
-  ),
-  space_subsampler=Subsampler(
-      window = (5.0,Inf)
-    )
-  )
-]
+# # SpaceTimePlot(),
+# SubsampledPlot(
+#   plot_type=WaveStatsPlot,
+#   time_subsampler=Subsampler(
+#     Δ = 0.01,
+#     window = (1.2, 1.8)
+#   ),
+#   space_subsampler=Subsampler(
+#       window = (5.0,Inf)
+#     )
+#   )
+# ]
 
-output = SingleOutput(;
-  root = joinpath(homedir(), "simulation-results"),
-  simulation_name = "neuman/circle"
-  )
-
-@save "parameters.jld2" simulation
-
-execution = Execution(simulation)
-analyse.(analyses, Ref(execution), Ref(output))
-
-output(((name, obj) -> @save name obj), "parameters.jld2", simulation)
+# analyse.(analyses, Ref(simulation), Ref(output))
