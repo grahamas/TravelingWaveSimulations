@@ -45,7 +45,7 @@ function make_stimulus(bump::TBS, space::AbstractSpace{T,N}) where {T, N, TBS<:T
     offset = bump.time_window[2]
     function stimulus!(val, t)
         if onset <= t < offset
-            val .+= on_frame(bump)
+            val .+= bump_frame
         end
     end
 end

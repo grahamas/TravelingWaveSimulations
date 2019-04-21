@@ -10,8 +10,8 @@ macro make_make_connectivity_mutator(num_dims)
     D_CONN = D + D
     tensor_prod_expr = @eval @macroexpand @tensor dA[$(to_syms...),i] = dA[$(to_syms...),i] + connectivity_tensor[$(to_syms...),$(from_syms...),i,j] * A[$(from_syms...),j]
     quote
-        @memoize Dict function make_mutator(conn::AbstractConnectivity{T,$D}) where {T}
-            connectivity_tensor::Array{T,$D_CONN_P} = tensor(conn)
+        @memoize Dict function make_mutator(conn::AbstractArray{<:AbstractConnectivity{T,$D}}, space::AbstractSpace{T,$D}) where {T}
+            connectivity_tensor::Array{T,$D_CONN_P} = tensor(conn, space)
             function connectivity!(dA::Array{T,$D_P}, A::Array{T,$D_P}, t::T) where T
                 $tensor_prod_expr
             end
@@ -30,6 +30,14 @@ end
 function tensor(connectivity::ShollConnectivity{T}, space::AbstractSpace{T,1}) where T
     directed_weights(connectivity, space)
 end
+function tensor(arr::AbstractArray{<:AbstractConnectivity{T,N}}, space::Pops{P,T,N}) where {T,N,P}
+    ret_tensor = Array{T,(N+N+2)}(undef, one_pop_size(space)..., one_pop_size(space)..., P, P)
+    for dx in CartesianIndices(arr)
+        view_slice_last(ret_tensor, dx) .= tensor(arr[dx], space)
+    end
+    return ret_tensor
+end
+
 
 @with_kw struct GaussianConnectivity{T} <: AbstractConnectivity{T,2}
     amplitude::T

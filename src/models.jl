@@ -20,24 +20,28 @@ end
 
 space_array(model::WCMSpatial) = Calculated(model.space).value
 
-function make_linear_fn(model::WCMSpatial{T,N,P}) where {T,N,P}
-    function linear_fn!(dA::Array{T,D}, A::Array{T,D}, t::T) where D
+function make_linear_mutator(model::WCMSpatial{T,N,P}) where {T,N,P}
+    function linear_mutator!(dA::Array{T,D}, A::Array{T,D}, t::T) where D
         @views for i in 1:P
             dAi = view_slice_last(dA, i); Ai = view_slice_last(A, i)
-            dAi .*= β[i] .* (1.0 .- Ai)
-            dAi .+= -α[i] .* Ai
-            dAi ./= τ[i]
+            dAi .*= model.β[i] .* (1.0 .- Ai)
+            dAi .+= -model.α[i] .* Ai
+            dAi ./= model.τ[i]
         end
     end
 end
 
-function Simulation73.make_mutators(model::WCMSpatial)
-    [
-        make_mutator(model.stimulus, model.space),
-        make_mutator(model.connectivity),
-        make_mutator(model.nonlinearity),
-        make_linear_mutator(model)
-    ]
+function Simulation73.make_system_mutator(model::WCMSpatial)
+    stimulus_mutator! = make_mutator(model.stimulus, model.space)
+    connectivity_mutator! = make_mutator(model.connectivity, model.space)
+    nonlinearity_mutator! = make_mutator(model.nonlinearity)
+    linear_mutator! = make_linear_mutator(model)
+    function system_mutator!(dA, A, p, t)
+        stimulus_mutator!(dA, A, t)
+        connectivity_mutator!(dA, A, t)
+        nonlinearity_mutator!(dA, A, t)
+        linear_mutator!(dA, A, t)
+    end
 end
 
 ### Thoughts on connectivity

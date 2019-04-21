@@ -1,7 +1,7 @@
 abstract type AbstractNonlinearity{T} <: AbstractParameter{T} end
 
-@memoize Dict function make_mutator(nonlinearity_arr::AbstractArray{<:AbstractNonlinearity{T}}, space::AbstractSpace) where T
-    nonlinearity_mutators = [make_nonlinearity!(stim, space) for stim in nonlinearity_arr]
+@memoize Dict function make_mutator(nonlinearity_arr::AbstractArray{<:AbstractNonlinearity{T}}) where T
+    nonlinearity_mutators = [make_nonlinearity(nonl) for nonl in nonlinearity_arr]
     function nonlinearity_mutator!(dA::AbstractArray{T,D}, A::AbstractArray{T,D}, t::T) where {T,D}
         for (i, nonlinearity!) in enumerate(nonlinearity_mutators)
             nonlinearity!(view_slice_last(dA, i))
@@ -44,7 +44,7 @@ struct SigmoidNonlinearity{T} <: AbstractNonlinearity{T}
 end
 SigmoidNonlinearity{T}(; a::T=nothing, θ::T=nothing) where T = SigmoidNonlinearity{T}(a,θ)
 
-@memoize Dict function nonlinearity!(sn::SigmoidNonlinearity{T}) where {T}
+@memoize Dict function make_nonlinearity(sn::SigmoidNonlinearity{T}) where {T}
     (output::AbstractArray{T}) -> output .= rectified_sigmoid_fn.(output,sn.a,sn.θ)
 end
 
@@ -60,7 +60,7 @@ struct Sech2Nonlinearity{T} <: AbstractNonlinearity{T}
     θ::T
 end
 Sech2Nonlinearity{T}(; a::T=nothing, θ::T=nothing) where T = Sech2Nonlinearity{T}(a,θ)
-@memoize Dict function nonlinearity!(sn::Sech2Nonlinearity{T}) where {T}
+@memoize Dict function make_nonlinearity(sn::Sech2Nonlinearity{T}) where {T}
     (output::AbstractArray{T}) -> output .= sech2_fn.(output,sn.a,sn.θ)
 end
 
@@ -76,6 +76,6 @@ struct GaussianNonlinearity{T} <: AbstractNonlinearity{T}
     θ::T
 end
 GaussianNonlinearity{T}(; sd::T=nothing, θ::T=nothing) where T = GaussianNonlinearity{T}(sd,θ)
-@memoize Dict function nonlinearity!(gn::GaussianNonlinearity{T}) where {T}
+@memoize Dict function make_nonlinearity(gn::GaussianNonlinearity{T}) where {T}
     (output::AbstractArray{T}) -> output .= gaussian_fn.(output,gn.sd,gn.θ)
 end

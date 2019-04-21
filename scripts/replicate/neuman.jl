@@ -5,8 +5,8 @@ quickactivate(@__DIR__, "WilsonCowanModel")
 using Simulation73
 using WilsonCowanModel
 using DifferentialEquations: Euler
-using Plots; pyplot()
 using Random
+using Dates
 
 Random.seed!(9999)
 
@@ -65,8 +65,12 @@ simulation = Simulation(;
   )
 )
 
-execution = execute(simulation)
-tagsave(savename("neuman/", execution), execution;safe=true)
+execution = execute(simulation);
+
+replication_directory = joinpath(datadir(), "sim", "replicate", "neuman")
+this_time_commit_filename = join([Dates.now(),current_commit()*".bson"], "_")
+mkdir(replication_directory)
+tagsave(joinpath(replication_directory, this_time_commit_filename), @dict execution; safe=true)
 
 
 
