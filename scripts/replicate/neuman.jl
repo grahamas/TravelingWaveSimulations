@@ -69,7 +69,7 @@ execution = execute(simulation);
 
 replication_directory = joinpath(datadir(), "sim", "replicate", "neuman")
 this_time_commit_filename = join([Dates.now(),current_commit()*".bson"], "_")
-mkdir(replication_directory)
+mkpath(replication_directory)
 tagsave(joinpath(replication_directory, this_time_commit_filename), @dict execution; safe=true)
 
 
