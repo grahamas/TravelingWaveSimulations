@@ -23,7 +23,7 @@ end
 Animate(; fps=20, output_name="animation.mp4", kwargs...) = Animate(fps, output_name, kwargs)
 function Simulation73.plot_and_save(plot_spec::Animate, execution::Execution, output_path::AbstractString)
     name = joinpath(output_path, output_name(plot_spec))
-    DrWatson.recursively_clear_path(name);
+    DrWatson.recursively_clear_path(name)
     anim = animate(execution; plot_spec.kwargs...)
     mp4(anim, name; fps=plot_spec.fps)
 end
