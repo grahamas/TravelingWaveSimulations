@@ -40,7 +40,7 @@ FrameIterator(itr; every=1, kw...) = FrameIterator(itr, every, kw)
 """
 Animate from an iterator which returns the plot args each iteration.
 """
-function animate(fitr::FrameIterator, fn = giffn(); kw...)
+function RecipesBase.animate(fitr::FrameIterator, fn = giffn(); kw...)
     anim = Animation()
     for (i, plotargs) in enumerate(fitr.itr)
         if mod1(i, fitr.every) == 1
@@ -52,7 +52,7 @@ function animate(fitr::FrameIterator, fn = giffn(); kw...)
 end
 
 # most things will implement this
-function animate(obj, fn = giffn(); every=1, fps=20, loop=0, kw...)
+function RecipesBase.animate(obj, fn = giffn(); every=1, fps=20, loop=0, kw...)
     animate(FrameIterator(obj, every, kw), fn; fps=fps, loop=loop)
 end
 
