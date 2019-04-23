@@ -121,3 +121,6 @@ function neuman_square(;
       )
   )
 end
+
+
+end
