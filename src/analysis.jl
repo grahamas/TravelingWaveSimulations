@@ -25,7 +25,7 @@ function Simulation73.plot_and_save(plot_spec::Animate, execution::Execution, ou
     name = joinpath(output_path, output_name(plot_spec))
     DrWatson.recursively_clear_path(name);
     anim = animate(execution; plot_spec.kwargs...)
-    mp4(anim, name; fps=plot_spec.fps))
+    mp4(anim, name; fps=plot_spec.fps)
 end
 function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs...) where {T,M<:WCMSpatial{T,1}}
     solution = execution.solution
