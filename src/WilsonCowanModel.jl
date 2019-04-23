@@ -1,6 +1,7 @@
 module WilsonCowanModel
 
 #region imports
+using DrWatson
 using Parameters
 using RecipesBase
 using StaticArrays
@@ -12,7 +13,7 @@ using Random
 using MacroTools, IterTools, Espresso
 using Optim
 using TensorOperations
-using Formatting: @sprintf
+using Formatting: @sprintf # for @animate
 #endregion
 
 export WCMSpatial
