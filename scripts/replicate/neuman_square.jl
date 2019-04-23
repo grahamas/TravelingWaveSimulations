@@ -9,12 +9,12 @@ using DifferentialEquations: Euler
 using Random
 using Dates
 
-simulation = WilsonCowanModel.Examples.neuman_line()
+simulation = WilsonCowanModel.Examples.neuman_square()
 
 execution = execute(simulation);
 
 current_time = string(Dates.now())
-generic_replication_dir = joinpath("replicate", "neuman", "line", current_time)
+generic_replication_dir = joinpath("replicate", "neuman", "square", current_time)
 replication_directory = joinpath(datadir(), "sim", generic_replication_dir)
 this_commit_filename = current_commit()*".bson"
 mkpath(replication_directory)
@@ -25,18 +25,18 @@ Animate(;
   ),
 NonlinearityPlot(;
   fn_bounds = (-1,15)
-  ),
-# SpaceTimePlot(),
-SubsampledPlot(
-  plot_type=WaveStatsPlot,
-  time_subsampler=Subsampler(
-    Δ = 0.01,
-    window = (1.2, 1.8)
-  ),
-  space_subsampler=Subsampler(
-      window = (5.0,Inf)
-    )
   )
+# SpaceTimePlot(),
+# SubsampledPlot(
+#   plot_type=WaveStatsPlot,
+#   time_subsampler=Subsampler(
+#     Δ = 0.01,
+#     window = (1.2, 1.8)
+#   ),
+#   space_subsampler=Subsampler(
+#       window = (5.0,Inf)
+#     )
+#   )
 ]
 
 using Plots; pyplot()
