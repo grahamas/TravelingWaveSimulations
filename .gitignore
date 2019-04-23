@@ -9,3 +9,8 @@ results
 *_res.jld2
 
 .*
+
+data
+_research
+plots
+Manifest.toml

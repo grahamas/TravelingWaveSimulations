@@ -7,7 +7,7 @@ using StaticArrays
 using Simulation73
 import Simulation73: target_loss
 using JLD2
-using Plots; pyplot()
+#using Plots; pyplot()
 using Random
 using MacroTools, IterTools, Espresso
 using Optim
@@ -24,13 +24,16 @@ export AbstractConnectivity, ShollConnectivity, MeijerConnectivity, GaussianConn
 
 export MatchExample, StretchExample, SpatioTemporalFnTarget, @optim_st_target
 
+export Examples
+
 include("helpers.jl")
 include("nonlinearity.jl")
 include("stimulus.jl")
 include("connectivity.jl")
 include("models.jl")
 include("target.jl")
-#include("analysis.jl")
+include("analysis.jl")
+include("examples.jl")
 
 function run_simulation_example(example_name)
     include(example_name)
