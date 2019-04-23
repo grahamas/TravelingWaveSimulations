@@ -1,5 +1,8 @@
 # Copied directly from Plots.jl to avoid Plots dependency
 
+isijulia() = :IJulia in nameof.(collect(values(Base.loaded_modules)))
+isatom() = :Atom in nameof.(collect(values(Base.loaded_modules)))
+
 "Represents an animation object"
 struct Animation
     dir::String
