@@ -12,6 +12,7 @@ using Random
 using MacroTools, IterTools, Espresso
 using Optim
 using TensorOperations
+using Formatting: @sprintf
 #endregion
 
 export WCMSpatial
@@ -32,6 +33,7 @@ include("stimulus.jl")
 include("connectivity.jl")
 include("models.jl")
 include("target.jl")
+include("animation.jl")
 include("analysis.jl")
 include("examples.jl")
 
