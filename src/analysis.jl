@@ -14,6 +14,16 @@ export WaveWidthPlot
 
 export WaveStatsPlot
 
+export plot_and_save
+
+
+function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Execution, output_dir::AbstractString)
+	path = joinpath(output_dir, output_name(plot_spec))
+	recursively_clear_path(path)
+	plot_obj = RecipesBase.plot(plot_spec, execution; plot_spec.kwargs...)
+	savefig(plot_obj, path)
+end
+
 #region Animate
 struct Animate <: AbstractPlotSpecification
     fps::Int
@@ -21,10 +31,10 @@ struct Animate <: AbstractPlotSpecification
     kwargs::Dict
 end
 Animate(; fps=20, output_name="animation.mp4", kwargs...) = Animate(fps, output_name, kwargs)
-function Simulation73.plot_and_save(plot_spec::Animate, execution::Execution, output_path::AbstractString)
+function plot_and_save(plot_spec::Animate, execution::Execution, output_path::AbstractString)
     name = joinpath(output_path, output_name(plot_spec))
-    DrWatson.recursively_clear_path(name)
-    anim = animate(execution; plot_spec.kwargs...)
+    recursively_clear_path(name)
+    anim = RecipesBase.animate(execution; plot_spec.kwargs...)
     mp4(anim, name; fps=plot_spec.fps)
 end
 function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs...) where {T,M<:WCMSpatial{T,1}}
@@ -100,19 +110,21 @@ NonlinearityPlot(; output_name = "nonlinearity.png", kwargs...) = NonlinearityPl
     pop_names = simulation.model.pop_names
     n_pops = length(pop_names)
 
-    nonlinearity_fns = get_value.(Calculated(simulation.model).nonlinearity)
+    nonlinearity_mutator! = make_mutator(simulation.model.nonlinearity)
 
     xlab := "Input current"
     ylab := "Proportion pop. reaching at least threshold"
 
     one_pop_x = range(fn_bounds[1], stop=fn_bounds[2], length=resolution)
+    output = repeat(one_pop_x, outer=(1,n_pops))
+    nonlinearity_mutator!(output, output, 0.0)
 
     for i_pop in 1:length(pop_names)
         @series begin
             lab --> pop_names[i_pop]
             seriestype := :line
             x := one_pop_x
-            y := nonlinearity(nonlinearity_fns[i_pop], collect(one_pop_x))
+            y := output[:,i_pop]
             ()
         end
     end
@@ -143,14 +155,14 @@ ConnectivityPlot(; output_name = "connectivity.png", kwargs...) = ConnectivityPl
 
     pop_names = simulation.model.pop_names
 
-    connectivity = calculate.(simulation.model.connectivity, Ref(Calculated(simulation.model.space)))
+    connectivity = tensor(simulation.model.connectivity, simulation.model.space)
     layout := (2,2)
     for (dst_pop, src_pop) in Iterators.product(1:P, 1:P)
         @series begin
-            lab --> "$(pop_names[src_pop])[0,0] → $(pop_names[dst_pop])"
+            lab --> "$(pop_names[src_pop])[1,1] → $(pop_names[dst_pop])"
             seriestype := :heatmap
             subplot := dst_pop + (src_pop-1) * P
-            connectivity[dst_pop,src_pop][:,:,1,1]
+            connectivity[:,:,1,1,dst_pop,src_pop]
         end
     end
 end
@@ -184,6 +196,7 @@ end
 
 function calculate_width(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
     # [space, time]
+    @show size(single_wave_data)
     space_max = findmax(single_wave_data)[1]
     above_half = single_wave_data .> (space_max / 2)
     frame_first(frame)::Union{Int64,Missing} = any(frame) ? findfirst(frame)[1] : 0
@@ -216,7 +229,7 @@ mutable struct SubsampledPlot <: AbstractPlotSpecification
 end
 SubsampledPlot(; plot_type=nothing, time_subsampler=Subsampler(), space_subsampler=Subsampler(), output_name="", kwargs...) = SubsampledPlot(plot_type, time_subsampler, space_subsampler, output_name, kwargs)
 @recipe function f(subsampledplot::SubsampledPlot, execution::Execution{T,<:Simulation{T,M}}) where {T,M<:WCMSpatial}
-
+    simulation = execution.simulation
     t, x, wave = subsample(execution, time_subsampler=subsampledplot.time_subsampler, space_subsampler=subsampledplot.space_subsampler)
 
     dt = subsampledplot.time_subsampler.Δ == nothing ? save_dt(simulation) : subsampledplot.time_subsampler.Δ
@@ -300,6 +313,7 @@ struct WaveWidthPlot <: AbstractPlotSpecification
 end
 WaveWidthPlot(; output_name="wave_width.png", kwargs...) = WaveWidthPlot(output_name, kwargs)
 @recipe function f(plot_spec::WaveWidthPlot, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform=identity) where {T}
+    @show size(wave)
     @series begin
         title --> "Wave width over time"
         seriestype := :scatter

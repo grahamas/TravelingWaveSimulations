@@ -8,7 +8,7 @@ using StaticArrays
 using Simulation73
 import Simulation73: target_loss
 using JLD2
-#using Plots; pyplot()
+using Plots; pyplot()
 using Random
 using MacroTools, IterTools, Espresso
 using Optim
