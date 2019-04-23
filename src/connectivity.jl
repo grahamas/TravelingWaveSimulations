@@ -76,7 +76,10 @@ end
 function directed_weights(connectivity::GaussianConnectivity{T}, locations::AbstractSpace{T,2}) where {T}
     distances = get_distances(locations)
     step_size = step(locations)
-    return exponential_decay_gaussian.(distances, connectivity.amplitude, Ref(connectivity.spread), step_size)
+    @show size(distances)
+    @show connectivity.amplitude
+    @show step_size
+    return exponential_decay_gaussian.(distances, connectivity.amplitude, Ref(connectivity.spread), Ref(step_size))
 end
 
 
