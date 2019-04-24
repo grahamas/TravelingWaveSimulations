@@ -1,29 +1,32 @@
 module WilsonCowanModel
 
 #region imports
+using DrWatson
 using Parameters
-using CalculatedTypes
-import CalculatedTypes: Calculated, update
 using RecipesBase
 using StaticArrays
 using Simulation73
-import Simulation73: update_from_p!, make_calculated_function, target_loss
+import Simulation73: target_loss
 using JLD2
 using Plots; pyplot()
 using Random
 using MacroTools, IterTools, Espresso
 using Optim
+using TensorOperations
+using Formatting: @sprintf # for @animate
 #endregion
 
-export WCMSpatial1D
+export WCMSpatial
 
-export SigmoidNonlinearity, Sech2Nonlinearity, GaussianNonlinearity
+export AbstractNonlinearity, SigmoidNonlinearity, Sech2Nonlinearity, GaussianNonlinearity
 
-export SharpBumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
+export AbstractStimulus, SharpBumpStimulus, NoisyStimulus, GaussianNoiseStimulus, NoStimulus
 
-export ShollConnectivity, MeijerConnectivity
+export AbstractConnectivity, ShollConnectivity, MeijerConnectivity, GaussianConnectivity
 
 export MatchExample, StretchExample, SpatioTemporalFnTarget, @optim_st_target
+
+export Examples
 
 include("helpers.jl")
 include("nonlinearity.jl")
@@ -31,7 +34,9 @@ include("stimulus.jl")
 include("connectivity.jl")
 include("models.jl")
 include("target.jl")
+include("animation.jl")
 include("analysis.jl")
+include("examples.jl")
 
 function run_simulation_example(example_name)
     include(example_name)

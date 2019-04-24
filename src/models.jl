@@ -1,8 +1,8 @@
 # Rename to remove N redundancy
-struct WCMSpatial1D{T,N,P,C<:AbstractConnectivity{T},
+struct WCMSpatial{T,D,P,C<:AbstractConnectivity{T,D},
                             L<:AbstractNonlinearity{T},
-                            S<:AbstractStimulus{T},
-                            SP<:PopSpace{T,N,P}} <: Model{T,N,P}
+                            S<:AbstractStimulus{T,D},
+                            SP<:Pops{P,T,D}} <: AbstractModel{T,D,P}
     α::SVector{P,T}
     β::SVector{P,T}
     τ::SVector{P,T}
@@ -13,76 +13,50 @@ struct WCMSpatial1D{T,N,P,C<:AbstractConnectivity{T},
     pop_names::SVector{P,String}
 end
 
-function WCMSpatial1D{T,N,P}(; pop_names::Array{Str,1}, α::Array{T,1}, β::Array{T,1}, τ::Array{T,1},
-        space::SP, connectivity::Array{C,2}, nonlinearity::Array{L,1}, stimulus::Array{S,1}) where {T,P,N,Str<:AbstractString,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},SP<:Space{T,N}}
-    WCMSpatial1D{T,N,P,C,L,S,SP}(SVector{P,T}(α),SVector{P,T}(β),SVector{P,T}(τ),space,SMatrix{P,P,C}(connectivity),SVector{P,L}(nonlinearity),SVector{P,S}(stimulus),SVector{P,Str}(pop_names))
+function WCMSpatial{T,N,P}(; pop_names::Array{Str,1}, α::Array{T,1}, β::Array{T,1}, τ::Array{T,1},
+        space::SP, connectivity::Array{C,2}, nonlinearity::Array{L,1}, stimulus::Array{S,1}) where {T,P,N,Str<:AbstractString,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},SP<:AbstractSpace{T,N}}
+    WCMSpatial{T,N,P,C,L,S,SP}(SVector{P,T}(α),SVector{P,T}(β),SVector{P,T}(τ),space,SMatrix{P,P,C}(connectivity),SVector{P,L}(nonlinearity),SVector{P,S}(stimulus),SVector{P,Str}(pop_names))
 end
 
-space_array(model::WCMSpatial1D) = Calculated(model.space).value
+space_array(model::WCMSpatial) = Calculated(model.space).value
 
-
-# * Calculated WC73 Simulation Type
-mutable struct CalculatedWCMSpatial1D{T,N,P,C,L,S,CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType} <: CalculatedType{WCMSpatial1D{T,N,P,C,L,S}}
-    α::SVector{P,T}
-    β::SVector{P,T}
-    τ::SVector{P,T}
-    connectivity::SMatrix{P,P,CC}
-    nonlinearity::SVector{P,CL}
-    stimulus::SVector{P,CS}
-end
-
-function CalculatedWCMSpatial1D(wc::WCMSpatial1D{T,N,P,C,L,S}) where {T<:Real,N,P,
-                                                  C<:AbstractConnectivity{T},
-                                                  L<:AbstractNonlinearity{T},
-                                                  S<:AbstractStimulus{T}}
-    connectivity = Calculated.(wc.connectivity, Ref(wc.space))
-    nonlinearity = Calculated.(wc.nonlinearity)
-    stimulus = Calculated.(wc.stimulus,Ref(wc.space))
-    CC = eltype(connectivity)
-    CL = eltype(nonlinearity)
-    CS = eltype(stimulus)
-    CalculatedWCMSpatial1D{T,N,P,C,L,S,CC,CL,CS}(
-        wc.α, wc.β, wc.τ,
-        connectivity, nonlinearity, stimulus)
-end
-
-function Calculated(wc::WCMSpatial1D)
-    CalculatedWCMSpatial1D(wc)
-end
-
-function get_values(cwc::CalculatedWCMSpatial1D{T,N}) where {T,N}
-    (cwc.α, cwc.β, cwc.τ, get_value.(cwc.connectivity), get_value.(cwc.nonlinearity), get_value.(cwc.stimulus))
-end
-
-function update_from_p!(cwc::CalculatedWCMSpatial1D{T}, new_p::Array{T}, model, variable_map) where T
-    # Use the variable model stored by p_search to create static model
-    new_model = model_from_p(model, variable_map, new_p)
-
-    # Update the calculated values from the new static model
-    cwc.α = new_model.α
-    cwc.β = new_model.β
-    cwc.τ = new_model.τ
-    cwc.connectivity = update(cwc.connectivity, new_model.connectivity, new_model.space)
-    cwc.nonlinearity = update(cwc.nonlinearity, new_model.nonlinearity)
-    cwc.stimulus = update(cwc.stimulus, new_model.stimulus, new_model.space)
-end
-
-function make_calculated_function(cwc::CalculatedWCMSpatial1D{T,1,P,C,L,S,CC,CL,CS}) where {T,P,C<:AbstractConnectivity{T},L<:AbstractNonlinearity{T},S<:AbstractStimulus{T},CC<:CalculatedType{<:C},CL <: CalculatedType{<:L},CS <: CalculatedType}
-    (α, β, τ, connectivity_mx, nonlinearity_objs, stimulus_objs) = get_values(cwc)
-
-    let α::SVector{P,T}=α, β::SVector{P,T}=β, τ::SVector{P,T}=τ, connectivity_mx::SMatrix{P,P,Matrix{T}}=connectivity_mx, nonlinearity_objs::SVector{P,CL}=nonlinearity_objs, stimulus_objs::SVector{P,CS}=stimulus_objs
-        (dA::Array{T,2}, A::Array{T,2}, p::Union{Array{T,1},Nothing}, t::T) -> (
-            @views for i in 1:P
-                stimulate!(dA[:,i], stimulus_objs[i], t) # I'll bet it goes faster if we pull this out of the loop
-                for j in 1:P
-                    dA[:,i] .+= connectivity_mx[i,j] * A[:,j]
-                end
-                # dA[:,i] .+= sum(connectivity_mx[i,j] * A[:,j] for j in 1:2)
-                nonlinearity!(dA[:,i], nonlinearity_objs[i])
-                dA[:,i] .*= β[i] .* (1.0 .- A[:,i])
-                dA[:,i] .+= -α[i] .* A[:,i]
-                dA[:,i] ./= τ[i]
-            end
-        )
+function make_linear_mutator(model::WCMSpatial{T,N,P}) where {T,N,P}
+    function linear_mutator!(dA::Array{T,D}, A::Array{T,D}, t::T) where D
+        @views for i in 1:P
+            dAi = view_slice_last(dA, i); Ai = view_slice_last(A, i)
+            dAi .*= model.β[i] .* (1.0 .- Ai)
+            dAi .+= -model.α[i] .* Ai
+            dAi ./= model.τ[i]
+        end
     end
 end
+
+function Simulation73.make_system_mutator(model::WCMSpatial)
+    stimulus_mutator! = make_mutator(model.stimulus, model.space)
+    connectivity_mutator! = make_mutator(model.connectivity, model.space)
+    nonlinearity_mutator! = make_mutator(model.nonlinearity)
+    linear_mutator! = make_linear_mutator(model)
+    function system_mutator!(dA, A, p, t)
+        stimulus_mutator!(dA, A, t)
+        connectivity_mutator!(dA, A, t)
+        nonlinearity_mutator!(dA, A, t)
+        linear_mutator!(dA, A, t)
+    end
+end
+
+### Thoughts on connectivity
+# TODO move implementation of connectivity op to connectivity.jl
+# FFT is *much* faster, so ideally would use that. However, the inner
+# dimensions pose a challenge. If the dimensions were entirely independent
+# (consider the circle for dir tuning) we could probably just convolve the average
+# on the circle, and add that to the square appropriately. However, we want the
+# anisotropic connectivity also to decay with distance (just not as fast) so we
+# can't simply take the average. Buttttt suppose Kd(x) is the kernel
+# corresponding to the isotropic component of the anisotropic connectivity, i.e.
+# long-space-constant exponential decay, ancd Kt(θ) is the kernel corresponding
+# to the anisotropic direction tuning, i.e. short-space-constant (a.k.a
+# short-angle-constant) exponential decay. In practice, then, while direction
+# tuning may live on the circle, connectivity due to direction tuning lives on
+# the hypercylinder, where the connectivity kernel is K(x,θ) = Kd(x) Kt(θ).
+
+# Note: FFT of open surface (e.g. torus, circle) is just FFT of tiled.
