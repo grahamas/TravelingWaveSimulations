@@ -35,6 +35,7 @@ function parse_commandline()
             help = "Name of predefined example to use as base"
         "--script-name", "-s"
             help = "Name of script to run (path in script dir)"
+            default = "based_on_example.jl"
     end
     return parse_args(arg_settings; as_symbols = false)
 end
@@ -54,7 +55,7 @@ function main()
 
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia $(joinpath(scriptsdir(),script_name)) $(args["data-root"]) $(base_example)
+    julia $(joinpath(scriptdir(),script_name)) $(args["data-root"]) $(base_example)
     """
 
     run(pipeline(`echo $sbatch_script`, `sbatch $sbatch_args`))
