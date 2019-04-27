@@ -144,5 +144,16 @@ function neuman_square(;
   )
 end
 
+function neuman_square_plots()
+  [
+    Animate(;
+      fps = 20
+      ),
+    NonlinearityPlot(;
+      fn_bounds = (-1,15)
+      )
+  ]
+end
+
 
 end
