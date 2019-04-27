@@ -12,5 +12,6 @@ results
 
 data
 _research
+_slurm
 plots
 Manifest.toml
