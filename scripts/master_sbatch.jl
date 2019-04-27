@@ -1,3 +1,5 @@
+using DrWatson
+quickactivate(@__DIR__, "WilsonCowanModel")
 using ArgParse
 
 function parse_commandline()
@@ -19,37 +21,43 @@ function parse_commandline()
         "--partition"
             help = "Name of partition to run job on"
             default = "debug"
-        "--workdir"
-            help = "Name of working directory"
-            default = "."
+        "--project-root"
+            help = "Name of code directory"
+            default = projectdir()
+        "--data-root"
+            help = "Name of data output directory"
+            default = datadir()
         "--mail-user"
             help = "Email target for SLURM status updates"
         "--mail-type"
             help = "Types of mail to send user"
         "--base-example", "-b"
             help = "Name of predefined example to use as base"
+        "--script-name", "-s"
+            help = "Name of script to run (path in script dir)"
     end
     return parse_args(arg_settings; as_symbols = false)
 end
 
 function main()
     args = parse_commandline()
-    @show args
+    project_root = args["project-root"]
+    base_example = args["base-example"]
+    script_name = args["script-name"]
     sbatch_arg_names = ["ntasks", "mem-per-cpu", "time", "partition", "workdir", "mail-user",  "mail-type"]
-    script_output_dir = joinpath(args["workdir"], "_slurm", "output", args["base-example"])
+    script_output_dir = joinpath(project_root, "_slurm", "output", base_example)
     mkpath(script_output_dir)
     sbatch_args = ["--$name=$val" for (name, val) in args if (name in sbatch_arg_names && val != nothing)]
     sbatch_args = [sbatch_args..., """--output=$(joinpath(script_output_dir, "%j.%N.stdout"))"""]
     sbatch_args = [sbatch_args..., """--error=$(joinpath(script_output_dir, "%j.%N.stderr"))"""]
-    sbatch_args = [sbatch_args..., "--job-name=$(args["base-example"])"]
+    sbatch_args = [sbatch_args..., "--job-name=$(base_example)"]
 
-    example_script = """#!/bin/bash
-    julia scripts/based_on_example.jl $(args["base-example"])
+    sbatch_script = """#!/bin/bash
+    cd $(project_root)
+    julia $(joinpath(scriptsdir(),script_name)) $(args["data-root"]) $(base_example)
     """
 
-    run(pipeline(`echo $example_script`, `sbatch $sbatch_args`))
+    run(pipeline(`echo $sbatch_script`, `sbatch $sbatch_args`))
 end
 
 main()
-
-    
