@@ -14,6 +14,7 @@ using MacroTools, IterTools, Espresso
 using Optim
 using TensorOperations
 using Formatting: @sprintf # for @animate
+using Statistics
 #endregion
 
 export WCMSpatial

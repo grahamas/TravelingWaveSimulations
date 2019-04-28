@@ -8,7 +8,7 @@ export SpaceTimePlot
 export NeumanTravelingWavePlot #, TravelingWavePlot
 export PeakTravelingWavePlot #, TravelingWavePlot
 
-export WaveVelocityPlot, WaveNaiveVelocityPlot
+export WaveVelocityPlot, WaveSmoothVelocityPlot
 
 export WaveWidthPlot
 
@@ -289,19 +289,34 @@ WaveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing
     end
 end
 
-struct WaveNaiveVelocityPlot{T} <: AbstractPlotSpecification
+
+function smooth(arr, window)
+    @show window
+    window = round(Int, window)
+    output_len = length(arr) - window
+    output_arr = Array{eltype(arr)}(undef, output_len)
+    for dx in 1:output_len
+        output_arr[dx] = mean(arr[dx:dx+window])
+    end
+    return output_arr
+end
+
+
+struct WaveSmoothVelocityPlot{T} <: AbstractPlotSpecification
     output_name::String
     dt::T
     kwargs::Dict
 end
-WaveNaiveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveNaiveVelocityPlot{T}(output_name, dt, kwargs)
-@recipe function f(plot_spec::WaveNaiveVelocityPlot{T}, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform::Function=identity) where {T}
+WaveSmoothVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveSmoothVelocityPlot{T}(output_name, dt, kwargs)
+@recipe function f(plot_spec::WaveSmoothVelocityPlot{T}, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform::Function=identity) where {T}
+    velocity = calculate_naive_velocity(wave, plot_spec.dt)
+    smoothed_velocity = smooth(velocity, 1.0 / plot_spec.dt)
     @series begin
-        title --> "Wave velocity over time"
+        title --> "Wave velocity (smoothed) over time"
         seriestype := :scatter
-        velocity = calculate_naive_velocity(wave, plot_spec.dt)
+        ylims := (0.0, maximum(smoothed_velocity))
         x := t
-        y := velocity
+        y := smoothed_velocity
         ()
     end
 end
@@ -348,8 +363,7 @@ WaveStatsPlot(; output_name="wave_stats.png", dt::T=nothing, kwargs...) where T 
         subplot := 4
         # title := "Wave log velocity"
         # (WaveVelocityPlot(dt=plot_spec.dt), t, wave, (x) -> sign(x) * log10(abs(x)))
-        title := "Wave naive velocity"
-        (WaveNaiveVelocityPlot(dt=plot_spec.dt), t, wave)
+        (WaveSmoothVelocityPlot(dt=plot_spec.dt), t, wave)
     end
     end
     # plot(WaveWidthPlot(), wave, t, subplot=1)
