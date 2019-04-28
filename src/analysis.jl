@@ -18,9 +18,9 @@ export plot_and_save
 
 
 function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Execution, output_dir::AbstractString)
-	path = joinpath(output_dir, output_name(plot_spec))
-	recursively_clear_path(path)
 	plot_obj = RecipesBase.plot(plot_spec, execution; plot_spec.kwargs...)
+	path = joinpath(output_dir, output_name(plot_spec)) # Must be after plotting in case name changes
+	recursively_clear_path(path)
 	savefig(plot_obj, path)
 end
 
@@ -196,7 +196,6 @@ end
 
 function calculate_width(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
     # [space, time]
-    @show size(single_wave_data)
     space_max = findmax(single_wave_data)[1]
     above_half = single_wave_data .> (space_max / 2)
     frame_first(frame)::Union{Int64,Missing} = any(frame) ? findfirst(frame)[1] : 0
@@ -313,7 +312,6 @@ struct WaveWidthPlot <: AbstractPlotSpecification
 end
 WaveWidthPlot(; output_name="wave_width.png", kwargs...) = WaveWidthPlot(output_name, kwargs)
 @recipe function f(plot_spec::WaveWidthPlot, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform=identity) where {T}
-    @show size(wave)
     @series begin
         title --> "Wave width over time"
         seriestype := :scatter
@@ -333,6 +331,7 @@ WaveStatsPlot(; output_name="wave_stats.png", dt::T=nothing, kwargs...) where T 
     layout := (2,2)
     legend := false
 
+    begin
     @series begin
         subplot := 1
         (WaveWidthPlot(), t, wave)
@@ -351,6 +350,7 @@ WaveStatsPlot(; output_name="wave_stats.png", dt::T=nothing, kwargs...) where T 
         # (WaveVelocityPlot(dt=plot_spec.dt), t, wave, (x) -> sign(x) * log10(abs(x)))
         title := "Wave naive velocity"
         (WaveNaiveVelocityPlot(dt=plot_spec.dt), t, wave)
+    end
     end
     # plot(WaveWidthPlot(), wave, t, subplot=1)
     # plot(PeakTravelingWavePlot(dt=dt), simulation, subplot=2)
