@@ -53,9 +53,15 @@ function main()
     sbatch_args = [sbatch_args..., """--error=$(joinpath(script_output_dir, "%j.%N.stderr"))"""]
     sbatch_args = [sbatch_args..., "--job-name=$(base_example)"]
 
+    script_arg_names = ["modifications-case", "plotspec-case", "data-root"]
+    script_args = ["--$name=$val" for (name, val) in args if (name in script_arg_names && val != nothing)]
+    script_args = [script_args..., """--example-name=$(args["base-example"])"""]
+
+    script_path = joinpath(scriptdir(), script_name)
+
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia $(joinpath(scriptdir(),script_name)) $(args["data-root"]) $(base_example)
+    julia $(script_path) $(script_args)
     """
 
     run(pipeline(`echo $sbatch_script`, `sbatch $sbatch_args`))

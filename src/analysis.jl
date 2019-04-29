@@ -16,10 +16,16 @@ export WaveStatsPlot
 
 export plot_and_save
 
+function full_name(name; path="", prefix="", sep="_")
+	if prefix != ""
+		name = join([prefix, name], sep)
+	end
+	return joinpath(path, name)
+end
 
-function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Execution, output_dir::AbstractString)
+function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Execution, output_dir::AbstractString, prefix="")
 	plot_obj = RecipesBase.plot(plot_spec, execution; plot_spec.kwargs...)
-	path = joinpath(output_dir, output_name(plot_spec)) # Must be after plotting in case name changes
+	path = full_name(output_name(plot_spec); path=output_dir, prefix=prefix) # Must be after plotting in case name changes
 	recursively_clear_path(path)
 	savefig(plot_obj, path)
 end
@@ -31,11 +37,11 @@ struct Animate <: AbstractPlotSpecification
     kwargs::Dict
 end
 Animate(; fps=20, output_name="animation.mp4", kwargs...) = Animate(fps, output_name, kwargs)
-function plot_and_save(plot_spec::Animate, execution::Execution, output_path::AbstractString)
-    name = joinpath(output_path, output_name(plot_spec))
-    recursively_clear_path(name)
+function plot_and_save(plot_spec::Animate, execution::Execution, output_dir::AbstractString, prefix="")
+    path = full_name(output_name(plot_spec); path=output_dir, prefix=prefix)
+    recursively_clear_path(path)
     anim = RecipesBase.animate(execution; plot_spec.kwargs...)
-    mp4(anim, name; fps=plot_spec.fps)
+    mp4(anim, path; fps=plot_spec.fps)
 end
 function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs...) where {T,M<:WCMSpatial{T,1}}
     solution = execution.solution
