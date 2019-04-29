@@ -36,6 +36,10 @@ function parse_commandline()
         "--script-name", "-s"
             help = "Name of script to run (path in script dir)"
             default = "based_on_example.jl"
+        "--plotspec-case"
+            help = "Case specifying plots"
+        "--modification-case"
+            help = "Case specifying base model modifications"
     end
     return parse_args(arg_settings; as_symbols = false)
 end
