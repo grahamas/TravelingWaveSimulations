@@ -296,14 +296,11 @@ WaveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing
 end
 
 
-function smooth(arr, window)
-    @show window
+function smooth(arr::AbstractArray, window=(length(arr)/5.0))
     window = round(Int, window)
-    output_len = length(arr) - window
-    output_arr = Array{eltype(arr)}(undef, output_len)
-    for dx in 1:output_len
-        output_arr[dx] = mean(arr[dx:dx+window])
-    end
+    @assert window < length(arr) / 2
+    output_len::Int = length(arr) - window
+    output_arr = [mean(arr[dx:dx+window]) for dx in 1:output_len]
     return output_arr
 end
 
@@ -316,7 +313,7 @@ end
 WaveSmoothVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveSmoothVelocityPlot{T}(output_name, dt, kwargs)
 @recipe function f(plot_spec::WaveSmoothVelocityPlot{T}, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform::Function=identity) where {T}
     velocity = calculate_naive_velocity(wave, plot_spec.dt)
-    smoothed_velocity = smooth(velocity, 1.0 / plot_spec.dt)
+    smoothed_velocity = smooth(velocity)
     @series begin
         title --> "Wave velocity (smoothed) over time"
         seriestype := :scatter

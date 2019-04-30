@@ -38,7 +38,7 @@ function parse_commandline()
             default = "based_on_example.jl"
         "--plotspec-case"
             help = "Case specifying plots"
-        "--modification-case"
+        "--modifications-case"
             help = "Case specifying base model modifications"
     end
     return parse_args(arg_settings; as_symbols = false)
@@ -53,8 +53,8 @@ function main()
     script_output_dir = joinpath(project_root, "_slurm", "output", base_example)
     mkpath(script_output_dir)
     sbatch_args = ["--$name=$val" for (name, val) in args if (name in sbatch_arg_names && val != nothing)]
-    sbatch_args = [sbatch_args..., """--output=$(joinpath(script_output_dir, "%j.%N.stdout"))"""]
-    sbatch_args = [sbatch_args..., """--error=$(joinpath(script_output_dir, "%j.%N.stderr"))"""]
+    sbatch_args = [sbatch_args..., """--output=$(joinpath(script_output_dir, "%j.stdout"))"""]
+    sbatch_args = [sbatch_args..., """--error=$(joinpath(script_output_dir, "%j.stderr"))"""]
     sbatch_args = [sbatch_args..., "--job-name=$(base_example)"]
 
     script_arg_names = ["modifications-case", "plotspec-case", "data-root"]
@@ -65,7 +65,8 @@ function main()
 
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia $(script_path) $(script_args)
+    julia $(script_path) $(join(script_args, " "))
+    /usr/bin/mail -s \${SLURM_JOB_NAME} $(args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
     """
 
     run(pipeline(`echo $sbatch_script`, `sbatch $sbatch_args`))

@@ -19,10 +19,11 @@ arg_settings = ArgParseSettings()
         help = "Name of file specifying plots"
 end
 args = parse_args(arg_settings)
-data_root = args[:data_root]
-example_name = args[:example_name]
-modifications_case = args[:modifications_case]
-plotspec_case = args[:plotspec_case]
+@show args
+data_root = args["data-root"]
+example_name = args["example-name"]
+modifications_case = args["modifications-case"]
+plotspec_case = args["plotspec-case"]
 
 ENV["GKSwstype"] = "100" # For headless plotting (on server)
 ENV["MPLBACKEND"]="Agg"
@@ -40,15 +41,16 @@ end
 if plotspec_case != nothing
     plotspec_path = joinpath(scriptdir(), "plotspecs", "$(plotspec_case).jl")
     include(joinpath(scriptdir(), "plotspecs", plotspec_path)) # defines plotspecs
-    plots_path = joinpath(plotsdir(), example_name))
+    plots_path = joinpath(plotsdir(), example_name)
     plots_prefix = "$(modifications_case)_$(plotspec_case)_$(Dates.now())_$(current_commit())"
-    mkpath.([sim_output_path, plots_path])
+    mkpath(plots_path)
 else
     plots_prefix = ""
     plotspecs = []
 end
 
 sim_output_path = joinpath(data_root, "sim", example_name)
+mkpath(sim_output_path)
 
 execution = execute(simulation)
 execution_dict = @dict execution
