@@ -225,7 +225,7 @@ function interpolate_parabola(space, wave)
 	@. parabola(x,p) = p[1] + p[2] * ((x - p[3]) ^ 2)
 	ub = [Inf, 0.0, space[end]]
 	lb = [minimum(wave), -Inf, space[1]]
-	fit = curve_fit(parabola, [maximum(wave), 0.0, 0.0])
+	fit = curve_fit(parabola, [maximum(wave), 0.0, 0.0], space, wave, upper=ub, lower=lb)
 	return (coef(fit)[3], coef(fit)[1])
 end
 
