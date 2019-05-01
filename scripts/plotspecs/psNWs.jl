@@ -12,6 +12,6 @@ plotspecs = [
     space_subsampler=Subsampler(
         window = (5.0,Inf)
       ),
-    smoothing=0.3
+    smoothing=0.2
     )
 ]
