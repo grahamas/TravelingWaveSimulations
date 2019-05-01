@@ -361,10 +361,10 @@ struct WaveStatsPlot{T} <: AbstractSpaceTimePlotSpecification
     output_name::String
     dt::T
     dx::T
-    smoothing::T
+    smoothing::Union{T,Nothing}
     kwargs::Dict
 end
-WaveStatsPlot(; output_name="wave_stats.png", dt::T=nothing, dx::T=nothing, smoothing::T=nothing, kwargs...) where T = WaveStatsPlot{T}(output_name, dt, dx, smoothing, kwargs)
+WaveStatsPlot(; output_name="wave_stats.png", dt::T=nothing, dx::T=nothing, smoothing::Union{T,Nothing}=nothing, kwargs...) where T = WaveStatsPlot{T}(output_name, dt, dx, smoothing, kwargs)
 @recipe function f(plot_spec::WaveStatsPlot{T}, t::AbstractArray{T,1}, x::AbstractArray{T,1}, wave::AbstractArray{T,2})  where {T}
     layout := (2,2)
     legend := false
