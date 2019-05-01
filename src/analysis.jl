@@ -220,10 +220,7 @@ function wave_maxima(single_wave_data::SPACE1DTIME) where {T, SPACE1DTIME<:Abstr
 	return (max_vals, max_ixs)
 end
 
-function interpolate_true_max_ix(max_ix, arr::SPACE1D) where {T, SPACE1D<:AbstractArray{T,1}}
-	circa_max_ixs = (max_ix - CartesianIndex(1,0))
-end
-
+using LsqFit
 function interpolate_parabola(space, wave)
 	@. parabola(x,p) = p[1] + p[2] * ((x - p[3]) ^ 2)
 	ub = [Inf, 0.0, space[end]]
