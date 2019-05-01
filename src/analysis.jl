@@ -235,6 +235,16 @@ function interpolate_peak_ix(arr::AbstractArray{T,1}) where T
 	return coef(fit)[3]
 end
 
+function interpolate_peak_ix_val(arr::AbstractArray{T,1}) where T
+	@assert length(arr) == 3
+	@. poly2(x,p) = p[1] + p[2] * ((x - p[3]) ^ 2)
+	upper_bounds = [Inf, 0.0, 1.0]
+	lower_bounds = [minimum(arr), -Inf, -1.0]
+	fit = curve_fit(poly2, [-1.0, 0.0, 1.0], arr, [arr[2], -1.0, 0.0],
+		lower=lower_bounds, upper=upper_bounds)
+	return (coef(fit)[3], coef(fit)[1])
+end
+
 function track_wave_peak_interpolated_ix(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
     # [space, time]
     #space_diff = diff(single_wave_data, dims=1)
@@ -244,7 +254,7 @@ function track_wave_peak_interpolated_ix(single_wave_data::AT) where {T, AT<:Abs
 	return interpolated_peak_ixs
 end
 
-function track_wave_peak_interpolate_vals_ixs(single_wave_data::SPACE1DTIME) where {T, SPACE1DTIME<:AbstractArray{T,2}}
+function track_wave_peak_interpolate_ixs_vals(single_wave_data::SPACE1DTIME) where {T, SPACE1DTIME<:AbstractArray{T,2}}
     # [space, time]
     #space_diff = diff(single_wave_data, dims=1)
     space_max = findmax(single_wave_data, dims=1) # TODO: Make this more robust
@@ -252,9 +262,9 @@ function track_wave_peak_interpolate_vals_ixs(single_wave_data::SPACE1DTIME) whe
 	interpolated_peak_vals = Array{T,1}(undef, length(max_dxs))
 	interpolated_peak_ixs = Array{T,1}(undef, length(max_dxs))
 	for (t_dx, x_dx) in enumerate(max_dxs)
-		interpolated_peak_vals[t_dx], interpolated_peak_ixs[t_dx] = interpolate_peak_val_ix(single_wave_data[x_dx-1:x_dx+1,t_dx])
+		interpolated_peak_ixs[t_dx], interpolated_peak_vals[t_dx] = interpolate_peak_ix_val(single_wave_data[x_dx-1:x_dx+1,t_dx])
 	end
-	return interpolated_peak_ixs
+	return (interpolated_peak_ixs, interpolated_peak_vals)
 end
 
 function calculate_wave_velocity(single_wave_data::AT, dt::T=one(T), dx::T=one(T)) where {T, AT<:AbstractArray{T,2}}
@@ -306,7 +316,7 @@ PeakTravelingWavePlot(; output_name="peak_traveling_wave.png", kwargs...) = Peak
             ()
         end
     end
-    interp_peaks, interp_peak_ixs = track_wave_peak_interpolate_vals_ixs(wave)
+    interp_peaks_ixs, interp_peaks = track_wave_peak_interpolate_ixs_vals(wave)
     x_peak_locs = map(interp_peak_ixs) do interp_peak_ix
 		lower = floor(Int, interp_peak_ix)
 		interp_ix_diff = interp_peak_ix - lower
