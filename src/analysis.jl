@@ -244,11 +244,11 @@ function track_wave_peak_interpolated_ix(single_wave_data::AT) where {T, AT<:Abs
 	return interpolated_peak_ixs
 end
 
-function track_wave_peak_interpolate_vals_ixs(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
+function track_wave_peak_interpolate_vals_ixs(single_wave_data::SPACE1DTIME) where {T, SPACE1DTIME<:AbstractArray{T,2}}
     # [space, time]
     #space_diff = diff(single_wave_data, dims=1)
     space_max = findmax(single_wave_data, dims=1) # TODO: Make this more robust
-	max_dxs = [ix[1] for ix in space_max[2]]
+	max_dxs = [ix[1] for ix in space_max[2]] # Assumes 1D space
 	interpolated_peak_vals = Array{T,1}(undef, length(max_dxs))
 	interpolated_peak_ixs = Array{T,1}(undef, length(max_dxs))
 	for (t_dx, x_dx) in enumerate(max_dxs)
