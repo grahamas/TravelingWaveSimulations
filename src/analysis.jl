@@ -211,69 +211,44 @@ function calculate_width(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
     return half_end - half_start
 end
 
-function track_wave_peak_naive_ix(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
-    # [space, time]
-    #space_diff = diff(single_wave_data, dims=1)
-    space_max = findmax(single_wave_data, dims=1)[2] # TODO: Make this more robust
+
+
+
+function wave_maxima(single_wave_data::SPACE1DTIME) where {T, SPACE1DTIME<:AbstractArray{T,2}}
+	# [space, time]
+	max_vals, max_ixs = findmax(single_wave_data, dims=1)
+	return (max_vals, max_ixs)
 end
 
-function calculate_naive_wave_velocity(single_wave_data::AT, dt::T=one(T), dx::T=one(T)) where {T, AT<:AbstractArray{T,2}}
-    # [space, time]
-    peak_through_time = dropdims(track_wave_peak_naive_ix(single_wave_data), dims=1)
-    peak_through_time = [cart[1] for cart in peak_through_time]
-    peak_vel = (diff(peak_through_time) ./ dt) .* dx
+function interpolate_true_max_ix(max_ix, arr::SPACE1D) where {T, SPACE1D<:AbstractArray{T,1}}
+	circa_max_ixs = (max_ix - CartesianIndex(1,0))
 end
 
-using LsqFit
-function interpolate_peak_ix(arr::AbstractArray{T,1}) where T
-	@assert length(arr) == 3
-	@. poly2(x,p) = p[1] + p[2] * ((x - p[3]) ^ 2)
-	upper_bounds = [Inf, 0.0, 1.0]
-	lower_bounds = [minimum(arr), -Inf, -1.0]
-	fit = curve_fit(poly2, [-1.0, 0.0, 1.0], arr, [arr[2], -1.0, 0.0],
-		lower=lower_bounds, upper=upper_bounds)
-	return coef(fit)[3]
-end
-
-function interpolate_peak_ix_val(arr::AbstractArray{T,1}) where T
-	@assert length(arr) == 3
-	@. poly2(x,p) = p[1] + p[2] * ((x - p[3]) ^ 2)
-	upper_bounds = [Inf, 0.0, 1.0]
-	lower_bounds = [minimum(arr), -Inf, -1.0]
-	fit = curve_fit(poly2, [-1.0, 0.0, 1.0], arr, [arr[2], -1.0, 0.0],
-		lower=lower_bounds, upper=upper_bounds)
+function interpolate_parabola(space, wave)
+	@. parabola(x,p) = p[1] + p[2] * ((x - p[3]) ^ 2)
+	ub = [Inf, 0.0, space[end]]
+	lb = [minimum(wave), -Inf, space[1]]
+	fit = curve_fit(parabola, [maximum(wave), 0.0, 0.0])
 	return (coef(fit)[3], coef(fit)[1])
-end
 
-function track_wave_peak_interpolated_ix(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
-    # [space, time]
-    #space_diff = diff(single_wave_data, dims=1)
-    space_max = findmax(single_wave_data, dims=1) # TODO: Make this more robust
-	max_dxs = space_max[2]
-	interpolated_peak_ixs = [interpolate_peak_ix(single_wave_data[x_dx-1:x_dx+1,t_dx]) + x_dx for (t_dx, x_dx) in enumerate(max_dxs)]
-	return interpolated_peak_ixs
-end
-
-function track_wave_peak_interpolate_ixs_vals(single_wave_data::SPACE1DTIME) where {T, SPACE1DTIME<:AbstractArray{T,2}}
-    # [space, time]
-    #space_diff = diff(single_wave_data, dims=1)
-    space_max = findmax(single_wave_data, dims=1)
-	@warn space_max[2]
-	max_dxs = [ix[1] for ix in space_max[2]] # Assumes 1D space
-	interpolated_peak_vals = Array{T,1}(undef, length(max_dxs))
-	interpolated_peak_ixs = Array{T,1}(undef, length(max_dxs))
-	for (t_dx, x_dx) in enumerate(max_dxs)
-		interpolated_peak_ixs[t_dx], interpolated_peak_vals[t_dx] = interpolate_peak_ix_val(single_wave_data[x_dx-1:x_dx+1,t_dx])
+function track_wave_peak(x::SPACE1D, wave::SPACE1DTIME) where {T, SPACE1D<:AbstractArray{T,1}, SPACE1DTIME<:AbstractArray{T,2}}
+	max_vals, max_ixs = wave_maxima(wave)
+	space_ixs = [ix[1] for ix in max_ixs]
+	side = 1
+	circa_space_ixs = [(ix-side):(ix+side) for ix in space_ixs]
+	circa_wave_ixs = [(ix-CartesianIndex(side,0)):(ix+CartesianIndex(side,0)) for ix in max_ixs]
+	interpolated_xs, interpolated_vals = map(zip(circa_space_ixs, circa_wave_ixs)) do (circa_space_ix, circa_wave_ix)
+		interpolate_parabola(x[circa_space_ix], wave[circa_wave_ix])
 	end
-	return (interpolated_peak_ixs, interpolated_peak_vals)
+	return interpolated_xs, interpolated_vals
 end
 
-function calculate_wave_velocity(single_wave_data::AT, dt::T=one(T), dx::T=one(T)) where {T, AT<:AbstractArray{T,2}}
+function calculate_wave_velocity(x::SPACE1D, wave::SPACE1DTIME, dt::T=one(T)) where {T, SPACE1D<:AbstractArray{T,1}, SPACE1DTIME<:AbstractArray{T,2}}
     # [space, time]
-    peak_through_time = dropdims(track_wave_peak_interpolated_ix(single_wave_data), dims=1)
-    peak_through_time = [cart[1] for cart in peak_through_time]
-    peak_vel = (diff(peak_through_time) ./ dt) .* dx
+	xs, vals = track_wave_peak(x, wave)
+	diff(xs) ./ dt
 end
+
 
 #region SubsampledPlot
 mutable struct SubsampledPlot <: AbstractPlotSpecification
@@ -317,23 +292,11 @@ PeakTravelingWavePlot(; output_name="peak_traveling_wave.png", kwargs...) = Peak
             ()
         end
     end
-    interp_peak_ixs, interp_peaks = track_wave_peak_interpolate_ixs_vals(wave)
-    x_peak_locs = map(interp_peak_ixs) do interp_peak_ix
-		lower = floor(Int, interp_peak_ix)
-		if lower == 0
-			interp_upper_ix_diff = interp_peak_ix - 1
-			upper_diff = x[2] - x[1]
-			return (upper_diff * interp_upper_ix_diff) + x[lower+1]
-		elseif lower < length(x) - 1
-			interp_ix_diff = interp_peak_ix - lower
-			real_diff = x[lower+1] - x[lower]
-			return (real_diff * interp_ix_diff) + x[lower]
-		end
-	end
+    xs, peaks = track_wave_peak(x, wave)
     @series begin
         seriestype := :scatter
-        x := x_peak_locs
-        y := interp_peaks
+        x := xs
+        y := peaks
         ()
     end
 end
@@ -358,8 +321,8 @@ struct WaveVelocityPlot{T} <: AbstractPlotSpecification
     kwargs::Dict
 end
 WaveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing, dx::Union{Nothing,T}=nothing, smoothing::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveVelocityPlot{T}(output_name, dt, dx, smoothing, kwargs)
-@recipe function f(plot_spec::WaveVelocityPlot{T}, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform::Function=identity, naive=false) where {T}
-    velocity = calculate_wave_velocity(wave, plot_spec.dt, plot_spec.dx)
+@recipe function f(plot_spec::WaveVelocityPlot{T}, t::AbstractArray{T,1}, x::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform::Function=identity, naive=false) where {T}
+    velocity = calculate_wave_velocity(x, wave, plot_spec.dt, plot_spec.dx)
     if plot_spec.smoothing != nothing
         t, velocity = smooth(t, velocity, plot_spec.smoothing/plot_spec.dt)
     end
@@ -420,7 +383,7 @@ WaveStatsPlot(; output_name="wave_stats.png", dt::T=nothing, dx::T=nothing, smoo
         subplot := 4
         # title := "Wave log velocity"
         # (WaveVelocityPlot(dt=plot_spec.dt, dx=plot_spec.dx), t, wave, (x) -> sign(x) * log10(abs(x)))
-        (WaveVelocityPlot(;dt=plot_spec.dt, dx=plot_spec.dx, smoothing=plot_spec.smoothing), t, wave)
+        (WaveVelocityPlot(;dt=plot_spec.dt, dx=plot_spec.dx, smoothing=plot_spec.smoothing), t, x, wave)
     end
     end
     # plot(WaveWidthPlot(), wave, t, subplot=1)
