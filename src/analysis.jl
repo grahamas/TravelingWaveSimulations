@@ -324,7 +324,7 @@ struct WaveVelocityPlot{T} <: AbstractPlotSpecification
 end
 WaveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing, dx::Union{Nothing,T}=nothing, smoothing::Union{Nothing,T}=nothing, kwargs...) where {T<:Float64} = WaveVelocityPlot{T}(output_name, dt, dx, smoothing, kwargs)
 @recipe function f(plot_spec::WaveVelocityPlot{T}, t::AbstractArray{T,1}, x::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform::Function=identity, naive=false) where {T}
-    velocity = calculate_wave_velocity(x, wave, plot_spec.dt, plot_spec.dx)
+    velocity = calculate_wave_velocity(x, wave, plot_spec.dt)
     if plot_spec.smoothing != nothing
         t, velocity = smooth(t, velocity, plot_spec.smoothing/plot_spec.dt)
     end
