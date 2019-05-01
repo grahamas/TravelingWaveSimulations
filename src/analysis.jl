@@ -230,6 +230,7 @@ function interpolate_parabola(space, wave)
 	lb = [minimum(wave), -Inf, space[1]]
 	fit = curve_fit(parabola, [maximum(wave), 0.0, 0.0])
 	return (coef(fit)[3], coef(fit)[1])
+end
 
 function track_wave_peak(x::SPACE1D, wave::SPACE1DTIME) where {T, SPACE1D<:AbstractArray{T,1}, SPACE1DTIME<:AbstractArray{T,2}}
 	max_vals, max_ixs = wave_maxima(wave)
