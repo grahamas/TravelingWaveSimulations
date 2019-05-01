@@ -17,6 +17,9 @@ arg_settings = ArgParseSettings()
         help = "Name of file specifying dict of modifications"
     "--plotspec-case"
         help = "Name of file specifying plots"
+    "--no-save-raw"
+        help = "Don't save raw simulation"
+        action = :store_true
 end
 args = parse_args(arg_settings)
 @show args
@@ -49,11 +52,12 @@ else
     plotspecs = []
 end
 
-sim_output_path = joinpath(data_root, "sim", example_name)
-mkpath(sim_output_path)
-
-execution = execute(simulation)
-execution_dict = @dict execution
-@tagsave(joinpath(sim_output_path, "$(modifications_case)_$(Dates.now())_$(current_commit()).bson"), execution_dict, true)
-
+if !args["no-save-raw"]
+    sim_output_path = joinpath(data_root, "sim", example_name)
+    mkpath(sim_output_path)
+    
+    execution = execute(simulation)
+    execution_dict = @dict execution
+    @tagsave(joinpath(sim_output_path, "$(modifications_case)_$(Dates.now())_$(current_commit()).bson"), execution_dict, true)
+end
 plot_and_save.(plotspecs, Ref(execution), plots_path, plots_prefix)

@@ -40,6 +40,9 @@ function parse_commandline()
             help = "Case specifying plots"
         "--modifications-case"
             help = "Case specifying base model modifications"
+        "--no-save-raw"
+            help = "Don't save the raw simulation"
+            action = :store_true
     end
     return parse_args(arg_settings; as_symbols = false)
 end
@@ -60,6 +63,9 @@ function main()
     script_arg_names = ["modifications-case", "plotspec-case", "data-root"]
     script_args = ["--$name=$val" for (name, val) in args if (name in script_arg_names && val != nothing)]
     script_args = [script_args..., """--example-name=$(args["base-example"])"""]
+    if args["no-save-raw"]
+        script_args = [script_args..., "--no_save_raw"]
+    end
 
     script_path = joinpath(scriptdir(), script_name)
 
