@@ -64,7 +64,7 @@ function main()
     script_args = ["--$name=$val" for (name, val) in args if (name in script_arg_names && val != nothing)]
     script_args = [script_args..., """--example-name=$(args["base-example"])"""]
     if args["no-save-raw"]
-        script_args = [script_args..., "--no_save_raw"]
+        script_args = [script_args..., "--no-save-raw"]
     end
 
     script_path = joinpath(scriptdir(), script_name)
