@@ -316,7 +316,7 @@ PeakTravelingWavePlot(; output_name="peak_traveling_wave.png", kwargs...) = Peak
             ()
         end
     end
-    interp_peaks_ixs, interp_peaks = track_wave_peak_interpolate_ixs_vals(wave)
+    interp_peak_ixs, interp_peaks = track_wave_peak_interpolate_ixs_vals(wave)
     x_peak_locs = map(interp_peak_ixs) do interp_peak_ix
 		lower = floor(Int, interp_peak_ix)
 		interp_ix_diff = interp_peak_ix - lower
