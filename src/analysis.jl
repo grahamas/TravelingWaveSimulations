@@ -257,7 +257,8 @@ end
 function track_wave_peak_interpolate_ixs_vals(single_wave_data::SPACE1DTIME) where {T, SPACE1DTIME<:AbstractArray{T,2}}
     # [space, time]
     #space_diff = diff(single_wave_data, dims=1)
-    space_max = findmax(single_wave_data, dims=1) # TODO: Make this more robust
+    space_max = findmax(single_wave_data, dims=1)
+	@warn space_max[2]
 	max_dxs = [ix[1] for ix in space_max[2]] # Assumes 1D space
 	interpolated_peak_vals = Array{T,1}(undef, length(max_dxs))
 	interpolated_peak_ixs = Array{T,1}(undef, length(max_dxs))
@@ -319,9 +320,15 @@ PeakTravelingWavePlot(; output_name="peak_traveling_wave.png", kwargs...) = Peak
     interp_peak_ixs, interp_peaks = track_wave_peak_interpolate_ixs_vals(wave)
     x_peak_locs = map(interp_peak_ixs) do interp_peak_ix
 		lower = floor(Int, interp_peak_ix)
-		interp_ix_diff = interp_peak_ix - lower
-		real_diff = x[lower+1] - x[lower]
-		return (real_diff * interp_ix_diff) + x[lower]
+		if lower == 0
+			interp_upper_ix_diff = interp_peak_ix - 1
+			upper_diff = x[2] - x[1]
+			return (upper_diff * interp_upper_ix_diff) + x[lower+1]
+		elseif lower < length(x) - 1
+			interp_ix_diff = interp_peak_ix - lower
+			real_diff = x[lower+1] - x[lower]
+			return (real_diff * interp_ix_diff) + x[lower]
+		end
 	end
     @series begin
         seriestype := :scatter
@@ -403,7 +410,7 @@ WaveStatsPlot(; output_name="wave_stats.png", dt::T=nothing, dx::T=nothing, smoo
     end
     @series begin
         subplot := 3
-        (PeakTravelingWavePlot(dt=plot_spec.dt), t, x, wave)
+        (PeakTravelingWavePlot(dt=plot_spec.dt, dx=plot_spec.dx), t, x, wave)
     end
     # @series begin
     #     subplot := 2
