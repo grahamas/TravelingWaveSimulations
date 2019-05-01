@@ -244,7 +244,7 @@ function track_wave_peak_interpolated_ix(single_wave_data::AT) where {T, AT<:Abs
 	return interpolated_peak_ixs
 end
 
-function track_wave_peak_vals_ixs(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
+function track_wave_peak_interpolate_vals_ixs(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
     # [space, time]
     #space_diff = diff(single_wave_data, dims=1)
     space_max = findmax(single_wave_data, dims=1) # TODO: Make this more robust
