@@ -221,7 +221,7 @@ function wave_maxima(single_wave_data::SPACE1DTIME) where {T, SPACE1DTIME<:Abstr
 end
 
 using LsqFit
-function interpolate_parabola(space::AbstractArray{T,1}, wave::AbstractArray{T,1})
+function interpolate_parabola(space::AbstractArray{T,1}, wave::AbstractArray{T,1}) where T
 	@. parabola(x,p) = p[1] + p[2] * ((x - p[3]) ^ 2)
 	ub = [Inf, 0.0, space[end]]
 	lb = [minimum(wave), -Inf, space[1]]
