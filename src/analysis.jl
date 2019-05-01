@@ -226,8 +226,7 @@ function interpolate_parabola(space::AbstractArray{T,1}, wave::AbstractArray{T,1
 	ub = [Inf, 0.0, space[end]]
 	lb = [minimum(wave), -Inf, space[1]]
 	guess = [maximum(wave), -1.0, mean([space[end], space[1]])]
-	@show ub, lb, guess
-	fit = curve_fit(parabola, guess, space, wave, upper=ub, lower=lb)
+	fit = curve_fit(parabola, space, wave, guess, upper=ub, lower=lb)
 	return (coef(fit)[3], coef(fit)[1])
 end
 
@@ -240,8 +239,6 @@ function track_wave_peak(x::SPACE1D, wave::SPACE1DTIME) where {T, SPACE1D<:Abstr
 	interpolated_xs, interpolated_vals = map(zip(circa_space_ixs, circa_wave_ixs)) do (circa_space_ix, circa_wave_ix)
 		circa_space = x[circa_space_ix]
 		circa_wave = wave[circa_wave_ix]
-		@show size(circa_space)
-		@show size(circa_wave)
 		circa_wave = dropdims(circa_wave, dims=2)
 		interpolate_parabola(circa_space, circa_wave)
 	end
