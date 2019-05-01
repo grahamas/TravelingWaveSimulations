@@ -52,11 +52,12 @@ else
     plotspecs = []
 end
 
+execution = execute(simulation)
+
 if !args["no-save-raw"]
     sim_output_path = joinpath(data_root, "sim", example_name)
     mkpath(sim_output_path)
     
-    execution = execute(simulation)
     execution_dict = @dict execution
     @tagsave(joinpath(sim_output_path, "$(modifications_case)_$(Dates.now())_$(current_commit()).bson"), execution_dict, true)
 end
