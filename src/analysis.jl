@@ -227,7 +227,7 @@ function interpolate_parabola(space::AbstractArray{T,1}, wave::AbstractArray{T,1
 	lb = [minimum(wave), -Inf, space[1]]
 	guess = [maximum(wave), -1.0, mean([space[end], space[1]])]
 	fit = curve_fit(parabola, space, wave, guess, upper=ub, lower=lb)
-	return (coef(fit)[3], coef(fit)[1])
+    return (coef(fit)[3], coef(fit)[1])
 end
 
 function track_wave_peak(x::SPACE1D, wave::SPACE1DTIME) where {T, SPACE1D<:AbstractArray{T,1}, SPACE1DTIME<:AbstractArray{T,2}}
@@ -236,13 +236,13 @@ function track_wave_peak(x::SPACE1D, wave::SPACE1DTIME) where {T, SPACE1D<:Abstr
 	side = 1
 	circa_space_ixs = [(ix-side):(ix+side) for ix in space_ixs]
 	circa_wave_ixs = [(ix-CartesianIndex(side,0)):(ix+CartesianIndex(side,0)) for ix in max_ixs]
-	interpolated_xs, interpolated_vals = map(zip(circa_space_ixs, circa_wave_ixs)) do (circa_space_ix, circa_wave_ix)
+	interpolated = map(zip(circa_space_ixs, circa_wave_ixs)) do (circa_space_ix, circa_wave_ix)
 		circa_space = x[circa_space_ix]
 		circa_wave = wave[circa_wave_ix]
 		circa_wave = dropdims(circa_wave, dims=2)
 		interpolate_parabola(circa_space, circa_wave)
-	end
-	return interpolated_xs, interpolated_vals
+    end
+	return zip(interpolated...) .|> collect
 end
 
 function calculate_wave_velocity(x::SPACE1D, wave::SPACE1DTIME, dt::T=one(T)) where {T, SPACE1D<:AbstractArray{T,1}, SPACE1DTIME<:AbstractArray{T,2}}

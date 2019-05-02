@@ -21,7 +21,7 @@ arg_settings = ArgParseSettings()
         help = "Don't save raw simulation"
         action = :store_true
 end
-args = parse_args(arg_settings)
+args = parse_args(ARGS, arg_settings)
 @show args
 data_root = args["data-root"]
 example_name = args["example-name"]
