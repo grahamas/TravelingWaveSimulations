@@ -12,5 +12,6 @@ plotspecs = [
     space_subsampler=Subsampler(
         window = (5.0,Inf)
       )
-    )
+    ),
+    interpolation_n = 2
 ]

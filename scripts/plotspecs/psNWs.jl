@@ -12,6 +12,7 @@ plotspecs = [
     space_subsampler=Subsampler(
         window = (5.0,Inf)
       ),
-    smoothing=0.2
+    velocity_smoothing=0.2,
+    velocity_interpolation_n=2
     )
 ]
