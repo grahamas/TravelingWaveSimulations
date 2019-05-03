@@ -4,6 +4,14 @@ using WilsonCowanModel
 using Simulation73
 import DifferentialEquations: Euler
 
+function get_example(example_name)
+    examples = Dict(
+                    "neuman_line" => neuman_line,
+                    "neuman_square" => neuman_square
+                    )
+    return examples[example_name]
+end
+
 function neuman_line(;
         α = [1.1, 1.0],
         β = [1.1, 1.1],

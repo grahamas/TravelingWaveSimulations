@@ -13,5 +13,5 @@ plotspecs = [
         window = (5.0,Inf)
       )
     ),
-    interpolation_n = 2
+    peak_interpolation_n = 2
 ]

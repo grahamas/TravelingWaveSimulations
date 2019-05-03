@@ -36,29 +36,34 @@ pyplot()
 if modifications_case != nothing
     modifications_path = joinpath(scriptdir(), "modifications", "$(modifications_case).jl")
     include(modifications_path) # defines modifications::Dict{Symbol,<:Any}
-    @eval simulation = Examples.$(Symbol(example_name))(; modifications...)
+    if (modifications isa Dict)
+        modifications = [modifications]
+    end
 else
-    @eval simulation = Examples.$(Symbol(example_name))()
+    modifications = [Dict()]
 end
 
 if plotspec_case != nothing
     plotspec_path = joinpath(scriptdir(), "plotspecs", "$(plotspec_case).jl")
     include(joinpath(scriptdir(), "plotspecs", plotspec_path)) # defines plotspecs
     plots_path = joinpath(plotsdir(), example_name)
-    plots_prefix = "$(modifications_case)_$(plotspec_case)_$(Dates.now())_$(current_commit())"
+    plots_path = joinpath(plots_path, "$(modifications_case)_$(plotspec_case)_$(Dates.now())_$(current_commit())")
     mkpath(plots_path)
 else
-    plots_prefix = ""
     plotspecs = []
 end
-
-execution = execute(simulation)
-
 if !args["no-save-raw"]
-    sim_output_path = joinpath(data_root, "sim", example_name)
+    sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_case)_$(Dates.now())_$(current_commit())")
     mkpath(sim_output_path)
-    
-    execution_dict = @dict execution
-    @tagsave(joinpath(sim_output_path, "$(modifications_case)_$(Dates.now())_$(current_commit()).bson"), execution_dict, true)
 end
-plot_and_save.(plotspecs, Ref(execution), plots_path, plots_prefix)
+
+for modification in modifications
+    simulation = Examples.get_example(example_name)(; modification...)
+    execution = execute(simulation)
+    mod_name = savename(modification, ".bson"; allowedtypes=(Real,String,Symbol,AbstractArray))
+    if !args["no-save-raw"]    
+        execution_dict = @dict execution
+        @tagsave(joinpath(sim_output_path, mod_name), execution_dict, true)
+    end
+    plot_and_save.(plotspecs, Ref(execution), plots_path, mod_name)
+end
