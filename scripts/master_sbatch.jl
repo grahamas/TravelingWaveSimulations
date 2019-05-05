@@ -71,7 +71,7 @@ function main()
 
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia $(script_path) $(join(script_args, " "))
+    julia-nightly $(script_path) $(join(script_args, " "))
     /usr/bin/mail -s \${SLURM_JOB_NAME} $(args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
     """
 
