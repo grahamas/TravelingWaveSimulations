@@ -39,21 +39,24 @@ if modifications_case != nothing
     if (modifications isa Dict)
         modifications = [modifications]
     end
+    modifications_prefix = "$(modifications_case)_"
 else
     modifications = [Dict()]
+    modifications_prefix = ""
 end
 
 if plotspec_case != nothing
     plotspec_path = joinpath(scriptdir(), "plotspecs", "$(plotspec_case).jl")
     include(joinpath(scriptdir(), "plotspecs", plotspec_path)) # defines plotspecs
     plots_path = joinpath(plotsdir(), example_name)
-    plots_path = joinpath(plots_path, "$(modifications_case)_$(plotspec_case)_$(Dates.now())_$(current_commit())")
+    modification_prefix = ""
+    plots_path = joinpath(plots_path, "$(modifications_prefix)$(plotspec_case)_$(Dates.now())_$(current_commit())")
     mkpath(plots_path)
 else
     plotspecs = []
 end
 if !args["no-save-raw"]
-    sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_case)_$(Dates.now())_$(current_commit())")
+    sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(current_commit())")
     mkpath(sim_output_path)
 end
 
