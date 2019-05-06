@@ -60,10 +60,10 @@ end
 for modification in modifications
     simulation = Examples.get_example(example_name)(; modification...)
     execution = execute(simulation)
-    mod_name = savename(modification, ".bson"; allowedtypes=(Real,String,Symbol,AbstractArray))
-    if !args["no-save-raw"]    
+    mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray))
+    if !args["no-save-raw"]
         execution_dict = @dict execution
-        @tagsave(joinpath(sim_output_path, mod_name), execution_dict, true)
+        @tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
     end
     plot_and_save.(plotspecs, Ref(execution), plots_path, mod_name)
 end
