@@ -40,7 +40,7 @@ function read_modification_file(filename::String)
 end
 
 function parse_modification(str::String)
-    if ("=" in str)
+    if occursin("=", str)
         name_str, value_str = split(str, "=")
         return Dict(Symbol(name_str) => parse(Float64, value_str))
     else
