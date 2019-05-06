@@ -5,6 +5,7 @@ using WilsonCowanModel
 using Simulation73
 using Dates
 using ArgParse
+using Lazy
 
 arg_settings = ArgParseSettings()
 @add_arg_table arg_settings begin
@@ -33,11 +34,39 @@ ENV["MPLBACKEND"]="Agg"
 using Plots
 pyplot()
 
+function read_modification_file(filename::String)
+    include(joinpath(scriptdir(), "modifications", "$(filename).jl"))
+    return modifications
+end
+
+function parse_modification(str::String)
+    if ("=" in str)
+        name_str, value_str = split(str, "=")
+        return Dict(Symbol(name_str) => parse(Float64, value_str))
+    else
+        return read_modification_file(str)
+    end
+end
+
+must_be_list(x::AbstractArray) = x
+must_be_list(x) = [x]
+
+function parse_modifications_array(array_str::String)
+    @assert array_str[1] == "[" && array_str[end] == "]"
+    parsed_modifications = @> array_str[2:end-1] begin
+        split(",")
+        strip.()
+        parse_modification.()
+        must_be_list.()
+    modification_cases = Iterators.product(parsed_modifications...) .|> (case) -> merge(case...)
+    return modification_cases
+end
+
 if modifications_case != nothing
-    modifications_path = joinpath(scriptdir(), "modifications", "$(modifications_case).jl")
-    include(modifications_path) # defines modifications::Dict{Symbol,<:Any}
-    if (modifications isa Dict)
-        modifications = [modifications]
+    if modifications_case[1] == "["
+        parse_modifications_array(modifications_case)
+    else
+        parse_modification(modifications_case) |> must_be_list
     end
     modifications_prefix = "$(modifications_case)_"
 else
@@ -55,6 +84,7 @@ if plotspec_case != nothing
 else
     plotspecs = []
 end
+
 if !args["no-save-raw"]
     sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(current_commit())")
     mkpath(sim_output_path)
