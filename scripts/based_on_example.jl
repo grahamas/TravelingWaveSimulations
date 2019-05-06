@@ -39,10 +39,17 @@ function read_modification_file(filename::AbstractString)
     return modifications
 end
 
+parse_range(start, stop) = parse(Float64, start):parse(Float64, stop)
+parse_range(start, step, stop) = parse(Float64, start):parse(Float64, step):parse(Float64, stop)
+
 function parse_modification(str::AbstractString)
     if occursin("=", str)
         name_str, value_str = split(str, "=")
-        return Dict(Symbol(name_str) => parse(Float64, value_str))
+        if occursin(":", value_str)
+            return [Dict(symbol(name_str) => val) for val in parse_range(split(value_str,":"))]
+        else
+            return Dict(Symbol(name_str) => parse(Float64, value_str))
+        end
     else
         return read_modification_file(str)
     end
