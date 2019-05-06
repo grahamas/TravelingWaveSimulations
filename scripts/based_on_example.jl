@@ -58,6 +58,7 @@ function parse_modifications_array(array_str::String)
         strip.()
         parse_modification.()
         must_be_list.()
+    end
     modification_cases = Iterators.product(parsed_modifications...) .|> (case) -> merge(case...)
     return modification_cases
 end
