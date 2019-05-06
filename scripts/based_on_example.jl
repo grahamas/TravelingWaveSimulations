@@ -34,12 +34,12 @@ ENV["MPLBACKEND"]="Agg"
 using Plots
 pyplot()
 
-function read_modification_file(filename::String)
+function read_modification_file(filename::AbstractString)
     include(joinpath(scriptdir(), "modifications", "$(filename).jl"))
     return modifications
 end
 
-function parse_modification(str::String)
+function parse_modification(str::AbstractString)
     if occursin("=", str)
         name_str, value_str = split(str, "=")
         return Dict(Symbol(name_str) => parse(Float64, value_str))
@@ -51,23 +51,23 @@ end
 must_be_list(x::AbstractArray) = x
 must_be_list(x) = [x]
 
-function parse_modifications_array(array_str::String)
-    @assert array_str[1] == "[" && array_str[end] == "]"
+function parse_modifications_array(array_str::AbstractString)
     parsed_modifications = @> array_str[2:end-1] begin
         split(",")
         strip.()
         parse_modification.()
         must_be_list.()
     end
-    modification_cases = Iterators.product(parsed_modifications...) .|> (case) -> merge(case...)
+    modification_cases = Iterators.product(parsed_modifications...)
+    modification_cases = map((case) -> merge(case...), modification_cases)
     return modification_cases
 end
 
 if modifications_case != nothing
-    if modifications_case[1] == "["
-        parse_modifications_array(modifications_case)
+    if modifications_case[1] == '['
+        modifications = parse_modifications_array(modifications_case)
     else
-        parse_modification(modifications_case) |> must_be_list
+        modifications = parse_modification(modifications_case) |> must_be_list
     end
     modifications_prefix = "$(modifications_case)_"
 else
