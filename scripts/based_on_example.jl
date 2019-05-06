@@ -46,7 +46,7 @@ function parse_modification(str::AbstractString)
     if occursin("=", str)
         name_str, value_str = split(str, "=")
         if occursin(":", value_str)
-            return [Dict(symbol(name_str) => val) for val in parse_range(split(value_str,":")...)]
+            return [Dict(Symbol(name_str) => val) for val in parse_range(split(value_str,":")...)]
         else
             return Dict(Symbol(name_str) => parse(Float64, value_str))
         end
