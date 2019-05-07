@@ -71,7 +71,7 @@ end
 
 if modifications_cases != nothing
     modifications = parse_modifications_array(modifications_cases)
-    modifications_prefix = """$(join(modifications_cases, ";"))_"""
+    modifications_prefix = """$(join(sort(modifications_cases), ";"))_"""
 else
     modifications = [Dict()]
     modifications_prefix = ""
@@ -81,7 +81,6 @@ if plotspec_case != nothing
     plotspec_path = joinpath(scriptdir(), "plotspecs", "$(plotspec_case).jl")
     include(joinpath(scriptdir(), "plotspecs", plotspec_path)) # defines plotspecs
     plots_path = joinpath(plotsdir(), example_name)
-    modification_prefix = ""
     plots_path = joinpath(plots_path, "$(modifications_prefix)$(plotspec_case)_$(Dates.now())_$(current_commit())")
     mkpath(plots_path)
 else
