@@ -16,13 +16,13 @@ end
 """
 Parse a function with vector kwargs into function taking corresponding EI scalar arguments
 """
-macro EI(fn_def)
+function EI(fn_def)
   fn_dct = MacroTools.splitdef(fn_def)
   new_kwargs = map(fn_dct[:kwargs]) do kwarg
     EI_parsekwarg(MacroTools.splitarg(kwarg)...) .|> (x) -> MacroTools.combinearg(x...)
   end
   fn_dct[:kwargs] = cat(new_kwargs..., dims=1)
-  MacroTools.combinedef(fn_dct) |> esc
+  MacroTools.combinedef(fn_dct)
 end
 
 function EI_parsekwarg(name::Symbol, type::Symbol, splat::Bool, default::Expr)
@@ -49,7 +49,7 @@ function EI_parsekwarg(name::Symbol, type::Symbol, splat::Bool, default::Any)
   return [(name, type, splat, default)]
 end
 
-macro kw_example(fn_expr)
+function kw_example(fn_expr)
   fn_dct = MacroTools.splitdef(fn_expr)
   # postwalk processes leaves first, so they can be used to set defaults in larger kwargs
   fn_dct[:body] = MacroTools.postwalk(fn_dct[:body]) do x
@@ -60,63 +60,44 @@ macro kw_example(fn_expr)
       x
     end
   end
-  MacroTools.combinedef(fn_dct) |> esc
+  MacroTools.combinedef(fn_dct)
 end
 
-@EI function neuman_line(;
-        α = [1.1, 1.0],
-        β = [1.1, 1.1],
-        τ = [0.1, 0.18],
-        a = [1.2, 1.0],
-        θ = [2.6, 8.0],
-        n_points=301,
-        extent=100.0,
-        strength = [1.2, 1.2],
-        width = [2.81, 2.81],
-        SNR = [80.0, 80.0],
-        time_window = [(0.0, 0.55), (0.0, 0.55)],
-        amplitude = [16.0 -18.2;
-                     27.0 -4.0],
-        spread = [2.5 2.7;
-                  2.7 2.5],
-        stop_time = 1.8,
-        dt = 0.01,
-        space_save_every=1,
-        time_save_every=1,
-        algorithm=Euler()
-    )
+macro EI_kw_example(fn_expr)
+  fn_expr |> kw_example |> EI |> esc
+end
+
+@EI_kw_example function neuman_line()
     N=1; P=2;
     simulation = Simulation(;
       model = WCMSpatial{Float64,N,P}(;
         pop_names = ["E", "I"],
-        α = α,
-        β = β,
-        τ = τ,
-        space = Pops{P}(Segment{Float64}(; n_points=n_points, extent=extent)),
+        α = [1.1, 1.0],
+        β = [1.1, 1.1],
+        τ = [0.1, 0.18],
+        space = Pops{P}(Segment{Float64}(; n_points=301, extent=100.0)),
         nonlinearity = pops(SigmoidNonlinearity{Float64};
-          a = a,
-          θ = θ),
-          # a=Float64[BV(1.2, (0.1, 2.0)), BV(1.0, (0.1, 2.0))],
-          # θ=Float64[BV(8.0, (2.0, 9.0)), BV(2.6, (2.0,9.0))]),
+          a = [1.2, 1.0],
+          θ = [2.6, 8.0]),
         stimulus = pops(NoisyStimulus{Float64,N};
-          strength=strength,
-          time_window=time_window,
-          width=width,
-          SNR=SNR,
+          strength=[1.2, 1.2],
+          time_window=[(0.0, 0.55), (0.0, 0.55)],
+          width=[2.81, 2.81],
+          SNR=[80.0, 80.0],
           stim_type=[SharpBumpStimulus{Float64,N}, SharpBumpStimulus{Float64,N}]),
         connectivity = pops(ShollConnectivity{Float64};
-          amplitude = amplitude,
-          # spread = Float64[BV(2.5, (1.0, 4.0)) BV(2.7, (1.0, 4.0));
-          #            BV(2.7, (1.0, 4.0)) BV(2.5, (1.0, 4.0))])
-          spread = spread)
+          amplitude = [16.0 -18.2;
+                       27.0 -4.0],
+          spread = [2.5 2.7;
+                    2.7 2.5])
         ),
       solver = Solver{Float64}(;
-        stop_time = stop_time,
-        dt = dt,
-        space_save_every=space_save_every,
-        time_save_every=time_save_every,
+        stop_time = 1.8,
+        dt = 0.01,
+        space_save_every=1,
+        time_save_every=1,
         #stiffness=:stiff
-        algorithm=algorithm
+        algorithm=Euler()
       )
     )
     return simulation
