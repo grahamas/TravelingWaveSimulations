@@ -67,8 +67,7 @@ macro EI_kw_example(fn_expr)
   fn_expr |> kw_example |> EI |> esc
 end
 
-@EI_kw_example function neuman_line()
-    N=1; P=2;
+@EI_kw_example function neuman_line(N=1, P=2)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N,P}(;
         pop_names = ["E", "I"],
@@ -103,9 +102,7 @@ end
     return simulation
 end
 
-@EI_kw_example function neuman_square()
-  N=2
-  P=2
+@EI_kw_example function neuman_square(N=2,P=2)
   simulation = Simulation(;
     model = WCMSpatial{Float64,N,P}(;
       pop_names = ["E", "I"],
