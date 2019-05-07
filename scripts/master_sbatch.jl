@@ -2,6 +2,7 @@ using DrWatson
 quickactivate(@__DIR__, "WilsonCowanModel")
 using ArgParse
 
+
 function parse_commandline()
     arg_settings = ArgParseSettings(
                                     autofix_names = false,
@@ -39,6 +40,7 @@ function parse_commandline()
         "--plotspec-case"
             help = "Case specifying plots"
         "--modifications-case"
+            nargs = '*'
             help = "Case specifying base model modifications"
         "--no-save-raw"
             help = "Don't save the raw simulation"

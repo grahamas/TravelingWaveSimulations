@@ -15,7 +15,7 @@ arg_settings = ArgParseSettings()
     "--example-name"
         help = "Name of example defined in examples.jl"
     "--modifications-cases"
-        nargs = "*"
+        nargs = '*'
         help = "Name of file specifying dict of modifications"
     "--plotspec-case"
         help = "Name of file specifying plots"
@@ -59,7 +59,7 @@ end
 must_be_list(x::AbstractArray) = x
 must_be_list(x) = [x]
 
-function parse_modifications_array(modification_strs::Array{<:AbstractString})
+function parse_modifications_array(modification_strs::AbstractArray)
     parsed_modifications = @> modification_strs begin
         parse_modification.()
         must_be_list.()
@@ -71,7 +71,7 @@ end
 
 if modifications_cases != nothing
     modifications = parse_modifications_array(modifications_cases)
-    modifications_prefix = "$(modifications_case)_"
+    modifications_prefix = """$(join(modifications_cases, ";"))_"""
 else
     modifications = [Dict()]
     modifications_prefix = ""
