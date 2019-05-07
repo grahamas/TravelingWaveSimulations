@@ -14,7 +14,8 @@ arg_settings = ArgParseSettings()
         default = datadir()
     "--example-name"
         help = "Name of example defined in examples.jl"
-    "--modifications-case"
+    "--modifications-cases"
+        nargs = "*"
         help = "Name of file specifying dict of modifications"
     "--plotspec-case"
         help = "Name of file specifying plots"
@@ -26,7 +27,7 @@ args = parse_args(ARGS, arg_settings)
 @show args
 data_root = args["data-root"]
 example_name = args["example-name"]
-modifications_case = args["modifications-case"]
+modifications_cases = args["modifications-cases"]
 plotspec_case = args["plotspec-case"]
 
 ENV["GKSwstype"] = "100" # For headless plotting (on server)
@@ -58,10 +59,8 @@ end
 must_be_list(x::AbstractArray) = x
 must_be_list(x) = [x]
 
-function parse_modifications_array(array_str::AbstractString)
-    parsed_modifications = @> array_str[2:end-1] begin
-        split(",")
-        strip.()
+function parse_modifications_array(modification_strs::Array{<:AbstractString})
+    parsed_modifications = @> modification_strs begin
         parse_modification.()
         must_be_list.()
     end
@@ -70,12 +69,8 @@ function parse_modifications_array(array_str::AbstractString)
     return modification_cases
 end
 
-if modifications_case != nothing
-    if modifications_case[1] == '['
-        modifications = parse_modifications_array(modifications_case)
-    else
-        modifications = parse_modification(modifications_case) |> must_be_list
-    end
+if modifications_cases != nothing
+    modifications = parse_modifications_array(modifications_cases)
     modifications_prefix = "$(modifications_case)_"
 else
     modifications = [Dict()]
@@ -101,7 +96,7 @@ end
 for modification in modifications
     simulation = Examples.get_example(example_name)(; modification...)
     execution = execute(simulation)
-    mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray))
+    mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
     if !args["no-save-raw"]
         execution_dict = @dict execution
         @tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
