@@ -1,7 +1,7 @@
 using DrWatson
 quickactivate(@__DIR__)
 
-using WilsonCowanModel
+using WilsonCowanModel, WCMExamples, WCMAnalysis
 using Simulation73
 using Dates
 using ArgParse
@@ -13,7 +13,7 @@ arg_settings = ArgParseSettings()
         help = "Location in which to store output data"
         default = datadir()
     "--example-name"
-        help = "Name of example defined in examples.jl"
+        help = "Name of example defined in WCMExamples"
     "--modifications-cases"
         nargs = '*'
         help = "Name of file specifying dict of modifications"

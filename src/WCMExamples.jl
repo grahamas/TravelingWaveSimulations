@@ -1,4 +1,4 @@
-module Examples
+module WCMExamples
 
 using WilsonCowanModel
 using Simulation73
