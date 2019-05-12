@@ -1,7 +1,3 @@
-module WCMAnalysis
-# Separated into own module to prevent reloading full module during analysis stage
-# of research.
-
 using Simulation73, WilsonCowanModel,
 	Plots
 
@@ -25,14 +21,11 @@ function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Executio
 	savefig(plot_obj, path)
 end
 
-
-include("animation.jl")
-include("analysis/animate.jl")
-include("analysis/spacetime.jl")
-include("analysis/nonlinearity.jl")
-include("analysis/connectivity.jl")
-include("analysis/traveling_wave_statistics.jl")
-include("analysis/peak_tracking.jl")
-include("analysis/subsampled_plot.jl")
-
-end
+analysis_path = "analysis"
+include(joinpath(analysis_path,"animate.jl"))
+include(joinpath(analysis_path,"spacetime.jl"))
+include(joinpath(analysis_path,"nonlinearity.jl"))
+include(joinpath(analysis_path,"connectivity.jl"))
+include(joinpath(analysis_path,"traveling_wave_statistics.jl"))
+include(joinpath(analysis_path,"peak_tracking.jl"))
+include(joinpath(analysis_path,"subsampled_plot.jl"))

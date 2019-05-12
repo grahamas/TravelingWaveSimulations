@@ -1,9 +1,9 @@
 using DrWatson
-quickactivate(@__DIR__, "WilsonCowanModel")
+quickactivate(@__DIR__, "TravelingWaveSimulations")
 using ArgParse
 
 
-function parse_commandline()
+function parse_commandline(args)
     arg_settings = ArgParseSettings(
                                     autofix_names = false,
                                     )
@@ -46,11 +46,11 @@ function parse_commandline()
             help = "Don't save the raw simulation"
             action = :store_true
     end
-    return parse_args(arg_settings; as_symbols = false)
+    return parse_args(args, arg_settings; as_symbols = false)
 end
 
-function main()
-    args = parse_commandline()
+function sbatch_script(ARGS)
+    args = parse_commandline(ARGS)
     project_root = args["project-root"]
     base_example = args["base-example"]
     script_name = args["script-name"]
@@ -80,4 +80,4 @@ function main()
     run(pipeline(`echo $sbatch_script`, `sbatch $sbatch_args`))
 end
 
-main()
+sbatch_script(ARGS)

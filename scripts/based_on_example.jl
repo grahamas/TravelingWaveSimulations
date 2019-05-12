@@ -1,8 +1,8 @@
 using DrWatson
-quickactivate(@__DIR__)
+quickactivate(@__DIR__, "TravelingWaveSimulations")
 
-using WilsonCowanModel, WCMExamples, WCMAnalysis
-using Simulation73
+using Simulation73, TravelingWaveSimulations
+using BSON
 using Dates
 using ArgParse
 using Lazy
