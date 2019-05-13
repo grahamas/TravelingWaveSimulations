@@ -69,7 +69,7 @@ function parse_modifications_array(modification_strs::AbstractArray)
     return modification_cases
 end
 
-if modifications_cases != nothing
+if modifications_cases != []
     modifications = parse_modifications_array(modifications_cases)
     modifications_prefix = """$(join(sort(modifications_cases), ";"))_"""
 else
@@ -77,7 +77,7 @@ else
     modifications_prefix = ""
 end
 
-if plotspec_case != nothing
+if plotspec_case != []
     plotspec_path = joinpath(scriptdir(), "plotspecs", "$(plotspec_case).jl")
     include(joinpath(scriptdir(), "plotspecs", plotspec_path)) # defines plotspecs
     plots_path = joinpath(plotsdir(), example_name)
