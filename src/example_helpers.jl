@@ -51,3 +51,23 @@ end
 macro EI_kw_example(fn_expr)
   fn_expr |> kw_example |> EI |> esc
 end
+
+# From DrWatson
+function increment_backup_num(filepath)
+    path, filename = splitdir(filepath)
+    fname, suffix = splitext(filename)
+    m = match(r"^(.*)_#([0-9]+)$", fname)
+    if m == nothing
+        return joinpath(path, "$(fname)_#1$(suffix)")
+    end
+    newnum = string(parse(Int, m.captures[2]) +1)
+    return joinpath(path, "$(m.captures[1])_#$newnum$(suffix)")
+end
+function recursively_clear_path(cur_path)
+    isfile(cur_path) || return
+    new_path=increment_backup_num(cur_path)
+    if isfile(new_path)
+        recursively_clear_path(new_path)
+    end
+    mv(cur_path, new_path)
+end

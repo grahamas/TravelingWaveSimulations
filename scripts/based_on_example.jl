@@ -13,7 +13,7 @@ arg_settings = ArgParseSettings()
         help = "Location in which to store output data"
         default = datadir()
     "--example-name"
-        help = "Name of example defined in WCMExamples"
+        help = "Name of example defined examples.jl"
     "--modifications-cases"
         nargs = '*'
         help = "Name of file specifying dict of modifications"
@@ -93,7 +93,7 @@ if !args["no-save-raw"]
 end
 
 for modification in modifications
-    simulation = Examples.get_example(example_name)(; modification...)
+    simulation = get_example(example_name)(; modification...)
     execution = execute(simulation)
     mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
     if !args["no-save-raw"]
