@@ -1,4 +1,4 @@
-@EI_kw_example function neuman_line(N=1, P=2)
+@EI_kw_example function meijer_line(N=1, P=2)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N,P}(;
         pop_names = ["E", "I"],
@@ -9,14 +9,14 @@
         nonlinearity = pops(GaussianNonlinearity{Float64};
           sd = [6.7, 3.2],
           θ = [18.0, 10.0]),
-        stimulus = [NoisyStimulus{Float64,N};
-          strength=10.0
+        stimulus = [NoisyStimulus{Float64,N}(;
+          strength=10.0,
           time_window=(0.0,10.0),
           width=100.0,
           SNR=80.0,
           mean=1.0,
-          stim_type=SharpBumpStimulus{Float64,N},
-          NoStimulus{Float64,N}),
+          stim_type=SharpBumpStimulus{Float64,N}),
+          NoStimulus{Float64,N}()],
         connectivity = pops(ShollConnectivity{Float64};
           amplitude = [280.0 -297.0;
                        270.0 -1.4],
