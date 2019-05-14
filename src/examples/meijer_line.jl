@@ -5,7 +5,7 @@
         α = [1.1, 1.0],
         β = [1.1, 1.1],
         τ = [10.0, 10.0], # In ms
-        space = Pops{P}(Segment{Float64}(; n_points=301, extent=100.0)),
+        space = Pops{P}(Segment{Float64}(; n_points=301, extent=1000.0)),
         nonlinearity = pops(GaussianNonlinearity{Float64};
           sd = [6.7, 3.2],
           θ = [18.0, 10.0]),
