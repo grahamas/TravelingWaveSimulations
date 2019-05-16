@@ -1,3 +1,5 @@
+export SpaceTimePlot
+
 struct SpaceTimePlot <: AbstractPlotSpecification
     output_name::String
     kwargs::Dict

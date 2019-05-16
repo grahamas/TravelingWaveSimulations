@@ -1,3 +1,5 @@
+export PeakTravelingWavePlot
+
 struct PeakTravelingWavePlot <: AbstractPlotSpecification
     output_name::String
     kwargs::Dict

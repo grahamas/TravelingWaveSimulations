@@ -1,3 +1,5 @@
+export SubsampledPlot
+
 mutable struct SubsampledPlot <: AbstractPlotSpecification
     plot_type::Type{<:AbstractSpaceTimePlotSpecification}
     time_subsampler::Subsampler

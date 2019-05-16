@@ -1,3 +1,5 @@
+export WaveStatsPlot, WaveWidthPlot, WaveVelocityPlot, NeumanTravelingWavePlot
+
 function calculate_width(single_wave_data::AT) where {T, AT<:AbstractArray{T,2}}
     # [space, time]
     space_max = findmax(single_wave_data)[1]

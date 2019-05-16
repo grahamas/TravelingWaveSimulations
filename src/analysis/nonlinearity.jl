@@ -1,3 +1,5 @@
+export NonlinearityPlot
+
 struct NonlinearityPlot <: AbstractPlotSpecification
     output_name::String
     kwargs::Dict

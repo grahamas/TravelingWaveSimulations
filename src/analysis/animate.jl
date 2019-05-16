@@ -1,3 +1,5 @@
+export Animate
+
 struct Animate <: AbstractPlotSpecification
     fps::Int
     output_name::String

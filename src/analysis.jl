@@ -1,11 +1,4 @@
-using Simulation73, WilsonCowanModel,
-	Plots
-
-export SubsampledPlot, NonlinearityPlot, SpaceTimePlot,
-	NeumanTravelingWavePlot,PeakTravelingWavePlot,
-	WaveStatsPlot, WaveWidthPlot, WaveVelocityPlot,
-	Animate,
-	plot_and_save
+export plot_and_save
 
 function full_name(name; path="", prefix="", sep="_")
 	if prefix != ""
