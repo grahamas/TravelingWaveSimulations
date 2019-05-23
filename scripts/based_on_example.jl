@@ -18,6 +18,7 @@ arg_settings = ArgParseSettings()
         nargs = '*'
         help = "Name of file specifying dict of modifications"
     "--plotspec-case"
+        nargs = '*'
         help = "Name of file specifying plots"
     "--no-save-raw"
         help = "Don't save raw simulation"

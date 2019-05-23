@@ -34,6 +34,7 @@ function EI_parsekwarg(name::Symbol, type::Symbol, splat::Bool, default::Any)
   return [(name, type, splat, default)]
 end
 
+"""Makes a top-level kwarg for every kwarg in entire function body."""
 function kw_example(fn_expr)
   fn_dct = MacroTools.splitdef(fn_expr)
   # postwalk processes leaves first, so they can be used to set defaults in larger kwargs

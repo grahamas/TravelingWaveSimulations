@@ -1,6 +1,6 @@
 module TravelingWaveSimulations
 
-using Simulation73, WilsonCowanModel
+using Simulation73, NeuralModels, WilsonCowanModel
 using MacroTools
 import DifferentialEquations: Euler
 using Plots
