@@ -94,8 +94,11 @@ if !args["no-save-raw"]
 end
 
 for modification in modifications
+    println("getting example...")
     simulation = get_example(example_name)(; modification...)
+    println("done. Running simulation...")
     execution = execute(simulation)
+    println("done.")
     mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
     if !args["no-save-raw"]
         execution_dict = @dict execution

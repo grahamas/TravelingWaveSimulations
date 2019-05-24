@@ -5,7 +5,7 @@
         α = [1.1, 1.0],
         β = [1.1, 1.1],
         τ = [10.0, 18.0],
-        space = Segment{Float64}(; n_points=301, extent=1000.0),
+        space = Segment{Float64}(; n_points=(301,), extent=(1000.0,)),
         nonlinearity = pops(SigmoidNonlinearity{Float64};
           a = [1.2, 1.0],
           θ = [2.6, 8.0]),
@@ -19,7 +19,7 @@
           amplitude = [16.0 -18.2;
                        27.0 -4.0],
           spread = [70.0 90.0;
-                    90.0 70.0])
+                    90.0 70.0] .|> (x) -> (x,))
         ),
       solver = Solver{Float64}(;
         stop_time = 180.0,
