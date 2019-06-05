@@ -16,7 +16,7 @@ function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs..
     solution = execution.solution
     simulation = execution.simulation
     pop_names = simulation.model.pop_names
-    x = saved_space_arr(simulation)
+    x = first.(saved_space_arr(simulation)) # saved_space_arr returns 1-tuples for 1D coords
     t = saved_time_arr(simulation)
     max_val = maximum(solution)
     @animate for time_dx in 1:length(t) # TODO @views

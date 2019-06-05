@@ -1,11 +1,11 @@
-@EI_kw_example function meijer_line(N=1, P=2)
+@EI_kw_example function meijer_square(N=2, P=2)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N,P}(;
         pop_names = ["E", "I"],
         α = [1.1, 1.0],
         β = [1.1, 1.1],
         τ = [10.0, 10.0], # In ms
-        space = Segment{Float64}(; n_points=(301,), extent=(1000.0,)),
+        space = Lattice{Float64,N}(; n_points=(51,51), extent=(500.0,500.0)),
         nonlinearity = pops(GaussianNonlinearity{Float64};
           sd = [6.7, 3.2],
           θ = [18.0, 10.0]),
@@ -20,8 +20,8 @@
         connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N};
           amplitude = [280.0 -297.0;
                        270.0 -1.4],
-          spread = [70.0 90.0;
-                    90.0 70.0] .|> (x) -> (x,))
+          spread = [(70.0, 70.0) (90.0, 90.0);
+                    (90.0, 90.0) (70.0, 70.0)])
         ),
       solver = Solver{Float64}(;
         stop_time = 100.0,
