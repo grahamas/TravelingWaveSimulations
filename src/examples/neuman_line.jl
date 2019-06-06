@@ -8,13 +8,15 @@
         space = Segment{Float64}(; n_points=(301,), extent=(1000.0,)),
         nonlinearity = pops(SigmoidNonlinearity{Float64};
           a = [1.2, 1.0],
-          θ = [2.6, 8.0]),
+          θ = [2.6, 8.0]
+        ),
         stimulus = pops(NoisyStimulus{Float64,N};
-          strength=[3.6, 3.6],
-          time_window=[(0.0, 55.0), (0.0, 55.0)],
-          width=[14.1, 14.1],
-          SNR=[80.0, 80.0],
-          stim_type=[SharpBumpStimulus{Float64,N}, SharpBumpStimulus{Float64,N}]),
+            strength = [1.2, 1.2],
+            width = [28.1, 28.1],
+            SNR = [80.0, 80.0],
+            time_window = [(0.0, 55.0), (0.0, 55.0)],
+            stim_type=[SharpBumpStimulus{Float64,N}, SharpBumpStimulus{Float64,N}]
+        ),
         connectivity = pops(ExpSumAbsDecayingConnectivity{Float64,N};
           amplitude = [16.0 -18.2;
                        27.0 -4.0],
