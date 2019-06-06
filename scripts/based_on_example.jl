@@ -34,9 +34,20 @@ function read_modification_file(filename::AbstractString)
     return modifications
 end
 
+parse_range(start, stop) = parse(Float64, start):parse(Float64, stop)
+parse_range(start, step, stop) = parse(Float64, start):parse(Float64, step):parse(Float64, stop)
+
+parse_array(first::T, args...) where T = T[first, args...]
+parse_array(array_strs::AbstractArray{<:AbstractString}) = parse_array(parse.(Float64, array_strs)...)
+parse_array(array_str::AbstractString) = @> array_str strip(['[', ']']) split(',') parse_array
+
 function parse_modification(str::AbstractString)
     if occursin("=", str)
         name_str, value_str = split(str, "=")
+        if value_str[1] == '['
+            @assert value_str[end] == ']'
+            return [Dict(Symbol(name_str) => val) for val in parse_array(value_str)]
+        end
         if occursin(":", value_str)
             return [Dict(Symbol(name_str) => val) for val in parse_range(split(value_str,":")...)]
         else
@@ -66,8 +77,6 @@ end
     plotspec_case = args["plotspec-case"]
     
     
-    parse_range(start, stop) = parse(Float64, start):parse(Float64, stop)
-    parse_range(start, step, stop) = parse(Float64, start):parse(Float64, step):parse(Float64, stop)
     
     must_be_list(x::AbstractArray) = x
     must_be_list(x) = [x]
