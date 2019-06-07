@@ -50,24 +50,28 @@ function parse_commandline(args)
 end
 
 function pop_args!(args::AbstractDict, names::AbstractArray)
-    Dict((map(names) do name
+    Dict(filter(!isnothing, (map(names) do name
         val = pop!(args, name, nothing)
         if val != nothing
             return name => val
         end
-    end)...)
+    end))...)
 end
 
+arg_str(val::Number) = string(val)
+arg_str(bool::Bool) = ""
 arg_str(str::AbstractString) = str
 arg_str(arr::AbstractArray) = "$(arr...)"
-function arg_str(args::AbstractDict)
-    arg_str_list = ["--$name $(arg_str(val))" for (name, val) in args]
-    return join(arg_str_list, " ")
+function arg_str_list(args::AbstractDict)
+    hcat([["--$name", arg_str(val)] for (name, val) in args]...)
+end
+function single_arg_str(args::AbstractDict)
+    join(arg_str_list(args), " ")
 end
 
 function sbatch_script(ARGS)
     args = parse_commandline(ARGS)
-
+    @show args
     project_root = pop!(args, "project-root")
     base_example = pop!(args, "base-example")
     script_name = pop!(args, "script-name")
@@ -81,7 +85,7 @@ function sbatch_script(ARGS)
 
     script_arg_names = ["mod", "plot", "data-root"]
     script_args = pop_args!(args, script_arg_names)
-    script_args["example-name"] = args["base-example"]
+    script_args["example-name"] = base_example
     if args["no-save-raw"]
         script_args["no-save-raw"] = args["no-save-raw"]
     end
@@ -90,11 +94,11 @@ function sbatch_script(ARGS)
 
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia-nightly $(script_path) $(arg_str(script_args))
-    /usr/bin/mail -s \${SLURM_JOB_NAME} $(args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
+    julia-nightly $(script_path) $(single_arg_str(script_args))
+    /usr/bin/mail -s \${SLURM_JOB_NAME} $(sbatch_args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
     """
 
-    run(pipeline(`echo $sbatch_script`, `sbatch $(arg_str(sbatch_args))`))
+    run(pipeline(`echo $sbatch_script`, `sbatch $(arg_str_list(sbatch_args))`))
 end
 
 sbatch_script(ARGS)

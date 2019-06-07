@@ -18,10 +18,10 @@ arg_settings = ArgParseSettings()
         default = datadir()
     "--example-name"
         help = "Name of example defined examples.jl"
-    "--modifications-cases"
+    "--mod"
         nargs = '*'
         help = "Name of file specifying dict of modifications"
-    "--plotspec-case"
+    "--plot"
         nargs = '*'
         help = "Name of file specifying plots"
     "--no-save-raw"
@@ -73,8 +73,8 @@ end
     @show args
     data_root = args["data-root"]
     example_name = args["example-name"]
-    modifications_cases = args["modifications-cases"]
-    plotspec_case = args["plotspec-case"]
+    modifications_cases = args["mod"]
+    plotspec_case = args["plot"]
     
     
     
