@@ -4,7 +4,8 @@ function get_example(example_name)
                     "neuman_line" => neuman_line,
                     "neuman_square" => neuman_square,
                     "meijer_line" => meijer_line,
-                    "meijer_square" => meijer_square
+                    "meijer_square" => meijer_square,
+                    "neuman_square_noise" => neuman_square_noise
                     )
     return examples[example_name]
 end
