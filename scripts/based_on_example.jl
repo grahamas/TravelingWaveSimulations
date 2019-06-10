@@ -1,7 +1,7 @@
 using DrWatson
 quickactivate(@__DIR__, "TravelingWaveSimulations")
 
-using Simulation73, TravelingWaveSimulations
+using Simulation73, TravelingWaveSimulations, NeuralModels
 using BSON
 using Dates
 using ArgParse

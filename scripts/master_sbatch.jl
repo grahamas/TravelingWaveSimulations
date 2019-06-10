@@ -61,7 +61,7 @@ end
 arg_str(val::Number) = string(val)
 arg_str(bool::Bool) = ""
 arg_str(str::AbstractString) = str
-arg_str(arr::AbstractArray) = "$(arr...)"
+arg_str(arr::AbstractArray) = "$(join(arr, " "))"
 function arg_str_list(args::AbstractDict)
     hcat([["--$name", arg_str(val)] for (name, val) in args]...)
 end
