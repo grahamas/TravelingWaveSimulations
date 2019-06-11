@@ -13,7 +13,7 @@
           strength = [1.2, 1.2],
           width = [28.1, 28.1],
           SNR = [80.0, 80.0],
-          time_window = [(0.0, 55.0), (0.0, 55.0)],
+          time_window = [[(0.0, 55.0)], [(0.0, 55.0)]],
           stim_type=[SharpBumpStimulus{Float64,N}, SharpBumpStimulus{Float64,N}]),
       connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N};
           amplitude = [16.0 -18.2;
