@@ -1,4 +1,4 @@
-@EI_kw_example function neuman_square_noise(N=2,P=2; spread_scale=1.0, amplitude_scale=1.0,
+@EI_kw_example function example(N=2,P=2; spread_scale=1.0, amplitude_scale=1.0,
                                             SNR_scale=1.0, mean_scale=1.0)
   simulation = Simulation(;
     model = WCMSpatial{Float64,N,P}(;

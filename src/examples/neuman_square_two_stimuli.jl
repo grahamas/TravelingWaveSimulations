@@ -1,4 +1,4 @@
-@EI_kw_example function neuman_square_two_stimuli(N=2,P=2; sep=100.0, spread_scale=1.0, amplitude_scale=1.0)
+@EI_kw_example function example(N=2,P=2; sep=100.0, spread_scale=1.0, amplitude_scale=1.0)
   simulation = Simulation(;
     model = WCMSpatial{Float64,N,P}(;
       pop_names = ["E", "I"],

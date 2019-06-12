@@ -7,7 +7,7 @@ function EI(fn_def)
     EI_parsekwarg(MacroTools.splitarg(kwarg)...) .|> (x) -> MacroTools.combinearg(x...)
   end
   fn_dct[:kwargs] = cat(new_kwargs..., dims=1)
-  MacroTools.combinedef(fn_dct)
+  (fn_dct[:name], MacroTools.combinedef(fn_dct))
 end
 
 function EI_parsekwarg(name::Symbol, type::Symbol, splat::Bool, default::Expr)
@@ -37,6 +37,7 @@ end
 """Makes a top-level kwarg for every kwarg in entire function body."""
 function kw_example(fn_expr)
   fn_dct = MacroTools.splitdef(fn_expr)
+  fn_dct[:name] = gensym(fn_dct[:name])
   # postwalk processes leaves first, so they can be used to set defaults in larger kwargs
   fn_dct[:body] = MacroTools.postwalk(fn_dct[:body]) do x
     if isa(x, Expr) && (x.head == :kw)
@@ -50,7 +51,11 @@ function kw_example(fn_expr)
 end
 
 macro EI_kw_example(fn_expr)
-  fn_expr |> kw_example |> EI |> esc
+  name, defn = fn_expr |> kw_example |> EI
+  quote
+    $defn
+    example = $name
+  end |> esc
 end
 
 # From DrWatson

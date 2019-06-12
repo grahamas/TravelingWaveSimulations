@@ -1,4 +1,4 @@
-@EI_kw_example function neuman_line_two_stimuli(N=1, P=2)
+@EI_kw_example function example(N=1, P=2)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N,P}(;
         pop_names = ["E", "I"],

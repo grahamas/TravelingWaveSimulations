@@ -1,4 +1,4 @@
-@EI_kw_example function meijer_square(N=2, P=2)
+@EI_kw_example function example(N=2, P=2)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N,P}(;
         pop_names = ["E", "I"],
