@@ -5,7 +5,9 @@ function get_example(example_name)
                     "neuman_square" => neuman_square,
                     "meijer_line" => meijer_line,
                     "meijer_square" => meijer_square,
-                    "neuman_square_noise" => neuman_square_noise
+                    "neuman_square_noise" => neuman_square_noise,
+                    "neuman_line_two_stimuli" => neuman_line_two_stimuli,
+                    "neuman_square_two_stimuli" => neuman_square_two_stimuli
                     )
     return examples[example_name]
 end

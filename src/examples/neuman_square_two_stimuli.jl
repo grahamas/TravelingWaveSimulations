@@ -1,4 +1,4 @@
-@EI_kw_example function neuman_square(N=2,P=2; spread_scale=1.0, amplitude_scale=1.0)
+@EI_kw_example function neuman_square_two_stimuli(N=2,P=2; sep=100.0, spread_scale=1.0, amplitude_scale=1.0)
   simulation = Simulation(;
     model = WCMSpatial{Float64,N,P}(;
       pop_names = ["E", "I"],
@@ -9,12 +9,15 @@
       nonlinearity = pops(SigmoidNonlinearity{Float64};
         a = [1.2, 1.0],
         θ = [2.6, 8.0]),
-      stimulus = pops(NoisyStimulus{Float64,N};
-          strength = [1.2, 1.2],
-          width = [28.1, 28.1],
-          SNR = [80.0, 80.0],
-          time_windows = [[(0.0, 55.0)], [(0.0, 55.0)]],
-          stim_type=[SharpBumpStimulus{Float64,N}, SharpBumpStimulus{Float64,N}]),
+      stimulus = MultipleDifferentStimuli{Float64,N}([
+          pops(GaussianNoiseStimulus{Float64,N}; SNR = [80.0, 80.0]),
+          pops(MultipleSameStimuli{Float64,N,SharpBumpStimulus{Float64,N},2};
+                strength = [1.2, 1.2],
+                width = [28.1, 28.1],
+                time_windows = [[(0.0, 55.0)], [(0.0, 55.0)]],
+                center = [((sep,sep), (-sep,-sep)), ((sep, sep),(-sep,-sep))]
+                )
+          ]),
       connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N};
           amplitude = [16.0 -18.2;
                        27.0 -4.0] .* amplitude_scale,
