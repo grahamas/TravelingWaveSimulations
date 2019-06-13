@@ -1,4 +1,4 @@
-@EI_kw_example function example(N=2,P=2; sep=100.0, spread_scale=1.0, amplitude_scale=1.0)
+@EI_kw_example function example(N=2,P=2; sep=100.0, spread_scale=1.0, amplitude_scale=1.0, SNR_scale=80.0)
   simulation = Simulation(;
     model = WCMSpatial{Float64,N,P}(;
       pop_names = ["E", "I"],
@@ -10,7 +10,7 @@
         a = [1.2, 1.0],
         θ = [2.6, 8.0]),
       stimulus = MultipleDifferentStimuli{Float64,N}([
-          pops(GaussianNoiseStimulus{Float64,N}; SNR = [80.0, 80.0]),
+          pops(GaussianNoiseStimulus{Float64,N}; SNR = [1.0, 1.0] .* SNR_scale),
           pops(MultipleSameStimuli{Float64,N,SharpBumpStimulus{Float64,N},2};
                 strength = [1.2, 1.2],
                 width = [28.1, 28.1],

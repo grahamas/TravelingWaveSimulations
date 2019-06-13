@@ -17,7 +17,7 @@
       ),
       connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N};
           amplitude = [16.0 -18.2;
-                       27.0 -4.0] .* amplitude_scale,
+                       27.0 -4.0],# .* amplitude_scale,
           #spread = [(70.0,70.0) (90.0,90.0);
           #          (90.0,90.0) (70.0,70.0)] .|> (tup) -> map((x) -> x * spread_scale, tup)
           spread = [(25.0,25.0) (27.0,27.0);
