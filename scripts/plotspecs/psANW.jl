@@ -13,7 +13,7 @@ plotspecs = [
       window = (1.2, 1.8)
     ),
     space_subsampler=Subsampler(
-        window = (5.0,Inf)
+        window = ((5.0,),(Inf,))
       )
     )
 ]
