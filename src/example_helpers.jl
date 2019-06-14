@@ -11,23 +11,31 @@ function EI(fn_def)
 end
 
 function EI_parsekwarg(name::Symbol, type::Symbol, splat::Bool, default::Expr)
-  if @capture(default, [E_, I_])
-    [
-      (Symbol(name,:E), :Any, false, E),
-      (Symbol(name,:I), :Any, false, I),
-      (name, type, splat, :([$(Symbol(name,:E)), $(Symbol(name,:I))]))
-    ]
-  elseif @capture(default, [EE_ EI_; IE_ II_])
-    [
-      (Symbol(name,:EE), :Any, false, EE),
-      (Symbol(name,:IE), :Any, false, IE),
-      (Symbol(name,:EI), :Any, false, EI),
-      (Symbol(name,:II), :Any, false, II),
-      (name, type, splat, :([$(Symbol(name,:EE)) $(Symbol(name,:EI)); $(Symbol(name,:IE)) $(Symbol(name,:II))]))
-    ]
-  else
-    [(name, type, splat, default)]
+  kwarg_list = []
+  MacroTools.prewalk(default) do x
+    if @capture(x, [E_, I_])
+      replaced = :([$(Symbol(name,:E)), $(Symbol(name,:I))])
+      append!(kwarg_list, [
+        (Symbol(name,:E), :Any, false, E),
+        (Symbol(name,:I), :Any, false, I),
+        (name, type, splat, replaced)
+      ])
+      return nothing
+    elseif @capture(x, [EE_ EI_; IE_ II_])
+      replaced = :([$(Symbol(name,:EE)) $(Symbol(name,:EI)); $(Symbol(name,:IE)) $(Symbol(name,:II))])
+      append!(kwarg_list, [
+        (Symbol(name,:EE), :Any, false, EE),
+        (Symbol(name,:IE), :Any, false, IE),
+        (Symbol(name,:EI), :Any, false, EI),
+        (Symbol(name,:II), :Any, false, II),
+        (name, type, splat, replaced)
+      ])
+      return nothing
+    else
+      return x
+    end
   end
+  return kwarg_list
 end
 
 function EI_parsekwarg(name::Symbol, type::Symbol, splat::Bool, default::Any)
