@@ -7,6 +7,8 @@ end
 PeakTravelingWavePlot(; output_name="peak_traveling_wave.png", kwargs...) = PeakTravelingWavePlot(output_name, kwargs)
 @recipe function f(plot_spec::PeakTravelingWavePlot, t::AbstractArray{T,1}, x::AbstractArray{T,1}, wave::AbstractArray{T,2}, interpolation_n::Int=1) where {T}
     title := "Traveling wave with labeled peaks"
+	xlab := "Space (a.u.)"
+	ylab := "Amplitude (a.u.)"
     for time_dx in 1:length(t)
         @series begin
             seriestype := :line

@@ -40,6 +40,8 @@ WaveVelocityPlot(; output_name="wave_velocity.png", dt::Union{Nothing,T}=nothing
     if plot_spec.smoothing != nothing
         t, velocity = smooth(t, velocity, plot_spec.smoothing/plot_spec.dt)
     end
+	xlab := "Time (a.u. approx. ms)"
+	ylab := "Velocity (a.u. approx. um/ms)"
     @series begin
         title --> "Wave velocity over time"
         seriestype := :scatter
@@ -57,8 +59,10 @@ struct WaveWidthPlot <: AbstractPlotSpecification
 end
 WaveWidthPlot(; output_name="wave_width.png", kwargs...) = WaveWidthPlot(output_name, kwargs)
 @recipe function f(plot_spec::WaveWidthPlot, t::AbstractArray{T,1}, wave::AbstractArray{T,2}, transform=identity) where {T}
+	title := "Wave half-width over time"
+	xlab := "Time (a.u. approx. ms)"
+	ylab := "Width (a.u. approx. um) "
     @series begin
-        title --> "Wave width over time"
         seriestype := :scatter
         x := t
         y := transform.(calculate_width(wave)')
@@ -123,7 +127,7 @@ NeumanTravelingWavePlot(; output_name="traveling_wave.png", dt::Union{Nothing,T}
     space_origin::Int = get_origin(simulation) # TODO: Remove 1D return assumption
     di = max(1, round(Int, simulation.solver.simulated_dt / plot_spec.dt))
     x = saved_space_arr(simulation)[space_origin:di:end] # TODO: Remove 1D return assumption
-    for time_dx in 1:length(t)
+	for time_dx in 1:length(t)
         @series begin
             seriestype := :line
             x := x

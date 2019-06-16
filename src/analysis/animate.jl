@@ -19,6 +19,8 @@ function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs..
     x = first.(saved_space_arr(simulation)) # saved_space_arr returns 1-tuples for 1D coords
     t = saved_time_arr(simulation)
     max_val = maximum(solution)
+    xlab --> "Space (a.u. approx. um)"
+    ylab --> "Prop. of cells active"
     @animate for time_dx in 1:length(t) # TODO @views
         plot(x, pop_frame(solution, 1, time_dx); label=pop_names[1],
             ylim=(0,max_val), title="t = $(round(t[time_dx], digits=4))", kwargs...)
