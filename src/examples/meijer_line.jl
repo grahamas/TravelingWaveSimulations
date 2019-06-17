@@ -20,8 +20,8 @@
         connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N};
           amplitude = [280.0 -297.0;
                        270.0 -1.4],
-          spread = [70.0 90.0;
-                    90.0 70.0] .|> (x) -> (x,))
+          spread = [(70.0,) (90.0,);
+                    (90.0,) (70.0,)])
         ),
       solver = Solver{Float64}(;
         stop_time = 100.0,

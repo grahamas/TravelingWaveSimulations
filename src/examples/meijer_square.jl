@@ -7,7 +7,7 @@
         τ = [10.0, 10.0], # In ms
         space = Lattice{Float64,N}(; n_points=(51,51), extent=(500.0,500.0)),
         nonlinearity = pops(GaussianNonlinearity{Float64};
-          sd = [6.7, 3.2],
+          sd = [6.7, sqrt(3.2)],
           θ = [18.0, 10.0]),
         stimulus = [NoisyStimulus{Float64,N}(;
           strength=10.0,

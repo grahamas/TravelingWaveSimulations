@@ -35,6 +35,9 @@ function EI_parsekwarg(name::Symbol, type::Symbol, splat::Bool, default::Expr)
       return x
     end
   end
+  if length(kwarg_list) == 0
+    kwarg_list = [(name, type, splat, default)]
+  end
   return kwarg_list
 end
 
