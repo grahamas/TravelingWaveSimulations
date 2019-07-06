@@ -9,7 +9,7 @@
       nonlinearity = pops(SigmoidNonlinearity{Float64};
         a = [1.2, 1.0],
         θ = [2.6, 8.0]),
-      stimulus = MultipleDifferentStimuli{Float64,N}([
+      stimulus = pops(MultipleDifferentStimuli{Float64,N},
           pops(GaussianNoiseStimulus{Float64,N}; SNR = [1.0, 1.0] .* SNR_scale),
           pops(MultipleSameStimuli{Float64,N,SharpBumpStimulus{Float64,N},2};
                 strength = [1.2, 1.2],
@@ -17,7 +17,7 @@
                 time_windows = [[(0.0, 55.0)], [(0.0, 55.0)]],
                 center = [((sep,sep), (-sep,-sep)), ((sep, sep),(-sep,-sep))]
                 )
-          ]),
+          ),
       connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N};
           amplitude = [16.0 -18.2;
                        27.0 -4.0] .* amplitude_scale,
