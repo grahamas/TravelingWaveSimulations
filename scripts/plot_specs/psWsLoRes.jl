@@ -1,4 +1,4 @@
-plotspecs = [
+plot_spec = [
   # SpaceTimePlot(),
   SubsampledPlot(
     plot_type=WaveStatsPlot,

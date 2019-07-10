@@ -1,4 +1,4 @@
-plotspecs = [
+plot_spec = [
   NonlinearityPlot(;
     fn_bounds = (-1,15)
     ),

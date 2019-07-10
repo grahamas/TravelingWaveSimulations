@@ -18,10 +18,10 @@ arg_settings = ArgParseSettings()
         default = datadir()
     "--example-name"
         help = "Name of example defined examples.jl"
-    "--mod"
+    "--modifications", "--mod"
         nargs = '*'
         help = "Name of file specifying dict of modifications"
-    "--plot"
+    "--plot-specs", "--plot"
         nargs = '*'
         help = "Name of file specifying plots"
     "--no-save-raw"
@@ -29,100 +29,8 @@ arg_settings = ArgParseSettings()
         action = :store_true
 end
 
-function read_modification_file(filename::AbstractString)
-    include(joinpath(scriptdir(), "modifications", "$(filename).jl"))
-    return modifications
-end
-
-parse_range(start, stop) = parse(Float64, start):parse(Float64, stop)
-parse_range(start, step, stop) = parse(Float64, start):parse(Float64, step):parse(Float64, stop)
-
-parse_array(first::T, args...) where T = T[first, args...]
-parse_array(array_strs::AbstractArray{<:AbstractString}) = parse_array(parse.(Float64, array_strs)...)
-parse_array(array_str::AbstractString) = @> array_str strip(['[', ']']) split(',') parse_array
-
-function parse_modification(str::AbstractString)
-    if occursin("=", str)
-        name_str, value_str = split(str, "=")
-        if value_str[1] == '['
-            @assert value_str[end] == ']'
-            return [Dict(Symbol(name_str) => val) for val in parse_array(value_str)]
-        end
-        if occursin(":", value_str)
-            return [Dict(Symbol(name_str) => val) for val in parse_range(split(value_str,":")...)]
-        else
-            return Dict(Symbol(name_str) => parse(Float64, value_str))
-        end
-    else
-        return read_modification_file(str)
-    end
-end
-
-function parse_modifications_array(modification_strs::AbstractArray)
-    parsed_modifications = @> modification_strs begin
-        parse_modification.()
-        must_be_list.()
-    end
-    modification_cases = Iterators.product(parsed_modifications...)
-    modification_cases = map((case) -> merge(case...), modification_cases)
-    return modification_cases
-end
-
-#function main()
-    args = parse_args(ARGS, arg_settings)
-    @show args
-    data_root = args["data-root"]
-    example_name = args["example-name"]
-    modifications_cases = args["mod"]
-    plotspec_case = args["plot"]
-    
-    
-    
-    must_be_list(x::AbstractArray) = x
-    must_be_list(x) = [x]
-    
-    if modifications_cases != []
-        modifications = parse_modifications_array(modifications_cases)
-        modifications_prefix = """$(join(sort(modifications_cases), ";"))_"""
-    else
-        modifications = [Dict()]
-        modifications_prefix = ""
-    end
-    
-    if plotspec_case != []
-        @assert length(plotspec_case) == 1
-        plotspec_case = plotspec_case[1]
-        plotspec_path = joinpath(scriptdir(), "plotspecs", "$(plotspec_case).jl")
-        include(plotspec_path) # defines plotspecs
-        @show plotspecs
-        plots_path = joinpath(plotsdir(), example_name)
-        plots_path = joinpath(plots_path, "$(modifications_prefix)$(plotspec_case)_$(Dates.now())_$(current_commit())")
-        mkpath(plots_path)
-    else
-        plotspecs = []
-    end
-    
-    if !args["no-save-raw"]
-        sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(current_commit())")
-        mkpath(sim_output_path)
-    end
-    
-    for modification in modifications
-        println("getting example...")
-        simulation = get_example(example_name)(; modification...)
-        println("done. Running simulation...")
-        execution = execute(simulation)
-        println("done.")
-        mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
-        if mod_name == ""
-            mod_name = "no_mod"
-        end
-        if !args["no-save-raw"]
-            execution_dict = @dict execution
-            #@tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
-        end
-        plot_and_save.(plotspecs, Ref(execution), plots_path, mod_name)
-    end
-#end
+args = parse_args(ARGS, arg_settings)
+@show args
+based_on_example(; args...)
 
 #main()

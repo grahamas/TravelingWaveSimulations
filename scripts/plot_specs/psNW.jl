@@ -1,4 +1,4 @@
-plotspecs = [
+plot_spec = [
   NonlinearityPlot(;
     fn_bounds = (-1,15)
     ),
@@ -12,7 +12,6 @@ plotspecs = [
     space_subsampler=Subsampler(
         window = (5.0,Inf)
       ),
-    velocity_smoothing=0.2,
-    peak_interpolation_n=2
-    )
+    peak_interpolation_n = 2
+    ),
 ]
