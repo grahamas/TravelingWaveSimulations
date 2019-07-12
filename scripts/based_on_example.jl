@@ -11,7 +11,7 @@ ENV["MPLBACKEND"]="Agg"
 using Plots
 pyplot()
 
-arg_settings = ArgParseSettings()
+arg_settings = ArgParseSettings(; autofix_names = true)
 @add_arg_table arg_settings begin
     "--data-root", "-d"
         help = "Location in which to store output data"
@@ -29,7 +29,7 @@ arg_settings = ArgParseSettings()
         action = :store_true
 end
 
-args = parse_args(ARGS, arg_settings)
+args = parse_args(ARGS, arg_settings; as_symbols=true)
 @show args
 based_on_example(; args...)
 
