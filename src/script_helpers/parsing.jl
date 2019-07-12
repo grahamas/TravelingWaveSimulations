@@ -51,8 +51,9 @@ end
 function parse_plot_specs_array(plot_spec_strs::AbstractArray)
     parsed_plot_specs = @> plot_spec_strs begin
         parse_plot_spec.()
+        must_be_list.()
     end
-    return plot_spec_cases
+    return cat(parsed_plot_specs..., dims=1)
 end
 
 parse_plot_spec(plot_spec_str) = get_plot_spec(plot_spec_str)
