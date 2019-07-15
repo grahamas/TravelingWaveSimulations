@@ -6,7 +6,7 @@
       α = [1.1, 1.0],
       β = [1.1, 1.1],
       τ = [10.0, 18.0],
-      space = Lattice{Float64,N_ARR}(; n_points=(51,51), extent=(500.0,500.0)),
+      space = CompactLattice{Float64,N_ARR}(; n_points=(51,51), extent=(500.0,500.0)),
       nonlinearity = pops(SigmoidNonlinearity{Float64};
         a = [1.2, 1.0],
         θ = [2.6, 8.0]

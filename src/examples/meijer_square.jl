@@ -5,7 +5,7 @@
         α = [1.1, 1.0],
         β = [1.1, 1.1],
         τ = [10.0, 10.0], # In ms
-        space = Lattice{Float64,N_ARR}(; n_points=(51,51), extent=(500.0,500.0)),
+        space = CompactLattice{Float64,N_ARR}(; n_points=(51,51), extent=(500.0,500.0)),
         nonlinearity = pops(GaussianNonlinearity{Float64};
           sd = [6.7, sqrt(3.2)],
           θ = [18.0, 10.0]),

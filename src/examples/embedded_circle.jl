@@ -1,4 +1,5 @@
-@EI_kw_example function example(N_ARR=2, N_CDT=3, P=2)
+@EI_kw_example function example(N_ARR=2, N_CDT=3, P=2; circle_spread=2π/10.0,
+      auto_spread=70.0, cross_spread=90.0)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N_ARR,N_CDT,P}(;
         pop_names = ["E", "I"],
@@ -23,8 +24,8 @@
         connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N_CDT};
           amplitude = [280.0 -297.0;
                        270.0 -1.4],
-          spread = [(70.0, 70.0, 2π/10.0) (90.0, 90.0, 2π/10.0);
-                    (90.0, 90.0, 2π/10.0) (70.0, 70.0, 2π/10.0)])
+          spread = [(auto_spread, auto_spread, circle_spread) (cross_spread, cross_spread, circle_spread);
+                    (cross_spread, cross_spread, circle_spread) (auto_spread, auto_spread, circle_spread)])
         ),
       solver = Solver{Float64}(;
         stop_time = 100.0,
