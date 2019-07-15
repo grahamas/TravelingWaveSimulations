@@ -10,7 +10,6 @@ plot_spec_names = [splitext(basename)[1] for basename in plot_spec_basenames]
 plot_spec_paths = joinpath.(plot_specs_path, plot_spec_basenames)
 for (name, path) in zip(plot_spec_names, plot_spec_paths)
     include(path)
-    @show plot_spec
     plot_specs_dict[name] = plot_spec
 end
 

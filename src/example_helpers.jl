@@ -50,8 +50,22 @@ function kw_example(fn_expr)
   fn_dct = MacroTools.splitdef(fn_expr)
   fn_dct[:name] = gensym(fn_dct[:name])
   # postwalk processes leaves first, so they can be used to set defaults in larger kwargs
-  fn_dct[:body] = MacroTools.postwalk(fn_dct[:body]) do x
+  duplicated_kwarg_names = []
+  seen_kwarg_names = []
+  # find all duplicated kwarg names to exclude them from the function kwargs signature
+  MacroTools.postwalk(fn_dct[:body]) do x
     if isa(x, Expr) && (x.head == :kw)
+      kwarg_name = x.args[1]
+      if kwarg_name ∈ seen_kwarg_names
+        push!(duplicated_kwarg_names, kwarg_name)
+      else
+        push!(seen_kwarg_names, kwarg_name)
+      end
+    end
+    x
+  end
+  fn_dct[:body] = MacroTools.postwalk(fn_dct[:body]) do x
+    if isa(x, Expr) && (x.head == :kw) && x.args[1] ∉ duplicated_kwarg_names
       push!(fn_dct[:kwargs], Expr(:kw, x.args[1], x.args[2]))
       Expr(:kw, x.args[1], x.args[1]) # INTENTIONALLY set default to same symbol
     else

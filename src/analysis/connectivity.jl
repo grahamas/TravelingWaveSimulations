@@ -18,7 +18,11 @@ ConnectivityPlot(; output_name = "connectivity.png", kwargs...) = ConnectivityPl
 #         end
 #     end
 # end
-@recipe function f(plot_spec::ConnectivityPlot, execution::E) where {T,P,M<:WCMSpatial{T,2,P}, S<:Simulation{T,M}, E<:Execution{T,S}}
+@recipe function f(plot_spec::ConnectivityPlot, execution::E) where {T,P,
+                            C<:AbstractConnectivity{T,2},
+                            M<:WCMSpatial{T,2,P,C},
+                            S<:Simulation{T,M},
+                            E<:Execution{T,S}}
     simulation = execution.simulation
 
     pop_names = simulation.model.pop_names

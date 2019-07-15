@@ -12,7 +12,6 @@ example_names = [splitext(basename)[1] for basename in example_basenames]
 example_paths = joinpath.(examples_path, example_basenames)
 for (name, path) in zip(example_names, example_paths)
     include(path)
-    @show example
     examples_dict[name] = example
 end
 
