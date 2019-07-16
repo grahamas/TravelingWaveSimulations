@@ -17,7 +17,7 @@
             time_windows = [[(0.0, 55.0)], [(0.0, 55.0)]],
             stim_type=[SharpBumpStimulus{Float64,N_CDT}, SharpBumpStimulus{Float64,N_CDT}]
         ),
-        connectivity = pops(ExpSumAbsDecayingConnectivity{Float64,N};
+        connectivity = pops(ExpSumAbsDecayingConnectivity{Float64,N_CDT};
           amplitude = [16.0 -18.2;
                        27.0 -4.0],
           # spread = [70.0 90.0;

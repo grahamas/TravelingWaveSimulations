@@ -24,26 +24,26 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     end
 
     example = get_example(example_name)
-    if length(modifications) > 2
-        plot_lock = Threads.Mutex()
-        @warn "Parallelizing with $(Threads.nthreads()) threads."
-        Threads.@threads for modification in modifications
-            simulation = example(; modification...)
-            execution = execute(simulation)
-            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
-            if mod_name == ""
-                mod_name = "no_mod"
-            end
-            if !no_save_raw
-                execution_dict = @dict execution
-                @warn("not currently saving raw")
-                #@tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
-            end
-            Threads.lock(plot_lock)
-            plot_and_save.(plot_specs, Ref(execution), plots_path, mod_name)
-            Threads.unlock(plot_lock)
-        end
-    else
+#    if length(modifications) > 2
+#        plot_lock = Threads.Mutex()
+#        @warn "Parallelizing with $(Threads.nthreads()) threads."
+#        Threads.@threads for modification in modifications
+#            simulation = example(; modification...)
+#            execution = execute(simulation)
+#            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+#            if mod_name == ""
+#                mod_name = "no_mod"
+#            end
+#            if !no_save_raw
+#                execution_dict = @dict execution
+#                @warn("not currently saving raw")
+#                #@tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
+#            end
+#            Threads.lock(plot_lock)
+#            plot_and_save.(plot_specs, Ref(execution), plots_path, mod_name)
+#            Threads.unlock(plot_lock)
+#        end
+#    else
         for modification in modifications
             simulation = example(; modification...)
             execution = execute(simulation)
@@ -58,5 +58,5 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
             end
             plot_and_save.(plot_specs, Ref(execution), plots_path, mod_name)
         end
-    end
+#    end
 end
