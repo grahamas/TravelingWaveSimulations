@@ -1,11 +1,11 @@
-@EI_kw_example function example(N_ARR=1, P=2)
+@EI_kw_example function example(N_ARR=1, N_CDT=1, P=2)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N_ARR,N_CDT,P}(;
         pop_names = ["E", "I"],
         α = [1.1, 1.0],
         β = [1.1, 1.1],
         τ = [10.0, 10.0], # In ms
-        space = Circle{Float64}(; n_points=(301,), extent=(1000.0,)),
+        space = PeriodicLattice(; n_points=(301,), extent=(1000.0,)),
         nonlinearity = pops(GaussianNonlinearity{Float64};
           sd = [6.7, 3.2],
           θ = [18.0, 10.0]),

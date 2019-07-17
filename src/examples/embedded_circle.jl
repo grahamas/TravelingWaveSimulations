@@ -8,7 +8,7 @@
         τ = [10.0, 10.0], # In ms
         space = RandomlyEmbeddedLattice(;
           lattice=Grid{Float64}(; n_points=(51,51), extent=(500.0,500.0)),
-          embedded_lattice=Circle{Float64}(; n_points=(10,), extent=(2π,))
+          embedded_lattice=PeriodicLattice(; n_points=(10,), extent=(2π,))
         ),
         nonlinearity = pops(GaussianNonlinearity{Float64};
           sd = [6.7, sqrt(3.2)],

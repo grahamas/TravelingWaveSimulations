@@ -19,19 +19,6 @@ ConnectivityPlot(; output_name = "connectivity.png", kwargs...) = ConnectivityPl
 #     end
 # end
 
-@recipe function f(lattice::Segment, weights)
-    x := coordinate_axes(lattice)[1]
-    y := weights
-    seriestype := :line
-    ()
-end
-
-@recipe function f(lattice::Grid{T}, weights::Array{T,2}) where T
-    (x, y) = coordinate_axes(lattice)
-    seriestype := :heatmap
-    (x,y,weights)
-end
-
 @recipe function f(connectivity::AbstractConnectivity{T,N_CDT},
                    lattice::AbstractLattice{T,N_ARR,N_CDT};
                    source_location = Tuple(zero(T) for _ in 1:N_CDT)) where {T,N_ARR,N_CDT}

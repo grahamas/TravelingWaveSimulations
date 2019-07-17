@@ -21,7 +21,7 @@ function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs..
     max_val = maximum(solution)
     @animate for time_dx in 1:length(t) # TODO @views
         plot(x, pop_frame(solution, 1, time_dx); label=pop_names[1],
-            ylim=(0,max_val), title="t = $(round(t[time_dx], digits=4))", 
+            ylim=(0,max_val), title="t = $(round(t[time_dx], digits=4))",
             xlab = "Space (a.u. approx. um)", ylab = "Prop. of cells active", kwargs...)
         for i_pop in 2:length(pop_names)
             plot!(x, pop_frame(solution, i_pop, time_dx); label=pop_names[i_pop], kwargs...)
