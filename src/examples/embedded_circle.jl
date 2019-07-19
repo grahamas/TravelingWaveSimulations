@@ -1,11 +1,14 @@
-@EI_kw_example function example(N_ARR=2, N_CDT=3, P=2; circle_spread=2π/10.0,
-      auto_spread=70.0, cross_spread=90.0)
+@EI_kw_example function example(N_ARR=2, N_CDT=3, P=2; circle_spread=0.4,
+      circle_auto_cross_ratio = 7.0/9.0,
+      auto_spread=70.0, cross_spread=90.0,
+      circle_auto_spread=(circle_spread * circle_auto_cross_ratio),
+      circle_cross_spread=circle_spread)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N_ARR,N_CDT,P}(;
         pop_names = ["E", "I"],
         α = [1.1, 1.0],
         β = [1.1, 1.1],
-        τ = [10.0, 10.0], # In ms
+        τ = [10.0, 10.0], # in ms
         space = RandomlyEmbeddedLattice(;
           lattice=Grid{Float64}(; n_points=(51,51), extent=(500.0,500.0)),
           embedded_lattice=PeriodicLattice(; n_points=(10,), extent=(2π,))
@@ -24,8 +27,8 @@
         connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N_CDT};
           amplitude = [280.0 -297.0;
                        270.0 -1.4],
-          spread = [(auto_spread, auto_spread, circle_spread) (cross_spread, cross_spread, circle_spread);
-                    (cross_spread, cross_spread, circle_spread) (auto_spread, auto_spread, circle_spread)])
+          spread = [(auto_spread, auto_spread, circle_auto_spread) (cross_spread, cross_spread, circle_cross_spread);
+                    (cross_spread, cross_spread, circle_cross_spread) (auto_spread, auto_spread, circle_auto_spread)])
         ),
       solver = Solver{Float64}(;
         stop_time = 100.0,
