@@ -63,15 +63,18 @@ end
     @assert P == 2
     layout := @layout [[a; b] [c; d]; [e; f] [g; h]]
     size := (1600,1600)
+    subplot = 1
     for (dst_pop, src_pop) in Iterators.product(1:P, 1:P)
         weights = directed_weights(connectivity[dst_pop, src_pop], space, source_location)
         @series begin
-            title := "pop_names[src_pop] → pop_names[dst_pop]"
+            title := "$(pop_names[src_pop]) → $(pop_names[dst_pop])"
+            subplot := subplot
             (space.lattice, weights)
         end
         @series begin
-            lab := nothing
-            (space.embedded_lattice, ones(space.embedded_lattice.n_points...))
+            subplot := subplot+1
+            (space.embedded_lattice, unembed_values(space, weights))
         end
+        subplot += 2
     end
 end

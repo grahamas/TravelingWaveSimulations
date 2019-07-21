@@ -1,6 +1,12 @@
 
 export based_on_example
 
+function init_path(args...)
+    path = joinpath(args...) |> make_path_windows_safe
+    mkpath(path)
+    return path
+end
+
 function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bool=false,
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],
@@ -11,14 +17,12 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
 
     # Initialize saving paths
     if length(plot_specs) > 0
-        plots_path = joinpath(plotsdir(), example_name, "$(modifications_prefix)$(plot_specs_prefix)_$(Dates.now())_$(current_commit())")
-        mkpath(plots_path)
+        plots_path = init_path(plotsdir(), example_name, "$(modifications_prefix)$(plot_specs_prefix)_$(Dates.now())_$(current_commit())")
     else
         plots_path = ""
     end
     if !no_save_raw
-        sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(current_commit())")
-        mkpath(sim_output_path)
+        sim_output_path = init_path(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(current_commit())")
     else
         sim_output_path = nothing
     end
