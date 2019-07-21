@@ -1,5 +1,5 @@
 @EI_kw_example function example(N_ARR=2, N_CDT=3, P=2; circle_spread=0.4,
-      circle_auto_cross_ratio = 7.0/9.0,
+      circle_auto_cross_ratio = 0.4,
       auto_spread=70.0, cross_spread=90.0,
       circle_auto_spread=(circle_spread * circle_auto_cross_ratio),
       circle_cross_spread=circle_spread,
