@@ -25,9 +25,9 @@ function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs..
                 plot(
                     space, pop_frame(solution, 1, time_dx); label=pop_names[1],
                     val_lim=(0,max_val), title="t = $(round(t[time_dx], digits=4))",
-                    xlab = "Space (a.u. approx. um)", kwargs...
+                    xlab = "Space (a.u. approx. um)", legend=:none, kwargs...
                     )
                 for i_pop in 1:length(pop_names)
-            ]...)
+            ]...; size=(1600,800))
     end
 end

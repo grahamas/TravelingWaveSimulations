@@ -7,6 +7,30 @@ function init_path(args...)
     return path
 end
 
+function based_on_example(ARGS)
+    arg_settings = ArgParseSettings(; autofix_names = true)
+    @add_arg_table arg_settings begin
+        "--data-root", "-d"
+            help = "Location in which to store output data"
+            default = datadir()
+        "--example-name"
+            help = "Name of example defined examples.jl"
+        "--modifications", "--mod"
+            nargs = '*'
+            help = "Name of file specifying dict of modifications"
+        "--plot-specs", "--plot"
+            nargs = '*'
+            help = "Name of file specifying plots"
+        "--no-save-raw"
+            help = "Don't save raw simulation"
+            action = :store_true
+    end
+    kwargs = parse_args(ARGS, arg_settings; as_symbols=true)
+    based_on_example(; kwargs...)
+end
+
+
+
 function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bool=false,
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],
@@ -34,7 +58,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
 #        Threads.@threads for modification in modifications
 #            simulation = example(; modification...)
 #            execution = execute(simulation)
-#            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+#            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=MOD_SEP)
 #            if mod_name == ""
 #                mod_name = "no_mod"
 #            end
@@ -51,7 +75,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         for modification in modifications
             simulation = example(; modification...)
             execution = execute(simulation)
-            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=MOD_SEP)
             if mod_name == ""
                 mod_name = "no_mod"
             end

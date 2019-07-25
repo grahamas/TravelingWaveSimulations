@@ -72,6 +72,7 @@ end
             (space.lattice, weights)
         end
         @series begin
+            title := "$(pop_names[src_pop]) → $(pop_names[dst_pop])"
             subplot := subplot+1
             (space.embedded_lattice, unembed_values(space, weights))
         end

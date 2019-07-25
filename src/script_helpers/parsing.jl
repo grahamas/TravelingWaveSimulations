@@ -1,10 +1,18 @@
 export parse_modifications_argument, parse_plot_specs_argument
 
-parse_range(start, stop) = parse(Float64, start):parse(Float64, stop)
-parse_range(start, step, stop) = parse(Float64, start):parse(Float64, step):parse(Float64, stop)
+MOD_SEP = "+"
+
+parse_num(str) = try
+        parse(Int, str)
+    catch
+        parse(Float64, str)
+    end
+
+parse_range(start, stop) = parse_num(start):parse_num(stop)
+parse_range(start, step, stop) = parse_num(start):parse_num(step):parse_num(stop)
 
 parse_array(first::T, args...) where T = T[first, args...]
-parse_array(array_strs::AbstractArray{<:AbstractString}) = parse_array(parse.(Float64, array_strs)...)
+parse_array(array_strs::AbstractArray{<:AbstractString}) = parse_array(parse_num.(array_strs)...)
 parse_array(array_str::AbstractString) = @> array_str strip(['[', ']']) split(',') parse_array
 
 function parse_modification(str::AbstractString)
@@ -13,11 +21,10 @@ function parse_modification(str::AbstractString)
         if value_str[1] == '['
             @assert value_str[end] == ']'
             return [Dict(Symbol(name_str) => val) for val in parse_array(value_str)]
-        end
-        if occursin(":", value_str)
+        elseif occursin(":", value_str)
             return [Dict(Symbol(name_str) => val) for val in parse_range(split(value_str,":")...)]
         else
-            return Dict(Symbol(name_str) => parse(Float64, value_str))
+            return Dict(Symbol(name_str) => parse_num(value_str))
         end
     else
         return get_modification(str)
@@ -33,14 +40,18 @@ function parse_modifications_array(modification_strs::AbstractArray)
         must_be_list.()
     end
     modification_cases = Iterators.product(parsed_modifications...)
-    modification_cases = map((case) -> merge(case...), modification_cases)
+    modification_cases = map(modification_cases) do cases
+        any_dict = Dict{Symbol,Any}()
+        merge!(any_dict, cases...)
+        return any_dict
+    end
     return modification_cases
 end
 
 function parse_modifications_argument(modification_strs)
     if modification_strs != []
         parsed_modifications = parse_modifications_array(modification_strs)
-        modifications_prefix = """$(join(sort(modification_strs), ";"))_"""
+        modifications_prefix = """$(join(sort(modification_strs), MOD_SEP))_"""
     else
         parsed_modifications = [Dict()]
         modifications_prefix = ""
@@ -63,6 +74,6 @@ function parse_plot_specs_argument(plot_spec_strs)
         return [], ""
     end
     parsed_plot_specs = parse_plot_specs_array(plot_spec_strs)
-    plot_specs_prefix = """$(join(sort(plot_spec_strs), ";"))"""
+    plot_specs_prefix = """$(join(sort(plot_spec_strs), MOD_SEP))"""
     return parsed_plot_specs, plot_specs_prefix
 end
