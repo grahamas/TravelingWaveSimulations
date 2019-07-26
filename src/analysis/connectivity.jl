@@ -48,7 +48,7 @@ using Plots: GridLayout
     layout := GridLayout(P,P)
     for (dst_pop, src_pop) in Iterators.product(1:P, 1:P)
         @series begin
-            lab --> "$(pop_names[src_pop])[1,1] → $(pop_names[dst_pop])"
+            lab --> "$(pop_names[src_pop])(origin) → $(pop_names[dst_pop])"
             subplot := (dst_pop, src_pop)
             (connectivity[dst_pop, src_pop], space)
         end
@@ -56,7 +56,7 @@ using Plots: GridLayout
 end
 
 @recipe function f(plot_spec::ConnectivityPlot, connectivity::C, space::RandomlyEmbeddedLattice{T,N_ARR,N_CDT},
-        pop_names::SVector{P,<:AbstractString}; source_location = Tuple(zero(T) for _ in 1:N_CDT)) where {
+        pop_names::SVector{P,<:AbstractString}; source_location = coordinates(space)[origin_idx(space)]) where {
             T, N_ARR, N_CDT, P,
             C<:SMatrix{P,P}
         }
@@ -66,6 +66,9 @@ end
     subplot = 1
     for (dst_pop, src_pop) in Iterators.product(1:P, 1:P)
         weights = directed_weights(connectivity[dst_pop, src_pop], space, source_location)
+        @show "$(pop_names[src_pop])($src_pop) → $(pop_names[dst_pop])($dst_pop): $(weights[origin_idx(space)])"
+        @show origin_idx(space)
+        @show coordinates(space)[origin_idx(space)]
         @series begin
             title := "$(pop_names[src_pop]) → $(pop_names[dst_pop])"
             subplot := subplot

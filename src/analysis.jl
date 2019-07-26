@@ -23,11 +23,11 @@ function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Executio
 	savefig(plot_obj, path)
 end
 
-analysis_path = "analysis"
-include(joinpath(analysis_path,"animate.jl"))
-include(joinpath(analysis_path,"spacetime.jl"))
-include(joinpath(analysis_path,"nonlinearity.jl"))
-include(joinpath(analysis_path,"connectivity.jl"))
-include(joinpath(analysis_path,"traveling_wave_statistics.jl"))
-include(joinpath(analysis_path,"peak_tracking.jl"))
-include(joinpath(analysis_path,"subsampled_plot.jl"))
+# analysis_path = "analysis"
+# include(joinpath(analysis_path,"animate.jl"))
+# include(joinpath(analysis_path,"spacetime.jl"))
+# include(joinpath(analysis_path,"nonlinearity.jl"))
+# include(joinpath(analysis_path,"connectivity.jl"))
+# include(joinpath(analysis_path,"traveling_wave_statistics.jl"))
+# include(joinpath(analysis_path,"peak_tracking.jl"))
+# include(joinpath(analysis_path,"subsampled_plot.jl"))
