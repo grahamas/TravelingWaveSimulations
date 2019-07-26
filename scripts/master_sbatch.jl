@@ -71,7 +71,6 @@ end
 
 function sbatch_script(ARGS)
     args = parse_commandline(ARGS)
-    @show args
     project_root = pop!(args, "project-root")
     base_example = pop!(args, "base-example")
     script_name = pop!(args, "script-name")

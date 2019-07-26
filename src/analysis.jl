@@ -1,7 +1,7 @@
 export plot_and_save
 
 function make_path_windows_safe(path)
-	@assert ';' ∉ path "Can't have ';' in savename; Reserved for replacing ':'"
+	@assert ';' ∉ path "Can't have ';' in $path; Reserved for replacing ':'"
 	# Colons are not allowed, but I need them, so I'll replace them with ;
 	path = replace(path, ":" => "#")
     windows_bad_chars = Vector{Char}("""<>":|?*""")
@@ -13,7 +13,7 @@ function full_name(name; path="", prefix="", sep="_")
 	if prefix != ""
 		name = join([prefix, name], sep)
 	end
-	return joinpath(path, name) |> make_path_windows_safe
+	return joinpath(path, name |> make_path_windows_safe)
 end
 
 function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Execution, output_dir::AbstractString, prefix="")

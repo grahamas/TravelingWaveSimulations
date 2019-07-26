@@ -28,6 +28,6 @@ function RecipesBase.animate(execution::Execution{T,<:Simulation{T,M}}; kwargs..
                     xlab = "Space (a.u. approx. um)", size=(800,800),kwargs...
                     )
                 for i_pop in 1:length(pop_names)
-            ]...)
+            ]...; size=(1600,800))
     end
 end

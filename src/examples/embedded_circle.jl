@@ -3,7 +3,7 @@
       auto_spread=70.0, cross_spread=90.0,
       circle_auto_spread=(circle_spread * circle_auto_cross_ratio),
       circle_cross_spread=circle_spread,
-      circle_n_points=(100,),
+      circle_n_points=100,
       grid_n_points = (51,51))
     simulation = Simulation(;
       model = WCMSpatial{Float64,N_ARR,N_CDT,P}(;
@@ -13,7 +13,7 @@
         τ = [10.0, 10.0], # in ms
         space = RandomlyEmbeddedLattice(;
           lattice=Grid{Float64}(; n_points=grid_n_points, extent=(500.0,500.0)),
-          embedded_lattice=PeriodicLattice(; n_points=circle_n_points, extent=(2π,))
+          embedded_lattice=PeriodicLattice(; n_points=(circle_n_points,), extent=(2π,))
         ),
         nonlinearity = pops(GaussianNonlinearity{Float64};
           sd = [6.7, sqrt(3.2)],
