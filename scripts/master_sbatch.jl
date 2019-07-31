@@ -90,11 +90,11 @@ function sbatch_script(ARGS)
         script_args["no-save-raw"] = args["no-save-raw"]
     end
 
-    script_path = joinpath(scriptdir(), script_name)
+    script_path = joinpath(scriptsdir(), script_name)
 
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia-nightly $(script_path) $(single_arg_str(script_args))
+    julia $(script_path) $(single_arg_str(script_args))
     /usr/bin/mail -s \${SLURM_JOB_NAME} $(sbatch_args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
     """
 
