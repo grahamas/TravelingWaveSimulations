@@ -27,6 +27,15 @@ end
 must_be_list(x::AbstractArray) = x
 must_be_list(x) = [x]
 
+function make_prefix(strs, path_prefix="")
+    prefix = """$(join(sort(modification_strs), MOD_SEP))_"""
+    if length(prefix) >= 255
+        return make_prefix(strs[2:end], path_prefix=joinpath(path_prefix, strs[1]))
+    else
+        return joinpath(path_prefix,prefix)
+    end
+end
+
 function parse_modifications_array(modification_strs::AbstractArray)
     parsed_modifications = @> modification_strs begin
         parse_modification.()
@@ -40,7 +49,7 @@ end
 function parse_modifications_argument(modification_strs)
     if modification_strs != []
         parsed_modifications = parse_modifications_array(modification_strs)
-        modifications_prefix = """$(join(sort(modification_strs), ";"))_"""
+        modifications_prefix = make_prefix(modification_strs)
     else
         parsed_modifications = [Dict()]
         modifications_prefix = ""
@@ -63,6 +72,6 @@ function parse_plot_specs_argument(plot_spec_strs)
         return [], ""
     end
     parsed_plot_specs = parse_plot_specs_array(plot_spec_strs)
-    plot_specs_prefix = """$(join(sort(plot_spec_strs), ";"))"""
+    plot_specs_prefix = make_prefix(plot_spec_strs)
     return parsed_plot_specs, plot_specs_prefix
 end

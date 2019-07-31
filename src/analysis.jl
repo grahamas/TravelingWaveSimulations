@@ -4,7 +4,9 @@ function full_name(name; path="", prefix="", sep="_")
 	if prefix != ""
 		name = join([prefix, name], sep)
 	end
-	return joinpath(path, name)
+	full_path = joinpath(path, name)
+	@assert length(full_path) < 4096
+	return full_path
 end
 
 function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Execution, output_dir::AbstractString, prefix="")
