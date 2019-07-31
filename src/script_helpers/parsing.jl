@@ -28,7 +28,7 @@ must_be_list(x::AbstractArray) = x
 must_be_list(x) = [x]
 
 function make_prefix(strs, path_prefix="")
-    prefix = """$(join(sort(modification_strs), MOD_SEP))_"""
+    prefix = "$(join(sort(strs), ';'))_"
     if length(prefix) >= 255
         return make_prefix(strs[2:end], path_prefix=joinpath(path_prefix, strs[1]))
     else
