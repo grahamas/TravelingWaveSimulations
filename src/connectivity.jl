@@ -1,4 +1,4 @@
-
+using Parameters
 @with_kw struct R2S1IsotropicConnectivity{T} <: AbstractExpDecayingConnectivity{T,3}
     local_amplitude::T
     long_range_amplitude::T

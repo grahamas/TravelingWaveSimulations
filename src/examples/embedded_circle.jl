@@ -14,7 +14,7 @@
         β = [1.1, 1.1],
         τ = [10.0, 10.0], # in ms
         space = RandomlyEmbeddedLattice(;
-          lattice=Grid{Float64}(; n_points=round.(Ref(Int),(grid_axis_n_points,grid_axis_n_points)),
+          lattice=CompactLattice{Float64,2}(; n_points=round.(Ref(Int),(grid_axis_n_points,grid_axis_n_points)),
             extent=(grid_axis_extent,grid_axis_extent)),
           embedded_lattice=PeriodicLattice(; n_points=(round(Int, circle_n_points),),
             extent=(circle_extent,))

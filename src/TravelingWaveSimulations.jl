@@ -10,6 +10,7 @@ using StaticArrays
 export get_example
 export plot_and_save
 
+include("connectivity.jl")
 include("examples.jl")
 include("analysis.jl")
 
