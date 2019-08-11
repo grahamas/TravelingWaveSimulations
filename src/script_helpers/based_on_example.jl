@@ -48,6 +48,10 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
             simulation = example(; modification...)
             execution = execute(simulation)
             mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+            if execution.solution.retcode == :Unstable
+                @warn "$mod_name unstable!"
+                continue
+            end
             if mod_name == ""
                 mod_name = "no_mod"
             end

@@ -9,6 +9,7 @@ using StaticArrays
 
 export get_example
 export plot_and_save
+export custom_animate
 
 include("connectivity.jl")
 include("examples.jl")

@@ -26,10 +26,7 @@ ConnectivityPlot(; output_name = "connectivity.png", kwargs...) = ConnectivityPl
     (lattice, weights)
 end
 
-@recipe function f(plot_spec::ConnectivityPlot, execution::E) where {T,
-                            M<:WCMSpatial,
-                            S<:Simulation{T,M},
-                            E<:Execution{T,S}}
+@recipe function f(plot_spec::ConnectivityPlot, execution::Execution) where {T}
     model = execution.simulation.model
     pop_names = model.pop_names
     space = model.space
@@ -49,7 +46,7 @@ using Plots: GridLayout
     for (dst_pop, src_pop) in Iterators.product(1:P, 1:P)
         @series begin
             lab --> "$(pop_names[src_pop])[1,1] → $(pop_names[dst_pop])"
-            subplot := (dst_pop, src_pop)
+            subplot := dst_pop + (P * (src_pop-1))
             (connectivity[dst_pop, src_pop], space)
         end
     end

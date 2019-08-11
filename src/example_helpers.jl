@@ -10,27 +10,44 @@ function EI(fn_def)
   (fn_dct[:name], MacroTools.combinedef(fn_dct))
 end
 
+function parse_EIarr_arg(arr, name)
+  if @capture(arr, [E_, I_])
+    replaced = :([$(Symbol(name,:E)), $(Symbol(name,:I))])
+    return (replaced, [
+      (Symbol(name,:E), :Any, false, E),
+      (Symbol(name,:I), :Any, false, I)
+    ])
+  elseif @capture(arr, [EE_ EI_; IE_ II_])
+    replaced = :([$(Symbol(name,:EE)) $(Symbol(name,:EI)); $(Symbol(name,:IE)) $(Symbol(name,:II))])
+    return (replaced, [
+      (Symbol(name,:EE), :Any, false, EE),
+      (Symbol(name,:IE), :Any, false, IE),
+      (Symbol(name,:EI), :Any, false, EI),
+      (Symbol(name,:II), :Any, false, II)
+    ])
+  else
+    return (nothing, [])
+  end
+end
+
+
 function EI_parsekwarg(name::Symbol, type::Symbol, splat::Bool, default::Expr)
   kwarg_list = []
   MacroTools.prewalk(default) do x
-    if @capture(x, [E_, I_])
-      replaced = :([$(Symbol(name,:E)), $(Symbol(name,:I))])
-      append!(kwarg_list, [
-        (Symbol(name,:E), :Any, false, E),
-        (Symbol(name,:I), :Any, false, I),
-        (name, type, splat, replaced)
-      ])
+    replacement, entries = parse_EIarr_arg(x, name)
+    if length(entries) > 0
+      append!(kwarg_list, entries)
+      append!(kwarg_list, [(name, type, splat, replacement)])
       return nothing
-    elseif @capture(x, [EE_ EI_; IE_ II_])
-      replaced = :([$(Symbol(name,:EE)) $(Symbol(name,:EI)); $(Symbol(name,:IE)) $(Symbol(name,:II))])
-      append!(kwarg_list, [
-        (Symbol(name,:EE), :Any, false, EE),
-        (Symbol(name,:IE), :Any, false, IE),
-        (Symbol(name,:EI), :Any, false, EI),
-        (Symbol(name,:II), :Any, false, II),
-        (name, type, splat, replaced)
-      ])
-      return nothing
+    elseif @capture(x, op_(arr_, other_))
+      replacement, entries = parse_EIarr_arg(arr, name)
+      if length(entries) > 0
+        append!(kwarg_list, entries)
+        append!(kwarg_list, [(name, type, splat, :($op($replacement, $other)))])
+        return nothing
+      else
+        return x
+      end
     else
       return x
     end
