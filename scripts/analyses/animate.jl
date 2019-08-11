@@ -1,4 +1,4 @@
-plot_spec = [
+analyses = [
   Animate(;
     fps = 20
     )

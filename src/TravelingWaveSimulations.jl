@@ -15,7 +15,7 @@ include("examples.jl")
 include("analysis.jl")
 
 include(joinpath(scriptdir(), "modifications.jl"))
-include(joinpath(scriptdir(), "plot_specs.jl"))
+include(joinpath(scriptdir(), "analyses.jl"))
 
 include("script_helpers.jl")
 
