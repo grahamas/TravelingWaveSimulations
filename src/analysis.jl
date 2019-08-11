@@ -16,7 +16,7 @@ function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Executio
 	savefig(plot_obj, path)
 end
 
-analysis_path = "analysis"
+analysis_path = joinpath(srcdir(), "analysis")
 include(joinpath(analysis_path,"animate.jl"))
 include(joinpath(analysis_path,"spacetime.jl"))
 include(joinpath(analysis_path,"nonlinearity.jl"))
