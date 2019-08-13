@@ -21,9 +21,9 @@ arg_settings = ArgParseSettings(; autofix_names = true)
     "--modifications", "--mod"
         nargs = '*'
         help = "Name of file specifying dict of modifications"
-    "--plot-specs", "--plot"
+    "--analyses"
         nargs = '*'
-        help = "Name of file specifying plots"
+        help = "Name of file specifying analyses"
     "--no-save-raw"
         help = "Don't save raw simulation"
         action = :store_true

@@ -1,4 +1,5 @@
 export radial_slice
+export AnimateRadialSlice
 
 struct AnimateRadialSlice <: AbstractPlotSpecification
     fps::Int
@@ -14,23 +15,29 @@ function analyse(plot_spec::AnimateRadialSlice, execution::Execution, output_dir
 end
 
 function animate_radial_slice(execution::Execution; kwargs...)
-    o_dx = origin_dx(execution)
+    o_dx = origin_idx(execution)
     # Slice from middle out to right
-    slice_dxs = [o_dx[1], SliceToEnd(1,start=o_dx[2])]
-    slice_coordinates = coordinates(execution)[slice_dxs...]
-    t = time_points(execution)
-    min_val, max_val = extrema(execution.solution)
+    slice_dxs = [StrideToEnd(1, o_dx[1]), o_dx[2]] # Straight down from center
+    @show slice_dxs
+    @show coordinates(execution) |> size
+    slice_coordinates = [coord[1] for coord in coordinates(execution)[slice_dxs...]]
+    t = timepoints(execution)
+    min_val = minimum(execution.solution)
+    max_val = maximum(execution.solution)
     min_val = min(min_val, 0.0)
-    pop_names = simulation.model.pop_names
+    pop_names = execution.simulation.model.pop_names
     solution = execution.solution
+    @show slice_coordinates |> size
+    @show pop_frame(solution, 1, 1)[slice_dxs...] |> size
+    @show slice_coordinates
     @animate for time_dx in 1:length(t)
-        plot(x, pop_frame(solution, 1, time_dx)[slice_dxs...];
+        plot(slice_coordinates, pop_frame(solution, 1, time_dx)[slice_dxs...];
             label=pop_names[1], ylim=(min_val, max_val),
             title="t = $(round(t[time_dx], digits=4))",
             xlab = "Space (a.u. approx. um)", ylab = "Prop. of cells active",
             kwargs...)
         for i_pop in 2:length(pop_names)
-            plot!(x, pop_frame(solution, i_pop, time_dx)[slice_dxs...]; label=pop_names[i_pop], kwargs...)
+            plot!(slice_coordinates, pop_frame(solution, i_pop, time_dx)[slice_dxs...]; label=pop_names[i_pop], kwargs...)
         end
     end
 end

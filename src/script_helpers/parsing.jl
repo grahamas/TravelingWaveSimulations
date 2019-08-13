@@ -1,4 +1,4 @@
-export parse_modifications_argument, parse_plot_specs_argument
+export parse_modifications_argument, parse_analyses_argument
 
 parse_range(start, stop) = parse(Float64, start):parse(Float64, stop)
 parse_range(start, step, stop) = parse(Float64, start):parse(Float64, step):parse(Float64, stop)
@@ -57,21 +57,21 @@ function parse_modifications_argument(modification_strs)
     return parsed_modifications, modifications_prefix
 end
 
-function parse_plot_specs_array(plot_spec_strs::AbstractArray)
-    parsed_plot_specs = @> plot_spec_strs begin
-        parse_plot_spec.()
+function parse_analyses_array(analysis_strs::AbstractArray)
+    parsed_analyses = @> analysis_strs begin
+        parse_analysis.()
         must_be_list.()
     end
-    return cat(parsed_plot_specs..., dims=1)
+    return cat(parsed_analyses..., dims=1)
 end
 
-parse_plot_spec(plot_spec_str) = get_plot_spec(plot_spec_str)
+parse_analysis(analysis_str) = get_analysis(analysis_str)
 
-function parse_plot_specs_argument(plot_spec_strs)
-    if length(plot_spec_strs) == 0
+function parse_analyses_argument(analysis_strs)
+    if length(analysis_strs) == 0
         return [], ""
     end
-    parsed_plot_specs = parse_plot_specs_array(plot_spec_strs)
-    plot_specs_prefix = make_prefix(plot_spec_strs)
-    return parsed_plot_specs, plot_specs_prefix
+    parsed_analyses = parse_analyses_array(analysis_strs)
+    analyses_prefix = make_prefix(analysis_strs)
+    return parsed_analyses, analyses_prefix
 end
