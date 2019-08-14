@@ -2,9 +2,8 @@
 include("example_helpers.jl")
 
 examples_dict = Dict()
-path_to_here = srcdir()
-examples_path = "examples"
-top_level = walkdir(joinpath(path_to_here, examples_path)) |> first
+examples_path = joinpath(srcdir(), "examples")
+top_level = walkdir(examples_path) |> first
 example_basenames = filter(top_level[3]) do name
     name[1] != '.'
 end
