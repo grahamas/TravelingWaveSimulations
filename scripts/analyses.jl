@@ -1,8 +1,7 @@
 
 analyses_dict = Dict()
-path_to_here = "scripts"
-analyses_path = "analyses"
-top_level = walkdir(joinpath(path_to_here, analyses_path)) |> first
+analyses_path = joinpath(scriptsdir(), "analyses")
+top_level = walkdir(analyses_path) |> first
 analysis_basenames = filter(top_level[3]) do name
     name[1] != '.'
 end
