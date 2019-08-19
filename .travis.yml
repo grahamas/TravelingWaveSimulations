@@ -11,8 +11,10 @@ jobs:
   - stage: Documentation
     script:
     - julia --project=docs/ -e 'using Pkg;
-      Pkg.develop([PackageSpec(path="../Simulation73"), PackageSpec(path="../NeuralModels"),
-        PackageSpec(path="../WilsonCowanModel"), PackageSpec(path=pwd())]);
+      Pkg.develop([PackageSpec(path="../Simulation73")]);
+      Pkg.develop([PackageSpec(path="../NeuralModels")]);
+      Pkg.develop([PackageSpec(path="../WilsonCowanModel")]);
+      Pkg.develop([PackageSpec(path=pwd())]);
       haskey(Pkg.installed(), "Documenter") || Pkg.add("Documenter");
       Pkg.instantiate();
       include("docs/make.jl")'
