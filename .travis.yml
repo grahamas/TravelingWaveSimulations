@@ -1,0 +1,32 @@
+language: julia
+julia: 
+    - 1.2
+    - 1.3
+    - nightly
+os:
+    - linux
+    - windows
+jobs:
+  include:
+  - stage: Documentation
+    script:
+    - julia --project=docs/ -e 'using Pkg;
+      Pkg.develop([PackageSpec(path="../Simulation73"), PackageSpec(path="../NeuralModels"),
+        PackageSpec(path="../WilsonCowanModel"), PackageSpec(path=pwd())]);
+      haskey(Pkg.installed(), "Documenter") || Pkg.add("Documenter");
+      Pkg.instantiate();
+      include("docs/make.jl")'
+    after_success: skip
+notifications:
+  email: false
+  slack:
+    secure: ubVOHUzfPu9ksoRobKJigZAxwzevMXFt5QQEHOw5d/XAYICgLdu6tX73XcYGHAXW5kQpTmWnbHOp/VOEVeMjlVez4dD0BrTxdkkiW/emAv7hXZnkeMrtQQRypWMGl+OF1gFr2Bv7u1z8Ld6dNa/VFPfEEDXQR0/lGbXDDmZmhGSu1sZkTBmldBDh913agyazn588BdaQgx88JU8yr0pxNU4sX2Y6Ley3hhOuzURflUG2+PFxSQfpA01cUfW1Bt026D4GiLWZOITij9gOShE3WBOHpH5cy4kTEvaTeS1EbIh0ixMR/gYJQK3xgUYFLlUpRl9gU2ylLCgbPcb1mOPBF2aQEh7SaVQBKjJk2M8IYBnYVbEHKIzTo9H/4n2wukrkMAD8DlelElVw79J8ithCvPRmaAtRa4jqdi3ihnExjjg1rbYKI/Ixp9F5R8qwJ+oCdFRNpk/TDveoObs+uNwFr4jIs/eOhxgH5ShngzdHqU+cD3uAakJKzdoVv/2GN038SDf0Kt4ECGA2eLoI9inSdIuCbGCzDke4PQJPiU1HuatXYSKEvXk1X18x1YJz1/CWNvxVoGFGW9yWffXe7uG8LKGwi4HGjDJqBmyjGkKqFPYin2ppW3rUbE7U6FFId1Iy2lx98/eI/TAaLRzj8H+nNvuEZ+dOKRE/Uhl7XuktLDs=
+    neuralmodeling#simulation73:
+      secure: W0eUum7L8NZ4ARLoSWXqR+muXUO/SCvA4G82H2CQUsA1Mm6Mh5p4AtWPzBonSn9Suhc7GHR8xukg1kMjJJxUN7613B+hW2+5XeOQ5dxFMkB8x4DU0sDYkNErcJ78MlK29F4HlZfVgbMMyHbr2JiHmNfUGPPjA9826KQjsPXnzb4yp5gVc51XoC9sqK1BAT2bZ5vFo8kIk/CsHGLZ4GRGy0NAtR4t4ss/n3nh4qaW5Gnq6ih3/5YcSPuwk05Rrtv1/fRQl+vEqd+lV+RBN1iQpXdqRMtXwp6TiPIZosksEfGSoIrhkdKQr5B/beWbkfghdbdYTPahVj/9eBfAAeBp/9D2VkM4lHhQZBL5vioQ7vhVF2PwS2kaOx5lx8nSdzvFAb+3j0sCoaANvhS3JKaZ0pyGAzQU+H2JMnsHUG2VyCm/GOSp1Z7X3AAvbm7CppKmS0vDCQh8U8fDrtb3pJBro0qJ8cErZlmiByXUdmkaxnoOEZNeqA4K7GC9xrv6JwKND7RYL++u9PSkr6dDMNM7JxmeL3ipGEKBllHBIYp+zicG6y5c5ySc2pfIyPlo5FBswK5ys1UK7xLf8wKDoQhUThZ+S62QJpFlvDOy1k/JY8vBAsK9XrP2hr7P7n+d0NioDTl3RW00BlRFtpWJi/gQO8MkcpNge+YCLSSyiIOShBQ=
+deploy:
+  provider: pages
+  skip_cleanup: false
+  github_token: $GITHUB_TOKEN  # Set in the settings page of your repository, as a secure variable
+  keep_history: false
+  on:
+    branch: master

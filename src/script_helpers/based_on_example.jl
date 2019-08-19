@@ -1,6 +1,28 @@
 
 export based_on_example
 
+"""
+    based_on_example(; data_root=datadir(),
+                       no_save_raw=false,
+                       example_name=nothing,
+                       modifications=[],
+                       analyses=[])
+
+Run simulation based on example named `example_name` described in the `examples` subdirectory of `src`. 
+
+`modifications` is an array of *strings* modifying the example's built-in parameters. These strings can 1) name a modifications file in the `modifications` subdirectory of `scripts`, 2) modify a keyword value using the syntax `name=value` or 3) describe a range of values for a keyword, using colon syntax (`name=start:step:end`). Valid keyword targets are *any* keywords in the signature or body of the example, so long as that keyword is *unique*.
+
+`analyses` is an array of *strings* naming files (sans `.jl`) found in the `analyses` subdirectory of `scripts`.
+
+`no_save_raw` overrides the default behavior of saving the raw simulation solution when set to `true`.
+
+`data_root` defines the root of the data saving directory tree.
+
+# Example
+```jldoctest
+julia> based_on_example(; example_name="sigmoid_normal", analyses=["radial_slice"], modifications=["iiS=0.7"])
+```
+"""
 function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bool=false,
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],
