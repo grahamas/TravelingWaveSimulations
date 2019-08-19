@@ -9,7 +9,7 @@
 # iiA: inhibitory input amplitude scale
 # iiS: inhibitory input spread scale
 
-@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, 
+@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=100.0, 
                                                      Aee=16.0, See=25.0,
                                                      iiA=sqrt((27.0/4.0)/18.2), iiS=1.0,
                                                      ioA=1.0/(4iiA), ioS=1.0,
@@ -17,8 +17,8 @@
                                                      Aii=Aee*iiA*ioA, Sii=See*iiS*ioS,
                                                      Aie=Aee*iiA*caA, Sie=See*iiS*caS,
                                                      Aei=Aee*ioA*caA, Sei=See*ioS*caS)
-  simulation = Simulation(;
-    model = WCMSpatial{Float64,N_CDT,P}(;
+  simulation = Simulation(
+    WCMSpatial{Float64,N_CDT,P}(;
       pop_names = ["E", "I"],
       α = [1.0, 1.0],
       β = [1.0, 1.0],
@@ -38,7 +38,7 @@
           spread = [(See,See) (Sei,Sei);
                     (Sie,Sie) (Sii,Sii)]
           )
-      ),
+      );
       space = CompactLattice{Float64,N_ARR}(; n_points=(35,35), extent=(350.0,350.0)),
       tspan = (0.0,stop_time),
       dt = 1.0,

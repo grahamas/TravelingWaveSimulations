@@ -11,13 +11,13 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
 
     # Initialize saving paths
     if length(analyses) > 0
-        analyses_path = joinpath(plotsdir(), example_name, "$(modifications_prefix)$(analyses_prefix)_$(Dates.now())_$(current_commit())")
+        analyses_path = joinpath(plotsdir(), example_name, "$(modifications_prefix)$(analyses_prefix)_$(Dates.now())_$(gitdescribe())")
         mkpath(analyses_path)
     else
         analyses_path = ""
     end
     if !no_save_raw
-        sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(current_commit())")
+        sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
         mkpath(sim_output_path)
     else
         sim_output_path = nothing

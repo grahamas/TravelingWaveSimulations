@@ -15,8 +15,8 @@ include("connectivity.jl")
 include("examples.jl")
 include("analysis.jl")
 
-include(joinpath(scriptdir(), "modifications.jl"))
-include(joinpath(scriptdir(), "analyses.jl"))
+include(joinpath(scriptsdir(), "modifications.jl"))
+include(joinpath(scriptsdir(), "analyses.jl"))
 
 include("script_helpers.jl")
 
