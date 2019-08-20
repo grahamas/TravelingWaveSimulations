@@ -11,7 +11,7 @@ install:
     - git clone https://github.com/grahamas/WilsonCowanModel.git
     - julia --project -e 'using Pkg; 
       Pkg.develop([PackageSpec(path=x) for x in ["./Simulation73", "./NeuralModels", "./WilsonCowanModel"]]);
-      Pkg.develop(PackageSpec(path=pwd()))
+      Pkg.develop(PackageSpec(path=pwd()));
       Pkg.build()'
 script:
     - julia --project -e 'using Pkg; Pkg.test(coverage=true)'
