@@ -5,15 +5,20 @@ julia:
     - nightly
 os:
     - linux
-    - windows
+script:
+    - julia --project -e 'using Pkg; 
+      Pkg.develop([PackageSpec(url="https://github.com/grahamas/Simulation73.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
+      Pkg.develop([PackageSpec(url="https://github.com/grahamas/NeuralModels.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
+      Pkg.develop([PackageSpec(url="https://github.com/grahamas/WilsonCowanModel.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
+      Pkg.build(); Pkg.test(coverage=true)'
 jobs:
   include:
   - stage: Documentation
     script:
-    - julia -e 'using Pkg;
-      Pkg.develop([PackageSpec(path="../Simulation73")]);
-      Pkg.develop([PackageSpec(path="../NeuralModels")]);
-      Pkg.develop([PackageSpec(path="../WilsonCowanModel")]);
+    - julia --project=docs/ -e 'using Pkg;
+      Pkg.develop([PackageSpec(url="https://github.com/grahamas/Simulation73.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
+      Pkg.develop([PackageSpec(url="https://github.com/grahamas/NeuralModels.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
+      Pkg.develop([PackageSpec(url="https://github.com/grahamas/WilsonCowanModel.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
       Pkg.develop([PackageSpec(path=pwd())]);
       haskey(Pkg.installed(), "Documenter") || Pkg.add("Documenter");
       Pkg.instantiate();
