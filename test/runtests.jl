@@ -1,2 +1,3 @@
-using Test, Documenter, TravelingWaveSimulations
-doctest(TravelingWaveSimulations)
+using Test, TravelingWaveSimulations
+
+include("src/testHighLevel.jl")

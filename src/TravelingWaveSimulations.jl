@@ -1,6 +1,8 @@
 module TravelingWaveSimulations
+using DrWatson
+quickactivate(@__DIR__, "TravelingWaveSimulations")
 
-using DrWatson, Lazy, Dates, BSON, Logging
+using Lazy, Dates, BSON, Logging
 using Simulation73, NeuralModels, WilsonCowanModel
 using MacroTools
 import DifferentialEquations: Euler

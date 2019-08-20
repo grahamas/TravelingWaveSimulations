@@ -8,10 +8,14 @@ struct AnimateRadialSlice <: AbstractPlotSpecification
 end
 AnimateRadialSlice(; fps=20, output_name="radial_slice_animation.mp4", kwargs...) = AnimateRadialSlice(fps, output_name, kwargs)
 function analyse(plot_spec::AnimateRadialSlice, execution::Execution, output_dir, prefix="")
+    @warn "Slicing radially... and animating!..."
     path = full_name(output_name(plot_spec); path=output_dir, prefix=prefix)
     recursively_clear_path(path)
+    @warn "saving to $path"
     anim = animate_radial_slice(execution; plot_spec.kwargs...)
+    @warn "... done animating! Saving..."
     mp4(anim, path; fps=plot_spec.fps)
+    @warn "... done saving!"
 end
 
 function animate_radial_slice(execution::Execution; kwargs...)

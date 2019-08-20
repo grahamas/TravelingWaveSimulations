@@ -16,7 +16,8 @@
                                                      caA=27.0/(16iiA), caS=(27.0/25.0),
                                                      Aii=Aee*iiA*ioA, Sii=See*iiS*ioS,
                                                      Aie=Aee*iiA*caA, Sie=See*iiS*caS,
-                                                     Aei=Aee*ioA*caA, Sei=See*ioS*caS)
+                                                     Aei=Aee*ioA*caA, Sei=See*ioS*caS,
+                                                     n=35, x=350.0)
   simulation = Simulation(
     WCMSpatial{Float64,N_CDT,P}(;
       pop_names = ["E", "I"],
@@ -39,7 +40,7 @@
                     (Sie,Sie) (Sii,Sii)]
           )
       );
-      space = CompactLattice{Float64,N_ARR}(; n_points=(35,35), extent=(350.0,350.0)),
+      space = CompactLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
       tspan = (0.0,stop_time),
       dt = 1.0,
       algorithm=Euler()

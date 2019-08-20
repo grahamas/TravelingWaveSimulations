@@ -29,8 +29,10 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         modifications::AbstractArray=[],
         analyses::AbstractArray=[])
 
+    @show analyses
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
+    @show analyses
 
     # Initialize saving paths
     if length(analyses) > 0
@@ -63,7 +65,9 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
                 @warn("not currently saving raw")
                 #@tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
             end
+            @warn "Doing analyses $analyses"
             analyse.(analyses, Ref(execution), analyses_path, mod_name)
+            @warn "done with analyses"
         end
 #    end
 end
