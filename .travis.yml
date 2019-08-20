@@ -5,21 +5,21 @@ julia:
     - nightly
 os:
     - linux
-script:
+install:
+    - git clone https://github.com/grahamas/Simulation73.git
+    - git clone https://github.com/grahamas/NeuralModels.git
+    - git clone https://github.com/grahamas/WilsonCowanModel.git
     - julia --project -e 'using Pkg; 
-      Pkg.develop([PackageSpec(url="https://github.com/grahamas/Simulation73.git", rev=ENV["TRAVIS_BRANCH"])]);
-      Pkg.develop([PackageSpec(url="https://github.com/grahamas/NeuralModels.git", rev=ENV["TRAVIS_BRANCH"])]);
-      Pkg.develop([PackageSpec(url="https://github.com/grahamas/WilsonCowanModel.git", rev=ENV["TRAVIS_BRANCH"])]);
-      Pkg.build(); Pkg.test(coverage=true)'
+      Pkg.develop([PackageSpec(path=x) for x in ["./Simulation73", "./NeuralModels", "./WilsonCowanModel"]]);
+      Pkg.develop(PackageSpec(path=pwd()))
+      Pkg.build()'
+script:
+    - julia --project -e 'using Pkg; Pkg.test(coverage=true)'
 jobs:
   include:
   - stage: Documentation
     script:
     - julia --project=docs/ -e 'using Pkg;
-      Pkg.develop([PackageSpec(url="https://github.com/grahamas/Simulation73.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
-      Pkg.develop([PackageSpec(url="https://github.com/grahamas/NeuralModels.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
-      Pkg.develop([PackageSpec(url="https://github.com/grahamas/WilsonCowanModel.git", rev=$(ENV["TRAVIS_BRANCH"]))]);
-      Pkg.develop([PackageSpec(path=pwd())]);
       haskey(Pkg.installed(), "Documenter") || Pkg.add("Documenter");
       Pkg.instantiate();
       include("docs/make.jl")'
