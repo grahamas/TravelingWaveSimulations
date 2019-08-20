@@ -10,6 +10,7 @@ using StaticArrays
 export get_example
 export plot_and_save
 export custom_animate
+export based_on_example
 
 include("connectivity.jl")
 include("examples.jl")

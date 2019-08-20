@@ -20,6 +20,7 @@ Run simulation based on example named `example_name` described in the `examples`
 
 # Example
 ```jldoctest
+julia> using TravelingWaveSimulations
 julia> based_on_example(; example_name="sigmoid_normal", analyses=["radial_slice"], modifications=["iiS=0.7"])
 ```
 """
