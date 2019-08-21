@@ -29,7 +29,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         modifications::AbstractArray=[],
         analyses::AbstractArray=[])
 
-    @show analyses
+    @warn "analyses = $analyses"
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
     @show analyses

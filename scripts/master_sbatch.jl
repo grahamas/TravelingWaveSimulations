@@ -84,7 +84,7 @@ function sbatch_script(ARGS)
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
     sbatch_args["job-name"] = base_example
 
-    script_arg_names = ["mod", "plot", "data-root"]
+    script_arg_names = ["mod", "analyses", "data-root"]
     script_args = pop_args!(args, script_arg_names)
     script_args["example-name"] = base_example
     if args["no-save-raw"]

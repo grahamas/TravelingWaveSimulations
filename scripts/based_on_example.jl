@@ -29,8 +29,9 @@ arg_settings = ArgParseSettings(; autofix_names = true)
         action = :store_true
 end
 
+@warn "$ARGS"
 args = parse_args(ARGS, arg_settings; as_symbols=true)
-@show args
+@warn "$args"
 based_on_example(; args...)
 
 #main()
