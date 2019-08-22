@@ -1,6 +1,5 @@
-path_to_here = "src"
-script_helpers_path = "script_helpers"
-top_level = walkdir(joinpath(path_to_here, script_helpers_path)) |> first
+script_helpers_path = joinpath(srcdir(), "script_helpers")
+top_level = walkdir(script_helpers_path) |> first
 script_helper_basenames = filter(top_level[3]) do name
     name[1] != '.'
 end

@@ -1,12 +1,14 @@
 @EI_kw_example function example(N_ARR=2, N_CDT=3, P=2; circle_spread=0.4,
-      circle_auto_cross_ratio = 0.4,
+      circle_auto_cross_ratio = 7.0/9.0,
       auto_spread=70.0, cross_spread=90.0,
       circle_auto_spread=(circle_spread * circle_auto_cross_ratio),
       circle_cross_spread=circle_spread,
       grid_axis_n_points=51,
       grid_axis_extent=500.0,
       circle_n_points=10,
-      circle_extent=2π)
+      circle_extent=2π,
+      long_local_R2_spread_ratio=10.0,
+      long_local_amplitude_ratio=1.0)
     simulation = Simulation(;
       model = WCMSpatial{Float64,N_ARR,N_CDT,P}(;
         pop_names = ["E", "I"],
@@ -30,11 +32,19 @@
           mean=1.0,
           stim_type=SharpBumpStimulus{Float64,N_CDT}),
           NoStimulus{Float64,N_CDT}()],
-        connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N_CDT};
-          amplitude = [280.0 -297.0;
+        connectivity = pops(R2S1IsotropicConnectivity{Float64};
+          local_amplitude = [280.0 -297.0;
                        270.0 -1.4],
-          spread = [(auto_spread, auto_spread, circle_auto_spread) (cross_spread, cross_spread, circle_cross_spread);
-                    (cross_spread, cross_spread, circle_cross_spread) (auto_spread, auto_spread, circle_auto_spread)])
+          long_range_amplitude = [280.0 -297.0;
+                                    270.0 -1.4] .* long_local_amp_ratio,
+          local_R2_spread = [(auto_spread, auto_spread) (cross_spread, cross_spread);
+                    (cross_spread, cross_spread) (auto_spread, auto_spread)],
+          long_range_R2_spread = ([(auto_spread, auto_spread) (cross_spread, cross_spread);
+                    (cross_spread, cross_spread) (auto_spread, auto_spread)]
+                      .|> (x) -> x .* long_local_R2_spread_ratio),
+          long_range_S1_spread = [(circle_auto_spread,) (circle_cross_spread,);
+             (circle_cross_spread,) (circle_auto_spread,)]
+          )
         ),
       solver = Solver{Float64}(;
         stop_time = 100.0,

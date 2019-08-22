@@ -37,8 +37,9 @@ function parse_commandline(args)
         "--script-name", "-s"
             help = "Name of script to run (path in script dir)"
             default = "based_on_example.jl"
-        "--plot"
-            help = "Case specifying plots"
+        "--analyses"
+            nargs = '*'
+            help = "Case specifying analyses"
         "--mod"
             nargs = '*'
             help = "Case specifying base model modifications"
@@ -82,18 +83,18 @@ function sbatch_script(ARGS)
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
     sbatch_args["job-name"] = base_example
 
-    script_arg_names = ["mod", "plot", "data-root"]
+    script_arg_names = ["mod", "analyses", "data-root"]
     script_args = pop_args!(args, script_arg_names)
     script_args["example-name"] = base_example
     if args["no-save-raw"]
         script_args["no-save-raw"] = args["no-save-raw"]
     end
 
-    script_path = joinpath(scriptdir(), script_name)
+    script_path = joinpath(scriptsdir(), script_name)
 
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia-nightly $(script_path) $(single_arg_str(script_args))
+    julia $(script_path) $(single_arg_str(script_args))
     /usr/bin/mail -s \${SLURM_JOB_NAME} $(sbatch_args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
     """
 

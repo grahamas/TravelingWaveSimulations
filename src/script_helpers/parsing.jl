@@ -1,4 +1,4 @@
-export parse_modifications_argument, parse_plot_specs_argument
+export parse_modifications_argument, parse_analyses_argument
 
 MOD_SEP = "+"
 
@@ -34,6 +34,15 @@ end
 must_be_list(x::AbstractArray) = x
 must_be_list(x) = [x]
 
+function make_prefix(strs, path_prefix="")
+    prefix = "$(join(sort(strs), ';'))_"
+    if length(prefix) >= 255
+        return make_prefix(strs[2:end], path_prefix=joinpath(path_prefix, strs[1]))
+    else
+        return joinpath(path_prefix,prefix)
+    end
+end
+
 function parse_modifications_array(modification_strs::AbstractArray)
     parsed_modifications = @> modification_strs begin
         parse_modification.()
@@ -51,7 +60,7 @@ end
 function parse_modifications_argument(modification_strs)
     if modification_strs != []
         parsed_modifications = parse_modifications_array(modification_strs)
-        modifications_prefix = """$(join(sort(modification_strs), MOD_SEP))_"""
+        modifications_prefix = make_prefix(modification_strs)
     else
         parsed_modifications = [Dict()]
         modifications_prefix = ""
@@ -59,21 +68,21 @@ function parse_modifications_argument(modification_strs)
     return parsed_modifications, modifications_prefix
 end
 
-function parse_plot_specs_array(plot_spec_strs::AbstractArray)
-    parsed_plot_specs = @> plot_spec_strs begin
-        parse_plot_spec.()
+function parse_analyses_array(analysis_strs::AbstractArray)
+    parsed_analyses = @> analysis_strs begin
+        parse_analysis.()
         must_be_list.()
     end
-    return cat(parsed_plot_specs..., dims=1)
+    return cat(parsed_analyses..., dims=1)
 end
 
-parse_plot_spec(plot_spec_str) = get_plot_spec(plot_spec_str)
+parse_analysis(analysis_str) = get_analysis(analysis_str)
 
-function parse_plot_specs_argument(plot_spec_strs)
-    if length(plot_spec_strs) == 0
+function parse_analyses_argument(analysis_strs)
+    if length(analysis_strs) == 0
         return [], ""
     end
-    parsed_plot_specs = parse_plot_specs_array(plot_spec_strs)
-    plot_specs_prefix = """$(join(sort(plot_spec_strs), MOD_SEP))"""
-    return parsed_plot_specs, plot_specs_prefix
+    parsed_analyses = parse_analyses_array(analysis_strs)
+    analyses_prefix = make_prefix(analysis_strs)
+    return parsed_analyses, analyses_prefix
 end

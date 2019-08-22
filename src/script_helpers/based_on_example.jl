@@ -1,81 +1,62 @@
 
 export based_on_example
 
-function init_path(args...)
-    path = joinpath(args...) |> make_path_windows_safe
-    mkpath(path)
-    return path
-end
+"""
+    based_on_example(; data_root=datadir(),
+                       no_save_raw=false,
+                       example_name=nothing,
+                       modifications=[],
+                       analyses=[])
 
-function based_on_example(ARGS)
-    arg_settings = ArgParseSettings(; autofix_names = true)
-    @add_arg_table arg_settings begin
-        "--data-root", "-d"
-            help = "Location in which to store output data"
-            default = datadir()
-        "--example-name"
-            help = "Name of example defined examples.jl"
-        "--modifications", "--mod"
-            nargs = '*'
-            help = "Name of file specifying dict of modifications"
-        "--plot-specs", "--plot"
-            nargs = '*'
-            help = "Name of file specifying plots"
-        "--no-save-raw"
-            help = "Don't save raw simulation"
-            action = :store_true
-    end
-    kwargs = parse_args(ARGS, arg_settings; as_symbols=true)
-    based_on_example(; kwargs...)
-end
+Run simulation based on example named `example_name` described in the `examples` subdirectory of `src`.
 
+`modifications` is an array of *strings* modifying the example's built-in parameters. These strings can 1) name a modifications file in the `modifications` subdirectory of `scripts`, 2) modify a keyword value using the syntax `name=value` or 3) describe a range of values for a keyword, using colon syntax (`name=start:step:end`). Valid keyword targets are *any* keywords in the signature or body of the example, so long as that keyword is *unique*.
 
+`analyses` is an array of *strings* naming files (sans `.jl`) found in the `analyses` subdirectory of `scripts`.
 
+`no_save_raw` overrides the default behavior of saving the raw simulation solution when set to `true`.
+
+`data_root` defines the root of the data saving directory tree.
+
+# Example
+```jldoctest
+julia> using TravelingWaveSimulations
+julia> based_on_example(; example_name="sigmoid_normal", analyses=["radial_slice"], modifications=["iiS=0.7"])
+```
+"""
 function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bool=false,
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],
-        plot_specs::AbstractArray=[])
+        analyses::AbstractArray=[])
 
+    @warn "analyses = $analyses"
     modifications, modifications_prefix = parse_modifications_argument(modifications)
-    plot_specs, plot_specs_prefix = parse_plot_specs_argument(plot_specs)
+    analyses, analyses_prefix = parse_analyses_argument(analyses)
+    @show analyses
 
     # Initialize saving paths
-    if length(plot_specs) > 0
-        plots_path = init_path(plotsdir(), example_name, "$(modifications_prefix)$(plot_specs_prefix)_$(Dates.now())_$(current_commit())")
+    if length(analyses) > 0
+        analyses_path = joinpath(plotsdir(), example_name, "$(modifications_prefix)$(analyses_prefix)_$(Dates.now())_$(gitdescribe())")
+        mkpath(analyses_path)
     else
-        plots_path = ""
+        analyses_path = ""
     end
     if !no_save_raw
-        sim_output_path = init_path(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(current_commit())")
+        sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
+        mkpath(sim_output_path)
     else
         sim_output_path = nothing
     end
 
     example = get_example(example_name)
-#    if length(modifications) > 2
-#        plot_lock = Threads.Mutex()
-#        @warn "Parallelizing with $(Threads.nthreads()) threads."
-#        Threads.@threads for modification in modifications
-#            simulation = example(; modification...)
-#            execution = execute(simulation)
-#            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=MOD_SEP)
-#            if mod_name == ""
-#                mod_name = "no_mod"
-#            end
-#            if !no_save_raw
-#                execution_dict = @dict execution
-#                @warn("not currently saving raw")
-#                #@tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
-#            end
-#            Threads.lock(plot_lock)
-#            plot_and_save.(plot_specs, Ref(execution), plots_path, mod_name)
-#            Threads.unlock(plot_lock)
-#        end
-#    else
         for modification in modifications
             simulation = example(; modification...)
             execution = execute(simulation)
-            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=MOD_SEP)
+            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+            if execution.solution.retcode == :Unstable
+                @warn "$mod_name unstable!"
+                continue
+            end
             if mod_name == ""
                 mod_name = "no_mod"
             end
@@ -84,7 +65,9 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
                 @warn("not currently saving raw")
                 #@tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
             end
-            plot_and_save.(plot_specs, Ref(execution), plots_path, mod_name)
+            @warn "Doing analyses $analyses"
+            analyse.(analyses, Ref(execution), analyses_path, mod_name)
+            @warn "done with analyses"
         end
 #    end
 end

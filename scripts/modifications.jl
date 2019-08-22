@@ -1,8 +1,7 @@
 
 modifications_dict = Dict()
-path_to_here = "scripts"
-modifications_path = "modifications"
-top_level = walkdir(joinpath(path_to_here, modifications_path)) |> first
+modifications_path = joinpath(scriptsdir(), "modifications")
+top_level = walkdir(modifications_path) |> first
 modification_basenames = filter(top_level[3]) do name
     name[1] != '.'
 end
