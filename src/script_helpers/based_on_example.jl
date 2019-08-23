@@ -29,7 +29,6 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         modifications::AbstractArray=[],
         analyses::AbstractArray=[])
 
-    @warn "analyses = $analyses"
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
     @show analyses
@@ -50,9 +49,10 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
 
     example = get_example(example_name)
         for modification in modifications
+            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+            @show mod_name
             simulation = example(; modification...)
             execution = execute(simulation)
-            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
             if execution.solution.retcode == :Unstable
                 @warn "$mod_name unstable!"
                 continue
@@ -65,9 +65,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
                 @warn("not currently saving raw")
                 #@tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
             end
-            @warn "Doing analyses $analyses"
             analyse.(analyses, Ref(execution), analyses_path, mod_name)
-            @warn "done with analyses"
         end
 #    end
 end
