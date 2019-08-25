@@ -24,7 +24,7 @@ function custom_animate(execution::Execution{T,<:Simulation{T}}; kwargs...) wher
     @animate for time_dx in 1:length(t) # TODO @views
         plot([
                 plot(
-                    space, pop_frame(solution, 1, time_dx); label=pop_names[1],
+                    space, population_timepoint(solution, 1, time_dx); label=pop_names[1],
                     val_lim=(min_val,max_val), title="t = $(round(t[time_dx], digits=4))",
                     xlab = "Space (a.u. approx. um)", size=(800,800),kwargs...
                     )
