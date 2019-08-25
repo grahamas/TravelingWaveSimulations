@@ -8,8 +8,8 @@ SpaceTimePlot(; output_name = "spacetime.png", kwargs...) = SpaceTimePlot(output
 @recipe function f(plot_spec::SpaceTimePlot, execution::Execution{T,<:Simulation{T,M}}) where {T,M<:WCMSpatial}
     simulation = execution.simulation
     solution = execution.solution
-    v_space = saved_space_arr(simulation)
-    v_time = saved_time_arr(simulation)
+    v_space = coordinates(simulation)
+    v_time = timepoints(simulation)
     clims := (minimum(solution), maximum(solution))
     grid := false
     layout := (2,1)

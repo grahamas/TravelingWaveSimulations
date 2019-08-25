@@ -123,10 +123,10 @@ NeumanTravelingWavePlot(; output_name="traveling_wave.png", dt::Union{Nothing,T}
 @recipe function f(plot_spec::NeumanTravelingWavePlot{T}, execution::Execution{T,<:Simulation{T,M}}) where {T,M<:WCMSpatial}
     solution = execution.solution
     simulation = execution.simulation
-    t = saved_time_arr(simulation)
-    space_origin::Int = get_origin(simulation) # TODO: Remove 1D return assumption
+    t = timepoints(simulation)
+    space_origin::Int = origin_idx(simulation) # TODO: Remove 1D return assumption
     di = max(1, round(Int, simulation.solver.simulated_dt / plot_spec.dt))
-    x = saved_space_arr(simulation)[space_origin:di:end] # TODO: Remove 1D return assumption
+    x = coordinates(simulation)[space_origin:di:end] # TODO: Remove 1D return assumption
 	for time_dx in 1:length(t)
         @series begin
             seriestype := :line

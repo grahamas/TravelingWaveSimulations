@@ -16,9 +16,9 @@ function custom_animate(execution::Execution{T,<:Simulation{T}}; kwargs...) wher
     solution = execution.solution
     simulation = execution.simulation
     pop_names = simulation.model.pop_names
-    space = simulation.model.space
+    space = simulation.space
     @warn "not subsampling"
-    t = saved_time_arr(simulation)
+    t = timepoints(execution)
     max_val = maximum(solution)
 	min_val = minimum(solution)
     @animate for time_dx in 1:length(t) # TODO @views
