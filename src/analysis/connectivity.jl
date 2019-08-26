@@ -29,10 +29,10 @@ end
 @recipe function f(plot_spec::ConnectivityPlot, execution::Execution) where {T}
     model = execution.simulation.model
     pop_names = model.pop_names
-    space = model.space
     connectivity = model.connectivity
+    x = space(execution)
 
-    (plot_spec, connectivity, space, pop_names)
+    (plot_spec, connectivity, x, pop_names)
 end
 
 using Plots: GridLayout
