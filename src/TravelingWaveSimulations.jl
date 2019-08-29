@@ -1,6 +1,7 @@
 module TravelingWaveSimulations
 using DrWatson
-quickactivate(@__DIR__, "TravelingWaveSimulations")
+
+using Distributed
 
 using Lazy, Dates, BSON, Logging
 using Simulation73, NeuralModels, WilsonCowanModel
@@ -9,11 +10,16 @@ import DifferentialEquations: Euler
 using Plots
 using StaticArrays
 using ArgParse
+using IterTools
+
+using JuliaDB#, CSV
 
 export get_example
 export plot_and_save
 export custom_animate
 export based_on_example
+
+include("saving.jl")
 
 include("connectivity.jl")
 include("examples.jl")

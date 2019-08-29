@@ -1,6 +1,9 @@
 
 export based_on_example
 
+MIN_FOR_PARALLEL = 100
+PARALLEL_BATCH_SIZE = 100
+
 """
     based_on_example(; data_root=datadir(),
                        no_save_raw=false,
@@ -27,7 +30,8 @@ julia> based_on_example(; example_name="sigmoid_normal", analyses=["radial_slice
 function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bool=false,
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],
-        analyses::AbstractArray=[])
+        analyses::AbstractArray=[],
+        batch=10)
 
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
@@ -41,16 +45,50 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         analyses_path = ""
     end
     if !no_save_raw
-        sim_output_path = joinpath(data_root, "sim", example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
-        mkpath(sim_output_path)
+        data_path = joinpath(data_root, example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
+        mkpath(data_path)
     else
-        sim_output_path = nothing
+        data_path = nothing
     end
 
     example = get_example(example_name)
-        for modification in modifications
+    if length(modifications) < (batch * nworkers())
+        @warn "Not parallelizing parameter sweep."
+        execute_modifications(modifications, analyses, data_path, analyses_path, no_save_raw)
+    else
+        @warn "Parallelizing parameter sweep."
+        execute_modifications_parallel(modifications, analyses, data_path, analyses_path, no_save_raw, batch)
+    end
+end
+
+function execute_modifications(modifications::Array{<:Dict}, analyses,
+        data_path::String, analyses_path::String, no_save_raw)
+    for modification in modifications
+        mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+        @show mod_name
+        simulation = example(; modification...)
+        execution = execute(simulation)
+        if execution.solution.retcode == :Unstable
+            @warn "$mod_name unstable!"
+            continue
+        end
+        if mod_name == ""
+            mod_name = "no_mod"
+        end
+        if !no_save_raw
+            #save_csv("$(joinpath(data_path, mod_name)).csv", execution, modification)
+            save(data_path, execution, modification)
+        end
+        analyse.(analyses, Ref(execution), analyses_path, mod_name)
+    end
+end
+
+function execute_modifications_parallel(modifications::Array{<:Dict}, analyses,
+        data_path::String, analyses_path::String, no_save_raw, parallel_batch_size)
+    results = nothing
+    @distributed for modifications_subset in collect(IterTools.partition(modifications, parallel_batch_size))
+        for modification in modifications_subset
             mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
-            @show mod_name
             simulation = example(; modification...)
             execution = execute(simulation)
             if execution.solution.retcode == :Unstable
@@ -61,11 +99,19 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
                 mod_name = "no_mod"
             end
             if !no_save_raw
-                execution_dict = @dict execution
-                @warn("not currently saving raw")
-                #@tagsave("$(joinpath(sim_output_path, mod_name)).bson", execution_dict, true)
+                soln = execution.solution
+                push!(results, (u=soln.u,t=soln.t,x=coordinates(space(execution)),modification...))
             end
             analyse.(analyses, Ref(execution), analyses_path, mod_name)
         end
-#    end
+        open(joinpath(data_path, "$(myid()).csv"), "w") do f
+            table(results, pkey=keys(modifications_subset[1])) |> CSV.write(f)
+        end
+    end
+end
+push_results(::Nothing, mods...) = NamedTuple{keys(mods)}([[val] for val in values(mods)])
+function push_results(tup::NamedTuple, mods...)
+    for mod in mods
+        push!(tup[mod[1]], mod[2])
+    end
 end

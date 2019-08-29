@@ -23,6 +23,8 @@ arg_settings = ArgParseSettings(; autofix_names = true)
     "--no-save-raw"
         help = "Don't save raw simulation"
         action = :store_true
+    "--batch"
+        default = 10
 end
 
 @warn "$ARGS"
