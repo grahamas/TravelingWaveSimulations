@@ -1,9 +1,7 @@
 
 export based_on_example
 
-MIN_FOR_PARALLEL = 100
-PARALLEL_BATCH_SIZE = 100
-
+DEFAULT_SAVE_BATCH_SIZE = 1000
 """
     based_on_example(; data_root=datadir(),
                        no_save_raw=false,
@@ -31,7 +29,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],
         analyses::AbstractArray=[],
-        batch=10)
+        batch=DEFAULT_SAVE_BATCH_SIZE)
 
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
@@ -52,7 +50,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     end
 
     example = get_example(example_name)
-    if length(modifications) < (batch * nworkers())
+    if length(modifications) < (batch * 2)
         @warn "Not parallelizing parameter sweep."
         execute_modifications(modifications, analyses, data_path, analyses_path, no_save_raw)
     else
@@ -63,6 +61,8 @@ end
 
 function execute_modifications(modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw)
+    pkeys = keys(modifications[1]) |> collect
+    results = nothing
     for modification in modifications
         mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
         @show mod_name
@@ -76,42 +76,61 @@ function execute_modifications(modifications::Array{<:Dict}, analyses,
             mod_name = "no_mod"
         end
         if !no_save_raw
-            #save_csv("$(joinpath(data_path, mod_name)).csv", execution, modification)
-            save(data_path, execution, modification)
+            soln = execution.solution
+            results = push_results(results, (u=soln.u, t=soln.t,x=coordinates(space(execution)), modification...)) 
         end
         analyse.(analyses, Ref(execution), analyses_path, mod_name)
+    end
+    if !no_save_raw
+        open(joinpath(data_path, "raw_data.csv"), "w") do f
+            table(results, pkey=pkeys) |> CSV.write(f)
+        end
     end
 end
 
 function execute_modifications_parallel(modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw, parallel_batch_size)
-    results = nothing
-    @distributed for modifications_subset in collect(IterTools.partition(modifications, parallel_batch_size))
-        for modification in modifications_subset
-            mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
-            simulation = example(; modification...)
-            execution = execute(simulation)
-            if execution.solution.retcode == :Unstable
-                @warn "$mod_name unstable!"
-                continue
-            end
-            if mod_name == ""
-                mod_name = "no_mod"
-            end
-            if !no_save_raw
-                soln = execution.solution
-                push!(results, (u=soln.u,t=soln.t,x=coordinates(space(execution)),modification...))
-            end
-            analyse.(analyses, Ref(execution), analyses_path, mod_name)
+    pkeys = keys(modifications[1]) |> collect
+    results_channel = RemoteChannel(() -> Channel{NamedTuple}(2 * nworkers()))
+    @distributed for modification in modifications
+        mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+        simulation = example(; modification...)
+        execution = execute(simulation)
+        if execution.solution.retcode == :Unstable
+            @warn "$mod_name unstable!"
+            continue
         end
-        open(joinpath(data_path, "$(myid()).csv"), "w") do f
-            table(results, pkey=keys(modifications_subset[1])) |> CSV.write(f)
+        if mod_name == ""
+            mod_name = "no_mod"
         end
+        if !no_save_raw
+            soln = execution.solution
+            put!(results_channel, (u=soln.u,t=soln.t,x=coordinates(space(execution)),modification...))
+        end
+        analyse.(analyses, Ref(execution), analyses_path, mod_name)
+    end
+    n = length(modifications)
+    results_batch = nothing
+    @show n
+    @show parallel_batch_size
+    while n > 0
+        results_batch = push_results(results_batch, take!(results_channel))
+        if ((length(results_batch[1]) >= parallel_batch_size) || (n == 1))
+            open(joinpath(data_path, "$(myid())_$(Dates.now()).csv"), "w") do f
+                table(results_batch, pkey=pkeys) |> CSV.write(f)
+            end
+            results_batch = nothing
+        end
+        n -= 1
     end
 end
-push_results(::Nothing, mods...) = NamedTuple{keys(mods)}([[val] for val in values(mods)])
-function push_results(tup::NamedTuple, mods...)
-    for mod in mods
+function push_results(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
+    arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}
+    NamedTuple{NAMES, arrd_TYPES}([[val] for val in values(mods)])
+end
+function push_results(tup::NamedTuple, mods)
+    for mod in pairs(mods)
         push!(tup[mod[1]], mod[2])
     end
+    return tup
 end
