@@ -1,12 +1,11 @@
-@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; spread_scale=1.0, amplitude_scale=1.0, SNR_scale=80.0,
+@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; spread_scale=1.0, amplitude_scale=1.0, SNR_scale=80.0, stop_time=180.0,
                                                      auto=25.0, ca_ratio=(27.0/25.0), cross=(ca_ratio*auto))
-  simulation = Simulation(;
-    model = WCMSpatial{Float64,N_ARR,N_CDT,P}(;
+  simulation = Simulation(
+   WCMSpatial{Float64,N_CDT,P}(;
       pop_names = ["E", "I"],
       α = [1.1, 1.0],
       β = [1.1, 1.1],
       τ = [10.0, 18.0],
-      space = CompactLattice{Float64,N_ARR}(; n_points=(51,51), extent=(500.0,500.0)),
       nonlinearity = pops(SigmoidNonlinearity{Float64};
         a = [1.2, 1.0],
         θ = [2.6, 8.0]),
@@ -19,18 +18,13 @@
       connectivity = pops(ExpSumSqDecayingConnectivity{Float64,N_CDT};
           amplitude = [16.0 -18.2;
                        27.0 -4.0] .* amplitude_scale,
-          #spread = [(70.0,70.0) (90.0,90.0);
-          #          (90.0,90.0) (70.0,70.0)] .|> (tup) -> map((x) -> x * spread_scale, tup)
           spread = [(auto,auto) (cross,cross);
                     (cross,cross) (auto,auto)] .|> (tup) -> map((x) -> x * spread_scale, tup)
           )
-      ),
-    solver = Solver{Float64}(;
-        stop_time = 180.0,
-        dt = 1.0,
-        space_save_every=1,
-        time_save_every=1,
-        algorithm=Euler()
-      )
+      );
+    space = CompactLattice{Float64,N_ARR}(; n_points=(51,51), extent=(500.0,500.0)),
+    tspan=(0.0, stop_time),
+    dt = 1.0,
+    algorithm=Euler()
   )
 end

@@ -1,7 +1,7 @@
 
 export based_on_example
 
-DEFAULT_SAVE_BATCH_SIZE = 1000
+DEFAULT_SAVE_BATCH_SIZE = 10000
 """
     based_on_example(; data_root=datadir(),
                        no_save_raw=false,
@@ -52,14 +52,14 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     example = get_example(example_name)
     if length(modifications) < (batch * 2)
         @warn "Not parallelizing parameter sweep."
-        execute_modifications(modifications, analyses, data_path, analyses_path, no_save_raw)
+        execute_modifications(example, modifications, analyses, data_path, analyses_path, no_save_raw)
     else
         @warn "Parallelizing parameter sweep."
-        execute_modifications_parallel(modifications, analyses, data_path, analyses_path, no_save_raw, batch)
+        execute_modifications_parallel(example, modifications, analyses, data_path, analyses_path, no_save_raw, batch)
     end
 end
 
-function execute_modifications(modifications::Array{<:Dict}, analyses,
+function execute_modifications(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw)
     pkeys = keys(modifications[1]) |> collect
     results = nothing
@@ -88,7 +88,7 @@ function execute_modifications(modifications::Array{<:Dict}, analyses,
     end
 end
 
-function execute_modifications_parallel(modifications::Array{<:Dict}, analyses,
+function execute_modifications_parallel(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw, parallel_batch_size)
     pkeys = keys(modifications[1]) |> collect
     results_channel = RemoteChannel(() -> Channel{NamedTuple}(2 * nworkers()))

@@ -41,6 +41,7 @@
           )
       );
       space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
+      save_idxs=RadialSlice(),
       tspan = (0.0,stop_time),
       dt = 1.0,
       algorithm=Euler()
