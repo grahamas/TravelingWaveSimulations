@@ -5,7 +5,7 @@ using TravelingWaveSimulations
 ENV["GKSwstype"] = "100" # For headless plotting (on server)
 ENV["MPLBACKEND"]="Agg"
 using Plots
-pyplot()
+#pyplot()
 
 arg_settings = ArgParseSettings(; autofix_names = true)
 @add_arg_table arg_settings begin

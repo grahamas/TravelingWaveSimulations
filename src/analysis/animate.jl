@@ -10,7 +10,7 @@ function analyse(plot_spec::Animate, execution::Execution, output_dir::AbstractS
     path = full_name(output_name(plot_spec); path=output_dir, prefix=prefix)
     recursively_clear_path(path)
     anim = custom_animate(execution; plot_spec.kwargs...)
-    mp4(anim, path; fps=plot_spec.fps)
+    @show mp4(anim, path; fps=plot_spec.fps, collect=true)
 end
 function custom_animate(execution::Execution{T,<:Simulation{T}}; kwargs...) where T
     solution = execution.solution
@@ -27,7 +27,7 @@ function custom_animate(execution::Execution{T,<:Simulation{T}}; kwargs...) wher
                 plot(
                     x, population_timepoint(solution, 1, time_dx); label=pop_names[1],
                     val_lim=(min_val,max_val), title="t = $(round(t[time_dx], digits=4))",
-                    xlab = "Space (a.u. approx. um)", size=(800,800),kwargs...
+                    xlab = "Space (a.u. approx. um)",kwargs...
                     )
                 for i_pop in 1:length(pop_names)
             ]...)
