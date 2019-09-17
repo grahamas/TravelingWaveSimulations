@@ -1,5 +1,5 @@
 @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; spread_scale=1.0, amplitude_scale=1.0, SNR_scale=80.0, stop_time=180.0,
-                                                     auto=25.0, ca_ratio=(27.0/25.0), cross=(ca_ratio*auto))
+                                                     auto=25.0, ca_ratio=(27.0/25.0), cross=(ca_ratio*auto), n=51, x=500.0)
   simulation = Simulation(
    WCMSpatial{Float64,N_CDT,P}(;
       pop_names = ["E", "I"],
@@ -22,7 +22,7 @@
                     (cross,cross) (auto,auto)] .|> (tup) -> map((x) -> x * spread_scale, tup)
           )
       );
-    space = CompactLattice{Float64,N_ARR}(; n_points=(51,51), extent=(500.0,500.0)),
+    space = CompactLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
     tspan=(0.0, stop_time),
     dt = 1.0,
     algorithm=Euler()

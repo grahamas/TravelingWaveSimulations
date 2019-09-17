@@ -10,7 +10,7 @@ function analyse(plot_spec::Animate, execution::Execution, output_dir::AbstractS
     path = full_name(output_name(plot_spec); path=output_dir, prefix=prefix)
     recursively_clear_path(path)
     anim = custom_animate(execution; plot_spec.kwargs...)
-    @show mp4(anim, path; fps=plot_spec.fps, collect=true)
+    @show mp4(anim, path; fps=plot_spec.fps)
 end
 function custom_animate(execution::Execution{T,<:Simulation{T}}; kwargs...) where T
     solution = execution.solution
