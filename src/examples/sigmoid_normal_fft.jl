@@ -44,6 +44,6 @@
       save_idxs = RadialSlice(),
       tspan = (0.0,stop_time),
       dt = 1.0,
-      algorithm=Euler()
+      algorithm=Tsit5()
   )
 end

@@ -6,7 +6,8 @@ using Distributed
 using Lazy, Dates, BSON, Logging
 using Simulation73, NeuralModels, WilsonCowanModel
 using MacroTools
-import DifferentialEquations: Euler
+using LSODA
+using DifferentialEquations
 using Plots
 using StaticArrays
 using ArgParse

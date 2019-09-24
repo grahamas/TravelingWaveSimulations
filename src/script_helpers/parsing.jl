@@ -8,6 +8,8 @@ parse_num(str) = try
         parse(Float64, str)
     end
 
+parse_algorithm(val_str) = eval(Meta.parse(val_str))
+
 parse_range(start, stop) = parse_num(start):parse_num(stop)
 parse_range(start, step, stop) = parse_num(start):parse_num(step):parse_num(stop)
 
@@ -18,7 +20,9 @@ parse_array(array_str::AbstractString) = @> array_str strip(['[', ']']) split(',
 function parse_modification(str::AbstractString)
     if occursin("=", str)
         name_str, value_str = split(str, "=")
-        if value_str[1] == '['
+        if name_str == "algorithm"
+            return Dict(Symbol(name_str) => parse_algorithm(value_str))
+        elseif value_str[1] == '['
             @assert value_str[end] == ']'
             return [Dict(Symbol(name_str) => val) for val in parse_array(value_str)]
         elseif occursin(":", value_str)

@@ -67,7 +67,7 @@ function execute_modifications(example, modifications::Array{<:Dict}, analyses,
         mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
         @show mod_name
         simulation = example(; modification...)
-        execution = execute(simulation)
+        execution = execute(simulation, )
         if execution.solution.retcode == :Unstable
             @warn "$mod_name unstable!"
             continue
