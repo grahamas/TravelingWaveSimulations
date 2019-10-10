@@ -19,7 +19,7 @@ ConnectivityPlot(; output_name = "connectivity.png", kwargs...) = ConnectivityPl
 #     end
 # end
 
-@recipe function f(connectivity::AbstractConnectivity{T,N_CDT},
+@recipe function f(connectivity::AbstractConnectivityParameter{T,N_CDT},
                    lattice::AbstractLattice{T,N_ARR,N_CDT};
                    source_location = Tuple(zero(T) for _ in 1:N_CDT)) where {T,N_ARR,N_CDT}
     weights = directed_weights(connectivity, lattice, source_location)
@@ -38,11 +38,12 @@ end
 using Plots: GridLayout
 @recipe function f(plot_spec::ConnectivityPlot, connectivity::C, space::S,
         pop_names::SVector{P,<:AbstractString}) where {
-            T, P,
-            C<:SMatrix{P,P},
+            T, P, AP<:AbstractConnectivityParameter,
+            C<:AbstractPopulationInteractionsParameters{P,AP},
             S<:AbstractSpace{T}
         }
     layout := GridLayout(P,P)
+    connectivity = array(connectivity)
     for (dst_pop, src_pop) in Iterators.product(1:P, 1:P)
         @series begin
             lab --> "$(pop_names[src_pop])[1,1] → $(pop_names[dst_pop])"
@@ -54,11 +55,12 @@ end
 
 @recipe function f(plot_spec::ConnectivityPlot, connectivity::C, space::RandomlyEmbeddedLattice{T,N_ARR,N_CDT},
         pop_names::SVector{P,<:AbstractString}; source_location = Tuple(zero(T) for _ in 1:N_CDT)) where {
-            T, N_ARR, N_CDT, P,
-            C<:SMatrix{P,P}
+            T, N_ARR, N_CDT, P,AP<:AbstractConnectivityParameter,
+            C<:AbstractPopulationInteractionsParameters{P,AP}
         }
     @assert P == 2
-    layout := @layout [[a; b] [c; d]; [e; f] [g; h]]
+    layout := @layout [[a; b] [c; d]; [e; f] [g; h]] #this line assumes P==2
+    connectivity = array(connectivity)
     size := (1600,1600)
     subplot = 1
     for (dst_pop, src_pop) in Iterators.product(1:P, 1:P)

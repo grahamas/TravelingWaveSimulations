@@ -1,6 +1,6 @@
 
 analyses_dict = Dict()
-analyses_path = joinpath(scriptsdir(), "analyses")
+analyses_path = joinpath(@__DIR__, "analyses")
 top_level = walkdir(analyses_path) |> first
 analysis_basenames = filter(top_level[3]) do name
     name[1] != '.'

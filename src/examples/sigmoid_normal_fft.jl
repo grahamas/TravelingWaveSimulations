@@ -19,21 +19,19 @@
                                                      Aei=Aee*ioA*caA, Sei=See*ioS*caS,
                                                      n=35, x=350.0, stim_strength=1.2)
   simulation = Simulation(
-    WCMSpatial{Float64,N_CDT,P}(;
-      pop_names = ["E", "I"],
-      α = [1.0, 1.0],
-      β = [1.0, 1.0],
-      τ = [10.0, 10.0],
-      nonlinearity = pops(SigmoidNonlinearity{Float64};
+    WCMSpatial(;
+      pop_names = ("E", "I"),
+      α = (1.0, 1.0),
+      β = (1.0, 1.0),
+      τ = (10.0, 10.0),
+      nonlinearity = pops(SigmoidNonlinearity;
         a = [1.2, 1.0],
         θ = [2.6, 8.0]),
-      stimulus = pops(NoisyStimulus{Float64,N_CDT};
+      stimulus = [pops(GaussianNoiseStimulusParameter; SNR=[1.0, 1.0] .* SNR_scale), pops(SharpBumpStimulusParameter;
           strength = [stim_strength,stim_strength],
           width = [28.1, 28.1],
-          SNR = [1.0, 1.0] .* SNR_scale,
-          time_windows = [[(0.0, 45.0)], [(0.0, 45.0)]],
-          stim_type=[SharpBumpStimulus{Float64,N_CDT}, SharpBumpStimulus{Float64,N_CDT}]),
-      connectivity = FFT.(pops(ExpSumSqDecayingConnectivity{Float64,N_CDT};
+          time_windows = [[(0.0, 45.0)], [(0.0, 45.0)]])],
+      connectivity = FFTParameter(pops(GaussianConnectivityParameter;
           amplitude = [Aee -Aei;
                        Aie -Aii],
           spread = [(See,See) (Sei,Sei);

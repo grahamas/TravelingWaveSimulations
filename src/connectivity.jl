@@ -1,5 +1,5 @@
 using Parameters
-@with_kw struct R2S1IsotropicConnectivity{T} <: AbstractExpDecayingConnectivity{T,3}
+@with_kw struct R2S1IsotropicConnectivity{T} <: AbstractExpDecayingConnectivityParameter{T,3}
     local_amplitude::T
     long_range_amplitude::T
     local_R2_spread::NTuple{2,T}

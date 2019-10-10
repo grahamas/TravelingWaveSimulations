@@ -1,4 +1,4 @@
-script_helpers_path = joinpath(srcdir(), "script_helpers")
+script_helpers_path = joinpath(@__DIR__, "script_helpers")
 top_level = walkdir(script_helpers_path) |> first
 script_helper_basenames = filter(top_level[3]) do name
     name[1] != '.'
