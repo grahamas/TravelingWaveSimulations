@@ -62,6 +62,8 @@ end
 function execute_modifications(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw)
     pkeys = keys(modifications[1]) |> collect
+    disallowed_keys = [:algorithm]
+    pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
     results = nothing
     for modification in modifications
         mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
