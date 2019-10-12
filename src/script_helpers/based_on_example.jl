@@ -96,14 +96,15 @@ function execute_modifications_parallel(example, modifications::Array{<:Dict}, a
     results_channel = RemoteChannel(() -> Channel{NamedTuple}(2 * nworkers()))
     @distributed for modification in modifications
         mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+        if mod_name == ""
+            mod_name = "no_mod"
+        end
+        @show mod_name
         simulation = example(; modification...)
         execution = execute(simulation)
         if execution.solution.retcode == :Unstable
             @warn "$mod_name unstable!"
             continue
-        end
-        if mod_name == ""
-            mod_name = "no_mod"
         end
         if !no_save_raw
             soln = execution.solution
@@ -116,7 +117,9 @@ function execute_modifications_parallel(example, modifications::Array{<:Dict}, a
     @show n
     @show parallel_batch_size
     while n > 0
+        println("waiting to write... ($n)")
         results_batch = push_results(results_batch, take!(results_channel))
+        println("writing!")
         if ((length(results_batch[1]) >= parallel_batch_size) || (n == 1))
             open(joinpath(data_path, "$(myid())_$(Dates.now()).csv"), "w") do f
                 table(results_batch, pkey=pkeys) |> CSV.write(f)
