@@ -50,7 +50,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     end
 
     example = get_example(example_name)
-    if length(modifications) < (batch * 2)
+    if !(@isdefined nworkers)
         @warn "Not parallelizing parameter sweep."
         execute_modifications(example, modifications, analyses, data_path, analyses_path, no_save_raw)
     else
@@ -59,14 +59,39 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     end
 end
 
+function getkeys(d, keys)
+    [d[key] for key in keys]
+end
+
+function expand_soln_and_modification(execution, modification, pkeys)
+   # u = soln.u[:]
+   # u1 = soln(0.0)
+   # dims = size(u1)
+   # n_pops = dims[end]
+   # t = repeat(soln.t, inner=prod(dims))
+   # x = repeat(coordinates(space(execution))[:], inner=n_pops, outer=length(soln.t))
+   # mod = NamedTuple{Tuple(pkeys)}(getkeys(modification, pkeys))
+   # repeated_modification = NamedTuple{keys(mod)}([repeat([mod_val], inner=(prod(dims) * length(soln.t))) for mod_val in values(mod)])
+   # return (u=u, t=t, x=x, repeated_modification...)
+   soln = execution.solution
+   u = soln.u
+   t = soln.t
+   x = coordinates(space(execution)) |> collect
+   mod = NamedTuple{Tuple(pkeys)}(getkeys(modification, pkeys))
+   return [mod, (u=u, t=t, x=x)]
+end
+
 function execute_modifications(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw)
     pkeys = keys(modifications[1]) |> collect
-    disallowed_keys = [:algorithm]
+    disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent]
     pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
-    results = nothing
+    results = nothing; mods = nothing
     for modification in modifications
         mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+        if mod_name == ""
+            mod_name = "no_mod"
+        end
         @show mod_name
         simulation = example(; modification...)
         execution = execute(simulation, )
@@ -74,26 +99,27 @@ function execute_modifications(example, modifications::Array{<:Dict}, analyses,
             @warn "$mod_name unstable!"
             continue
         end
-        if mod_name == ""
-            mod_name = "no_mod"
-        end
         if !no_save_raw
-            soln = execution.solution
-            results = push_results(results, (u=soln.u, t=soln.t,x=coordinates(space(execution)), modification...)) 
+            these_mods, these_results = expand_soln_and_modification(execution, modification, 
+                                                                            pkeys)
+            results = push_results(results, these_results)
+            mods = push_results(mods, these_mods)
         end
         analyse.(analyses, Ref(execution), analyses_path, mod_name)
     end
     if !no_save_raw
-        open(joinpath(data_path, "raw_data.csv"), "w") do f
-            table(results, pkey=pkeys) |> CSV.write(f)
-        end
+        JuliaDB.save(ndsparse(mods, results), joinpath(data_path, "raw_data.csv"))
     end
 end
-
+using Nullables
+Base.convert(::Type{T}, x::Nullable{T}) where T = x.value
 function execute_modifications_parallel(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw, parallel_batch_size)
     pkeys = keys(modifications[1]) |> collect
-    results_channel = RemoteChannel(() -> Channel{NamedTuple}(2 * nworkers()))
+    disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent]
+    pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
+    @show pkeys
+    results_channel = RemoteChannel(() -> Channel{Array}(2 * nworkers()))
     @distributed for modification in modifications
         mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
         if mod_name == ""
@@ -107,28 +133,39 @@ function execute_modifications_parallel(example, modifications::Array{<:Dict}, a
             continue
         end
         if !no_save_raw
-            soln = execution.solution
-            put!(results_channel, (u=soln.u,t=soln.t,x=coordinates(space(execution)),modification...))
+            put!(results_channel, expand_soln_and_modification(execution, modification, pkeys))
         end
         analyse.(analyses, Ref(execution), analyses_path, mod_name)
     end
     n = length(modifications)
     results_batch = nothing
+    mods_batch = nothing
+    ddb = nothing
     @show n
     @show parallel_batch_size
     while n > 0
-        println("waiting to write... ($n)")
-        results_batch = push_results(results_batch, take!(results_channel))
-        println("writing!")
+        these_mods, these_results = take!(results_channel)
+        results_batch = push_results(results_batch, these_results)
+        mods_batch = push_results(mods_batch, these_mods)
         if ((length(results_batch[1]) >= parallel_batch_size) || (n == 1))
-            open(joinpath(data_path, "$(myid())_$(Dates.now()).csv"), "w") do f
-                table(results_batch, pkey=pkeys) |> CSV.write(f)
-            end
+            println("writing! ($n)")
+            ddb = join_ddb(ddb, ndsparse(mods_batch, results_batch))
+            @show ddb
             results_batch = nothing
+            mods_batch = nothing
         end
         n -= 1
     end
+    JuliaDB.save(ddb, data_path)
 end
+function join_ddb(::Nothing, tbl)
+    return distribute(tbl, 1)
+end
+function join_ddb(ddb::JuliaDB.DNDSparse, tbl::JuliaDB.NDSparse)
+    return join(ddb, tbl)
+end
+
+
 function push_results(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
     arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}
     NamedTuple{NAMES, arrd_TYPES}([[val] for val in values(mods)])
