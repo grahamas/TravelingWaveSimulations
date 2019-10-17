@@ -141,25 +141,30 @@ function execute_modifications_parallel(example, modifications::Array{<:Dict}, a
     results_batch = nothing
     mods_batch = nothing
     ddb = nothing
+    all_results = nothing
     @show n
     @show parallel_batch_size
     while n > 0
         these_mods, these_results = take!(results_channel)
-        results_batch = push_results(results_batch, these_results)
-        mods_batch = push_results(mods_batch, these_mods)
-        if ((length(results_batch[1]) >= parallel_batch_size) || (n == 1))
+        #results_batch = push_results(results_batch, these_results)
+        #mods_batch = push_results(mods_batch, these_mods)
+        all_results = push_results(all_results, NamedTuple{(pkeys...,:u,:t,:x),typeof((these_mods...,these_results...))}((these_mods..., these_results...)))
+        if ((length(all_results[1]) >= parallel_batch_size) || (n == 1))
             println("writing! ($n)")
-            ddb = join_ddb(ddb, ndsparse(mods_batch, results_batch))
-            @show ddb
+            #ddb = join_ddb(ddb, table(all_results, pkey=pkeys))# table((mods_batch..., results_batch...), pkey=pkeys))
+            #@show ddb
+            JuliaDB.save(table(all_results, pkey=pkeys), joinpath(data_path, "$n.jdb"))
             results_batch = nothing
             mods_batch = nothing
+            all_results = nothing
         end
         n -= 1
     end
-    JuliaDB.save(ddb, data_path)
+    #JuliaDB.save(ddb, data_path)
 end
 function join_ddb(::Nothing, tbl)
-    return distribute(tbl, 1)
+    #return distribute(tbl, 1)
+    return tbl
 end
 function join_ddb(ddb::JuliaDB.DNDSparse, tbl::JuliaDB.NDSparse)
     return join(ddb, tbl)
