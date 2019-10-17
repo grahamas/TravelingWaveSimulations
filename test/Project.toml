@@ -1,0 +1,7 @@
+[deps]
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+NeuralModels = "a199b2c4-7a51-11e9-2fe1-b9a1a5fe2912"
+Simulation73 = "310cc8c8-1ffe-11e9-399c-c5a008d6bdcc"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TravelingWaveSimulations = "b7a787de-74f3-11e9-2c3d-21bc6dc7d0e1"
+WilsonCowanModel = "bdbc91b4-201b-11e9-2b98-89611552dcef"
