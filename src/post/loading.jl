@@ -4,14 +4,15 @@ function binarize_directory(dir, chunks)
     loadtable(glob(csv), output=bin, chunks=chunks)
 end
 
-function load_directory(dir, chunks=-1)
-    bin_dir = joinpath(dir, "bin")
-    if chunks < 1
-        if !isdir(bin_dir)
-             error("Directory not binarized; specify chunks.")
-        end
-    else
-        binarize_directory(dir, chunks)
+function load_directory(dir, args...)
+    if ispath(joinpath(dir, "juliadb_index"))
+        return load(dir, args...)
     end
-    return load(bin_dir)
+    bin_dir = joinpath(dir, "bin")
+    if ispath(joinpath(bin_dir, "juliadb_index")) 
+        return load(bin_dir)
+    else
+        binarize_directory(dir, args...)
+        return load(bin_dir)
+    end
 end
