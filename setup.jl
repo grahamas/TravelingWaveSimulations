@@ -8,7 +8,7 @@ nm_path = rel_path("..", "NeuralModels")
 wcm_path = rel_path("..", "WilsonCowanModel")
 tws_path = rel_path(".")
 
-git_pull.(s73_path, nm_path, wcm_path, tws_path)
+git_pull.([s73_path, nm_path, wcm_path, tws_path])
 
 Pkg.activate(s73_path)
 Pkg.update()
