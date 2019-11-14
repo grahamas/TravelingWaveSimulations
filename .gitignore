@@ -6,12 +6,14 @@ results
 /examples/prerefactor/*
 
 *.png
+*.mp4
+*.gif
 *_res.jld2
+*.ipynb
 
 .*
 
 data
-_research
 _slurm
 plots
-Manifest.toml
+*Manifest.toml
