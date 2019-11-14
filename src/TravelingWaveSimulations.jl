@@ -19,6 +19,7 @@ export get_example
 export plot_and_save
 export custom_animate
 export based_on_example
+export load_directory
 
 #include("saving.jl")
 
@@ -30,5 +31,6 @@ include(joinpath(@__DIR__, "..", "scripts", "modifications.jl"))
 include(joinpath(@__DIR__, "..", "scripts", "analyses.jl"))
 
 include("script_helpers.jl")
+include(joinpath("post", "loading.jl"))
 
 end #module
