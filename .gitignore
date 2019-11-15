@@ -17,3 +17,8 @@ data
 _slurm
 plots
 *Manifest.toml
+
+*.jlprof
+*.csv
+*.bin
+*.bson
