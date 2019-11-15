@@ -7,6 +7,7 @@ ENV["MPLBACKEND"]="Agg"
 using Plots
 #pyplot()
 
+using ArgParse
 arg_settings = ArgParseSettings(; autofix_names = true)
 @add_arg_table arg_settings begin
     "--data-root", "-d"
