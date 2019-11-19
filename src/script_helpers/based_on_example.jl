@@ -81,6 +81,21 @@ function expand_soln_and_modification(execution, modification, pkeys)
    return [mod, (u=u, t=t, x=x)]
 end
 
+function execute_single_modification(example, modification)
+    mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
+    if mod_name == ""
+        mod_name = "no_mod"
+    end
+    @show mod_name
+    simulation = example(; modification...)
+    execution = execute(simulation)
+    if execution.solution.retcode == :Unstable
+        @warn "$mod_name unstable!"
+        continue
+    end
+    return (mod_name, execution)
+end
+
 function execute_modifications(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw)
     pkeys = keys(modifications[1]) |> collect
@@ -88,17 +103,7 @@ function execute_modifications(example, modifications::Array{<:Dict}, analyses,
     pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
     results = nothing; mods = nothing
     for modification in modifications
-        mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
-        if mod_name == ""
-            mod_name = "no_mod"
-        end
-        @show mod_name
-        simulation = example(; modification...)
-        execution = execute(simulation, )
-        if execution.solution.retcode == :Unstable
-            @warn "$mod_name unstable!"
-            continue
-        end
+        mod_name, execution = execute_single_modification(example, modification)
         if !no_save_raw
             these_mods, these_results = expand_soln_and_modification(execution, modification, 
                                                                             pkeys)
@@ -121,17 +126,7 @@ function execute_modifications_parallel(example, modifications::Array{<:Dict}, a
     @show pkeys
     results_channel = RemoteChannel(() -> Channel{Array}(2 * nworkers()))
     @distributed for modification in modifications
-        mod_name = savename(modification; allowedtypes=(Real,String,Symbol,AbstractArray), connector=";")
-        if mod_name == ""
-            mod_name = "no_mod"
-        end
-        @show mod_name
-        simulation = example(; modification...)
-        execution = execute(simulation)
-        if execution.solution.retcode == :Unstable
-            @warn "$mod_name unstable!"
-            continue
-        end
+        mod_name, execution = execute_single_modification(example, modification)
         if !no_save_raw
             put!(results_channel, expand_soln_and_modification(execution, modification, pkeys))
         end
@@ -151,9 +146,9 @@ function execute_modifications_parallel(example, modifications::Array{<:Dict}, a
         all_results = push_results(all_results, NamedTuple{(pkeys...,:u,:t,:x),typeof((these_mods...,these_results...))}((these_mods..., these_results...)))
         if ((length(all_results[1]) >= parallel_batch_size) || (n == 1))
             println("writing! ($n)")
-            #ddb = join_ddb(ddb, table(all_results, pkey=pkeys))# table((mods_batch..., results_batch...), pkey=pkeys))
+            ddb = join_ddb(ddb, table(all_results, pkey=pkeys))# table((mods_batch..., results_batch...), pkey=pkeys))
             #@show ddb
-            JuliaDB.save(table(all_results, pkey=pkeys), joinpath(data_path, "$n.jdb"))
+            #JuliaDB.save(table(all_results, pkey=pkeys), joinpath(data_path, "$n.jdb"))
             results_batch = nothing
             mods_batch = nothing
             all_results = nothing
@@ -163,11 +158,11 @@ function execute_modifications_parallel(example, modifications::Array{<:Dict}, a
     #JuliaDB.save(ddb, data_path)
 end
 function join_ddb(::Nothing, tbl)
-    #return distribute(tbl, 1)
-    return tbl
+    return distribute(tbl, 1)
+    #return tbl
 end
 function join_ddb(ddb::JuliaDB.DNDSparse, tbl::JuliaDB.NDSparse)
-    return join(ddb, tbl)
+    return join(ddb, tbl; how=:outer)
 end
 
 
