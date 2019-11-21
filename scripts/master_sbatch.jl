@@ -46,6 +46,8 @@ function parse_commandline(args)
         "--no-save-raw"
             help = "Don't save the raw simulation"
             action = :store_true
+        "--batch"
+            help = "Parallel batch size"
     end
     return parse_args(args, arg_settings; as_symbols = false)
 end

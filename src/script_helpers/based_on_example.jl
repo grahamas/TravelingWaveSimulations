@@ -50,12 +50,14 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     end
 
     example = get_example(example_name)
-    if !(@isdefined nworkers)
+    if !(@isdefined nworkers) || nworkers() == 1
         @warn "Not parallelizing parameter sweep."
-        execute_modifications(example, modifications, analyses, data_path, analyses_path, no_save_raw)
+        failures = execute_modifications(example, modifications, analyses, data_path, analyses_path, no_save_raw)
+        @show failures
     else
         @warn "Parallelizing parameter sweep."
-        execute_modifications_parallel(example, modifications, analyses, data_path, analyses_path, no_save_raw, batch)
+        failures = execute_modifications_parallel(example, modifications, analyses, data_path, analyses_path, no_save_raw, batch)
+        @show failures
     end
 end
 
@@ -64,15 +66,6 @@ function getkeys(d, keys)
 end
 
 function expand_soln_and_modification(execution, modification, pkeys)
-   # u = soln.u[:]
-   # u1 = soln(0.0)
-   # dims = size(u1)
-   # n_pops = dims[end]
-   # t = repeat(soln.t, inner=prod(dims))
-   # x = repeat(coordinates(space(execution))[:], inner=n_pops, outer=length(soln.t))
-   # mod = NamedTuple{Tuple(pkeys)}(getkeys(modification, pkeys))
-   # repeated_modification = NamedTuple{keys(mod)}([repeat([mod_val], inner=(prod(dims) * length(soln.t))) for mod_val in values(mod)])
-   # return (u=u, t=t, x=x, repeated_modification...)
    soln = execution.solution
    u = soln.u
    t = soln.t
@@ -91,7 +84,7 @@ function execute_single_modification(example, modification)
     execution = execute(simulation)
     if execution.solution.retcode == :Unstable
         @warn "$mod_name unstable!"
-        continue
+        return (mod_name, nothing)
     end
     return (mod_name, execution)
 end
@@ -102,8 +95,13 @@ function execute_modifications(example, modifications::Array{<:Dict}, analyses,
     disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent]
     pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
     results = nothing; mods = nothing
+    failures = Any[]
     for modification in modifications
         mod_name, execution = execute_single_modification(example, modification)
+        if execution === nothing
+            push!(failures, mod_name)
+            continue
+        end
         if !no_save_raw
             these_mods, these_results = expand_soln_and_modification(execution, modification, 
                                                                             pkeys)
@@ -115,6 +113,8 @@ function execute_modifications(example, modifications::Array{<:Dict}, analyses,
     if !no_save_raw
         JuliaDB.save(ndsparse(mods, results), joinpath(data_path, "raw_data.csv"))
     end
+    @show length(failures)
+    return failures
 end
 using Nullables
 Base.convert(::Type{T}, x::Nullable{T}) where T = x.value
@@ -137,34 +137,44 @@ function execute_modifications_parallel(example, modifications::Array{<:Dict}, a
     mods_batch = nothing
     ddb = nothing
     all_results = nothing
+    failures = []
     @show n
     @show parallel_batch_size
     while n > 0
         these_mods, these_results = take!(results_channel)
-        #results_batch = push_results(results_batch, these_results)
-        #mods_batch = push_results(mods_batch, these_mods)
-        all_results = push_results(all_results, NamedTuple{(pkeys...,:u,:t,:x),typeof((these_mods...,these_results...))}((these_mods..., these_results...)))
+        if these_results === nothing
+            push!(failures, these_mods)
+        end
+        mods_batch = push_results(mods_batch, these_mods)
+        results_batch = push_results(results_batch, these_results)
+        #all_batch = push_results(all_results, NamedTuple{(pkeys...,:u,:t,:x),typeof((these_mods...,these_results...))}((these_mods..., these_results...)))
         if ((length(all_results[1]) >= parallel_batch_size) || (n == 1))
             println("writing! ($n)")
-            ddb = join_ddb(ddb, table(all_results, pkey=pkeys))# table((mods_batch..., results_batch...), pkey=pkeys))
+            ddb = join_ddb(ddb, ndsparse(mods_batch, results_batch))
+            #ddb = join_ddb(ddb, table(all_batch, pkey=pkeys))# table((mods_batch..., results_batch...), pkey=pkeys))
             #@show ddb
-            #JuliaDB.save(table(all_results, pkey=pkeys), joinpath(data_path, "$n.jdb"))
+            #JuliaDB.save(table(all_batch, pkey=pkeys), joinpath(data_path, "$n.jdb"))
             results_batch = nothing
             mods_batch = nothing
-            all_results = nothing
+            all_batch = nothing
         end
         n -= 1
     end
-    #JuliaDB.save(ddb, data_path)
+    JuliaDB.save(ddb, data_path)
+    @show length(failures)
+    return failures
 end
 function join_ddb(::Nothing, tbl)
     return distribute(tbl, 1)
     #return tbl
 end
-function join_ddb(ddb::JuliaDB.DNDSparse, tbl::JuliaDB.NDSparse)
+function join_ddb(ddb::JuliaDB.DNDSparse, tbl::NDSparse)
+    @error "Sparse unsupported"
     return join(ddb, tbl; how=:outer)
 end
-
+function join_ddb(ddb::JuliaDB.DIndexedTable, tbl::IndexedTable)
+    return join(ddb, tbl; how=:outer)
+end
 
 function push_results(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
     arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}
