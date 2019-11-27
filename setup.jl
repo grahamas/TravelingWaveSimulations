@@ -10,7 +10,7 @@ tws_path = rel_path(".")
 
 for path in [s73_path, nm_path, wcm_path]
 	if !ispath(path)
-		run(`git clone git@github.com:grahamas/$(basename(path)).git $(path)`)
+		run(`git clone https://github.com/grahamas/$(basename(path)).git $(path)`)
 	end
 end
 
