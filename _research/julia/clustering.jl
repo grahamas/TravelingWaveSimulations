@@ -1,8 +1,5 @@
 # ---
 # jupyter:
-#   '@webio':
-#     lastCommId: null
-#     lastKernelId: null
 #   jupytext:
 #     cell_metadata_filter: all
 #     notebook_metadata_filter: all,-language_info
