@@ -9,11 +9,11 @@ DEFAULT_SAVE_BATCH_SIZE = 10000
                        modifications=[],
                        analyses=[])
 
-Run simulation based on example named `example_name` described in the `examples` subdirectory of `src`.
+Run simulation based on example named `example_name` described in `src/examples`.
 
-`modifications` is an array of *strings* modifying the example's built-in parameters. These strings can 1) name a modifications file in the `modifications` subdirectory of `scripts`, 2) modify a keyword value using the syntax `name=value` or 3) describe a range of values for a keyword, using colon syntax (`name=start:step:end`). Valid keyword targets are *any* keywords in the signature or body of the example, so long as that keyword is *unique*.
+`modifications` is an array of *strings* modifying the example's built-in parameters. These strings can 1) name a modifications file in `scripts/modifications`, 2) modify a keyword value using the syntax `name=value` or 3) describe a range of values for a keyword, using colon syntax (`name=start:step:end`). Valid keyword targets are *any* keywords in the signature or body of the example, so long as that keyword is *unique*.
 
-`analyses` is an array of *strings* naming files (sans `.jl`) found in the `analyses` subdirectory of `scripts`.
+`analyses` is an array of *strings* naming files (sans `.jl`) found in `scripts/analyses`.
 
 `no_save_raw` overrides the default behavior of saving the raw simulation solution when set to `true`.
 
@@ -52,11 +52,15 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     example = get_example(example_name)
     if !(@isdefined nworkers) || nworkers() == 1
         @warn "Not parallelizing parameter sweep."
-        failures = execute_modifications(example, modifications, analyses, data_path, analyses_path, no_save_raw)
+        results, failures = execute_modifications(example, modifications, analyses, data_path, analyses_path, no_save_raw)
         @show failures
     else
         @warn "Parallelizing parameter sweep."
-        failures = execute_modifications_parallel(example, modifications, analyses, data_path, analyses_path, no_save_raw, batch)
+        if no_save_raw
+            results, failures = execute_modifications_parallel_nosaving(example, modifications, analyses, data_path, analyses_path, batch)
+        else
+            results, failures = execute_modifications_parallel_saving(example, modifications, analyses, data_path, analyses_path, batch)
+        end
         @show failures
     end
 end
@@ -65,13 +69,17 @@ function getkeys(d, keys)
     [d[key] for key in keys]
 end
 
-function expand_soln_and_modification(execution, modification, pkeys)
-   soln = execution.solution
-   u = soln.u
-   t = soln.t
-   x = coordinates(space(execution)) |> collect
-   mod = NamedTuple{Tuple(pkeys)}(getkeys(modification, pkeys))
-   return [mod, (u=u, t=t, x=x)]
+function extract_data_namedtuple(execution)
+    soln = execution.solution
+    u = soln.u
+    t = soln.t
+    x = coordinates(space(execution)) |> collect
+    return (u=u, t=t, x=x)
+end
+
+
+function extract_params_tuple(execution, modification, pkeys)
+    return NamedTuple{Tuple(pkeys)}(getkeys(modification, pkeys))
 end
 
 function execute_single_modification(example, modification)
@@ -88,99 +96,113 @@ function execute_single_modification(example, modification)
     end
     return (mod_name, execution)
 end
-
-function execute_modifications(example, modifications::Array{<:Dict}, analyses,
-        data_path::String, analyses_path::String, no_save_raw)
+function mods_to_pkeys(modifications)
     pkeys = keys(modifications[1]) |> collect
     disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent]
     pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
-    results = nothing; mods = nothing
-    failures = Any[]
+end
+function execute_modifications(example, modifications::Array{<:Dict}, analyses,
+        data_path::String, analyses_path::String, no_save_raw)
+    # FIXME
+    pkeys = mods_to_pkeys(modifications)
+    data_namedtuple = nothing
     for modification in modifications
         mod_name, execution = execute_single_modification(example, modification)
-        if execution === nothing
-            push!(failures, mod_name)
-            continue
-        end
+        execution === nothing && push!(failures, mod_name)
         if !no_save_raw
-            these_mods, these_results = expand_soln_and_modification(execution, modification, 
-                                                                            pkeys)
-            results = push_results(results, these_results)
-            mods = push_results(mods, these_mods)
+            these_data = expand_soln_and_modification(execution, modification, pkeys)
+            data_namedtuple = push_namedtuple!(data_namedtuple, these_data)
         end
         analyse.(analyses, Ref(execution), analyses_path, mod_name)
     end
-    if !no_save_raw
-        JuliaDB.save(ndsparse(mods, results), joinpath(data_path, "raw_data.csv"))
+    if !no_save_raw        
+        results_table = table(data_namedtuple, pkey=pkeys)
+        JuliaDB.save(results_table, joinpath(data_path, "raw_data.csv"))
+    else
+        results_table = nothing
     end
-    @show length(failures)
-    return failures
+    return results_table
 end
 using Nullables
 Base.convert(::Type{T}, x::Nullable{T}) where T = x.value
-function execute_modifications_parallel(example, modifications::Array{<:Dict}, analyses,
-        data_path::String, analyses_path::String, no_save_raw, parallel_batch_size)
-    pkeys = keys(modifications[1]) |> collect
-    disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent]
-    pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
-    @show pkeys
-    results_channel = RemoteChannel(() -> Channel{Array}(2 * nworkers()))
-    @distributed for modification in modifications
-        mod_name, execution = execute_single_modification(example, modification)
-        if !no_save_raw
-            put!(results_channel, expand_soln_and_modification(execution, modification, pkeys))
+Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
+function execute_modifications_parallel_saving(example, modifications::Array{<:Dict}, analyses,
+        data_path::String, analyses_path::String, parallel_batch_size)
+    pkeys = mods_to_pkeys(modifications)
+    results_channel = RemoteChannel(() -> Channel{Tuple}(2 * nworkers()))
+    @distributed for modifications_batch in Iterators.partition(modifications, parallel_batch_size)
+        results = nothing
+        failures = nothing
+        for modification in modifications_batch
+            mod_name, execution = execute_single_modification(example, modification)
+            these_params = extract_params_tuple(modification)
+            if execution !== nothing #is success
+                these_data = extract_data_namedtuple(execution)
+                results = push_results(results, merge(these_params, these_data))
+                analyse.(analyses, Ref(execution), analyses_path, mod_name)
+            else
+                failures = push_namedtuple!(these_params, failures)
+            end
         end
-        analyse.(analyses, Ref(execution), analyses_path, mod_name)
+        put!(results_channel, (failures, results))
     end
     n = length(modifications)
-    results_batch = nothing
-    mods_batch = nothing
-    ddb = nothing
-    all_results = nothing
-    failures = []
-    @show n
-    @show parallel_batch_size
+    all_failures = nothing
+    counter = 1
     while n > 0
-        these_mods, these_results = take!(results_channel)
-        if these_results === nothing
-            push!(failures, these_mods)
-        end
-        mods_batch = push_results(mods_batch, these_mods)
-        results_batch = push_results(results_batch, these_results)
-        #all_batch = push_results(all_results, NamedTuple{(pkeys...,:u,:t,:x),typeof((these_mods...,these_results...))}((these_mods..., these_results...)))
-        if ((length(all_results[1]) >= parallel_batch_size) || (n == 1))
-            println("writing! ($n)")
-            ddb = join_ddb(ddb, ndsparse(mods_batch, results_batch))
-            #ddb = join_ddb(ddb, table(all_batch, pkey=pkeys))# table((mods_batch..., results_batch...), pkey=pkeys))
-            #@show ddb
-            #JuliaDB.save(table(all_batch, pkey=pkeys), joinpath(data_path, "$n.jdb"))
-            results_batch = nothing
-            mods_batch = nothing
-            all_batch = nothing
-        end
+        (these_failures, these_data) = take!(results_channel)
+        all_failures = push_namedtuple(all_failures, these_failures)
+        save(these_successes, joinpath(data_path,"$(counter).jdb"))
+        counter += 1
         n -= 1
     end
-    JuliaDB.save(ddb, data_path)
-    @show length(failures)
+    save(table(all_failures), joinpath(data_path, "failures.jdb"))
     return failures
 end
-function join_ddb(::Nothing, tbl)
-    return distribute(tbl, 1)
-    #return tbl
+function execute_modifications_parallel_nosaving(example, modifications::Array{<:Dict}, analyses,
+        data_path::String, analyses_path::String, parallel_batch_size)
+    pkeys = mods_to_pkeys(modifications)
+    results_channel = RemoteChannel(() -> Channel{NamedTuple}(2 * nworkers()))
+    batches = Iterators.partition(modifications, parallel_batch_size)
+    n_batches = length(batches)
+    @distributed for modifications_batch in Iterators.partition(modifications, parallel_batch_size)
+        failures = nothing
+        for modification in modifications_batch
+            mod_name, execution = execute_single_modification(example, modification)
+            these_params = extract_params_tuple(modification)
+            if execution !== nothing #is success
+                analyse.(analyses, Ref(execution), analyses_path, mod_name)
+            else
+                failures = push_namedtuple!(these_params, failures)
+            end
+        end
+        put!(results_channel, failures)
+    end
+    n_remaining_batches = n
+    all_failures = nothing
+    while n_remaining_batches > 0
+        these_failures = take!(results_channel)
+        all_failures = push_namedtuple(all_failures, these_failures)
+        n_remaining_batches -= 1
+    end
+    return failures
 end
-function join_ddb(ddb::JuliaDB.DNDSparse, tbl::NDSparse)
+function merge_ddb(::Nothing, tbl)
+    return distribute(tbl, nworkers())
+end
+function merge_ddb(ddb::JuliaDB.DNDSparse, tbl::NDSparse)
     @error "Sparse unsupported"
-    return join(ddb, tbl; how=:outer)
+    return merge(ddb, tbl)
 end
-function join_ddb(ddb::JuliaDB.DIndexedTable, tbl::IndexedTable)
-    return join(ddb, tbl; how=:outer)
+function merge_ddb(ddb::JuliaDB.DIndexedTable, tbl::IndexedTable)
+    return merge(ddb, tbl)
 end
 
-function push_results(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
+function push_namedtuple!(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
     arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}
     NamedTuple{NAMES, arrd_TYPES}([[val] for val in values(mods)])
 end
-function push_results(tup::NamedTuple, mods)
+function push_namedtuple!(tup::NamedTuple, mods)
     for mod in pairs(mods)
         push!(tup[mod[1]], mod[2])
     end

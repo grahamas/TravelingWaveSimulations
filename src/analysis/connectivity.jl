@@ -37,7 +37,7 @@ end
 
 using Plots: GridLayout
 @recipe function f(plot_spec::ConnectivityPlot, connectivity::C, space::S,
-        pop_names::SVector{P,<:AbstractString}) where {
+        pop_names::AbstractArray{<:AbstractString}) where {
             T, P, AP<:AbstractConnectivityParameter,
             C<:AbstractPopulationInteractionsParameters{P,AP},
             S<:AbstractSpace{T}
@@ -54,7 +54,7 @@ using Plots: GridLayout
 end
 
 @recipe function f(plot_spec::ConnectivityPlot, connectivity::C, space::RandomlyEmbeddedLattice{T,N_ARR,N_CDT},
-        pop_names::SVector{P,<:AbstractString}; source_location = Tuple(zero(T) for _ in 1:N_CDT)) where {
+        pop_names::AbstractArray{<:AbstractString}; source_location = Tuple(zero(T) for _ in 1:N_CDT)) where {
             T, N_ARR, N_CDT, P,AP<:AbstractConnectivityParameter,
             C<:AbstractPopulationInteractionsParameters{P,AP}
         }

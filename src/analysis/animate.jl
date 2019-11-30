@@ -14,14 +14,11 @@ function analyse(plot_spec::Animate, execution::Execution, output_dir::AbstractS
 end
 function custom_animate(execution::Execution{T,<:Simulation{T}}; kwargs...) where T
     solution = execution.solution
-	@show typeof(solution)
     pop_names = execution.simulation.model.pop_names
     x = space(execution)
     t = timepoints(execution)
     max_val = maximum(solution)
 	min_val = minimum(solution)
-    @show size(solution)
-    @show length(solution)
     @animate for time_dx in 1:length(t) # TODO @views
         plot([
                 plot(

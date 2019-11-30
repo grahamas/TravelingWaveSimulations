@@ -9,7 +9,6 @@ using MacroTools
 using LSODA
 using DifferentialEquations
 using Plots
-using StaticArrays
 using ArgParse
 using IterTools
 
