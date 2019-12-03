@@ -6,8 +6,8 @@
 #     text_representation:
 #       extension: .jl
 #       format_name: percent
-#       format_version: '1.2'
-#       jupytext_version: 1.2.4
+#       format_version: '1.3'
+#       jupytext_version: 1.3.0
 #   kernelspec:
 #     display_name: Julia 1.3.0
 #     language: julia
@@ -47,6 +47,15 @@ function most_recent_subdir(datadir)
     subdirs = joinpath.(Ref(datadir), readdir(datadir))
     sort(subdirs, by=mtime, rev=true)[1]
 end
+
+# %%
 recent_dir = most_recent_subdir("data/sigmoid_normal_fft")
 d1 = load(joinpath(recent_dir, "1.jdb"))
 d2 = load(joinpath(recent_dir, "2.jdb"))
+
+# %%
+recent_dir = most_recent_subdir("$(ENV["HOME"])/sims")
+recent_db = load(joinpath(recent_dir, "1.jdb"))
+
+# %%
+recent_db[1].u

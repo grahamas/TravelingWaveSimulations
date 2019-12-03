@@ -133,6 +133,7 @@ Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
 function execute_modifications_parallel_saving(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, parallel_batch_size)
     pkeys = mods_to_pkeys(modifications)
+    @show length(modifications)
     batches = Iterators.partition(modifications, parallel_batch_size)
     n_batches = length(batches)
     results_channel = RemoteChannel(() -> Channel{Tuple}(2 * nworkers()))

@@ -48,6 +48,7 @@ function parse_commandline(args)
             action = :store_true
         "--batch"
             help = "Parallel batch size"
+            arg_type = Int
     end
     return parse_args(args, arg_settings; as_symbols = false)
 end
@@ -74,6 +75,9 @@ end
 
 function sbatch_script(ARGS)
     args = parse_commandline(ARGS)
+
+    ntasks = get(args, "ntasks", 1)
+    
     project_root = pop!(args, "project-root")
     base_example = pop!(args, "base-example")
     script_name = pop!(args, "script-name")
@@ -85,18 +89,25 @@ function sbatch_script(ARGS)
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
     sbatch_args["job-name"] = base_example
 
-    script_arg_names = ["mod", "analyses", "data-root"]
+    script_arg_names = ["mod", "analyses", "data-root", "batch"]
     script_args = pop_args!(args, script_arg_names)
+    remaining_args = args
+    @show remaining_args
     script_args["example-name"] = base_example
     if args["no-save-raw"]
         script_args["no-save-raw"] = args["no-save-raw"]
+    end
+    if ntasks > 1
+        p_args = "-p $ntasks"
+    else
+        p_args = ""
     end
 
     script_path = joinpath(scriptsdir(), script_name)
 
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia $(script_path) $(single_arg_str(script_args))
+    julia $p_args $(script_path) $(single_arg_str(script_args))
     /usr/bin/mail -s \${SLURM_JOB_NAME} $(sbatch_args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
     """
 

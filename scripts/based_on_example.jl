@@ -1,9 +1,17 @@
-using DrWatson
-quickactivate(@__DIR__, "TravelingWaveSimulations")
+if @isdefined nworkers
+    @everywhere using DrWatson
+    @everywhere quickactivate(@__DIR__, "TravelingWaveSimulations")
+    @everywhere using TravelingWaveSimulations
+    @everywhere ENV["GKSwstype"] = "100" # For headless plotting (on server)
+    @everywhere ENV["MPLBACKEND"]="Agg"
+else
+    using DrWatson
+    quickactivate(@__DIR__, "TravelingWaveSimulations")
+    using TravelingWaveSimulations
+    ENV["GKSwstype"] = "100" # For headless plotting (on server)
+    ENV["MPLBACKEND"]="Agg"
+end
 
-using TravelingWaveSimulations
-ENV["GKSwstype"] = "100" # For headless plotting (on server)
-ENV["MPLBACKEND"]="Agg"
 using Plots
 #pyplot()
 
@@ -26,6 +34,7 @@ arg_settings = ArgParseSettings(; autofix_names = true)
         action = :store_true
     "--batch"
         default = 1000
+        arg_type = Int
 end
 
 @warn "$ARGS"
