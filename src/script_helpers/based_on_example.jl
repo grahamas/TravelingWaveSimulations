@@ -44,7 +44,6 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     end
     if !no_save_raw
         data_path = joinpath(data_root, example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
-        mkpath(data_path)
     else
         data_path = nothing
     end
@@ -87,7 +86,6 @@ function execute_single_modification(example, modification)
     if mod_name == ""
         mod_name = "no_mod"
     end
-    @show mod_name
     simulation = example(; modification...)
     execution = execute(simulation)
     if execution.solution.retcode == :Unstable
@@ -127,17 +125,36 @@ function execute_modifications_serial(example, modifications::Array{<:Dict}, ana
     end
     return failures
 end
-using Nullables
-Base.convert(::Type{T}, x::Nullable{T}) where T = x.value
+function catch_for_saving(results_channel, data_path, pkeys, n_batches)
+    @show data_path
+    mkpath(data_path)
+    n_remaining_batches = n_batches
+    all_failures = nothing
+    counter = 1
+    while n_remaining_batches > 0
+        (these_failures, these_data) = take!(results_channel)
+        @show counter
+        all_failures = push_namedtuple!(all_failures, these_failures)
+        JuliaDB.save(table(these_data, pkey=pkeys), joinpath(data_path,"$(counter).jdb"))
+        counter += 1
+        n_remaining_batches -= 1
+    end
+    all_failures !== nothing && JuliaDB.save(table(all_failures), joinpath(data_path, "failures.jdb"))
+end
+
 Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
 function execute_modifications_parallel_saving(example, modifications::Array{<:Dict}, analyses,
-        data_path::String, analyses_path::String, parallel_batch_size)
+        data_path::String, analyses_path::String, max_batch_size)
+    parallel_batch_size = min(max_batch_size, ceil(Int, length(modifications) / (nprocs() - 1)))
     pkeys = mods_to_pkeys(modifications)
     @show length(modifications)
+    @show parallel_batch_size
     batches = Iterators.partition(modifications, parallel_batch_size)
     n_batches = length(batches)
+    @show n_batches
     results_channel = RemoteChannel(() -> Channel{Tuple}(2 * nworkers()))
-    @distributed for modifications_batch in collect(batches)
+    failures = @spawnat :any catch_for_saving(results_channel, data_path, pkeys, n_batches)
+    @sync @distributed for modifications_batch in collect(batches)
         results = nothing
         failures = nothing
         for modification in modifications_batch
@@ -153,18 +170,7 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
         end
         put!(results_channel, (failures, results))
     end
-    n_remaining_batches = n_batches
-    all_failures = nothing
-    counter = 1
-    while n_remaining_batches > 0
-        (these_failures, these_data) = take!(results_channel)
-        all_failures = push_namedtuple!(all_failures, these_failures)
-        JuliaDB.save(table(these_data, pkey=pkeys), joinpath(data_path,"$(counter).jdb"))
-        counter += 1
-        n_remaining_batches -= 1
-    end
-    all_failures !== nothing && JuliaDB.save(table(all_failures), joinpath(data_path, "failures.jdb"))
-    return all_failures
+    return fetch(failures)
 end
 function execute_modifications_parallel_nosaving(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, parallel_batch_size)

@@ -49,6 +49,8 @@ function parse_commandline(args)
         "--batch"
             help = "Parallel batch size"
             arg_type = Int
+        "--nodes", "-N"
+            help="minnodes[-maxnodes]"
     end
     return parse_args(args, arg_settings; as_symbols = false)
 end
@@ -83,7 +85,7 @@ function sbatch_script(ARGS)
     script_name = pop!(args, "script-name")
     script_output_dir = joinpath(project_root, "_slurm", "output", base_example)
     mkpath(script_output_dir)
-    sbatch_arg_names = ["ntasks", "mem-per-cpu", "time", "partition", "workdir", "mail-user",  "mail-type"]
+    sbatch_arg_names = ["nodes", "ntasks", "mem-per-cpu", "time", "partition", "workdir", "mail-user",  "mail-type"]
     sbatch_args = pop_args!(args, sbatch_arg_names)
     sbatch_args["output"] = joinpath(script_output_dir, "%j.stdout")
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
@@ -110,6 +112,7 @@ function sbatch_script(ARGS)
     julia $p_args $(script_path) $(single_arg_str(script_args))
     /usr/bin/mail -s \${SLURM_JOB_NAME} $(sbatch_args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
     """
+    @show sbatch_script
 
     run(pipeline(`echo $sbatch_script`, `sbatch $(arg_str_list(sbatch_args))`))
 end
