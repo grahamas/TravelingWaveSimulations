@@ -35,6 +35,8 @@ arg_settings = ArgParseSettings(; autofix_names = true)
     "--batch"
         default = 1000
         arg_type = Int
+    "--max-sims-in-mem"
+        arg_type = Int
 end
 
 @warn "$ARGS"

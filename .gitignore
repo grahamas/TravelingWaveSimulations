@@ -25,3 +25,5 @@ plots
 *.db
 
 old
+
+tmp

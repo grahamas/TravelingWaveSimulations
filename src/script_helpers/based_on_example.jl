@@ -29,7 +29,8 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],
         analyses::AbstractArray=[],
-        batch=DEFAULT_SAVE_BATCH_SIZE)
+        batch=DEFAULT_SAVE_BATCH_SIZE,
+        max_sims_in_mem=nothing)
 
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
@@ -58,7 +59,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         if no_save_raw
             failures = execute_modifications_parallel_nosaving(example, modifications, analyses, data_path, analyses_path, batch)
         else
-            failures = execute_modifications_parallel_saving(example, modifications, analyses, data_path, analyses_path, batch)
+            failures = execute_modifications_parallel_saving(example, modifications, analyses, data_path, analyses_path, batch, max_sims_in_mem)
         end
         @show failures
     end
@@ -144,17 +145,20 @@ end
 
 Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
 function execute_modifications_parallel_saving(example, modifications::Array{<:Dict}, analyses,
-        data_path::String, analyses_path::String, max_batch_size)
+        data_path::String, analyses_path::String, max_batch_size, max_sims_in_mem::Int)
     parallel_batch_size = min(max_batch_size, ceil(Int, length(modifications) / (nprocs() - 1)))
     pkeys = mods_to_pkeys(modifications)
     @show length(modifications)
     @show parallel_batch_size
+    max_held_batches = floor(Int, max_sims_in_mem / parallel_batch_size)
+    @assert max_held_batches > 1
+    @warn "max_held_batches = $max_held_batches"
     batches = Iterators.partition(modifications, parallel_batch_size)
     n_batches = length(batches)
     @show n_batches
-    results_channel = RemoteChannel(() -> Channel{Tuple}(2 * nworkers()))
+    results_channel = RemoteChannel(() -> Channel{Tuple}(max_held_batches))
     failures = @spawnat :any catch_for_saving(results_channel, data_path, pkeys, n_batches)
-    @sync @distributed for modifications_batch in collect(batches)
+    task = @distributed for modifications_batch in collect(batches)
         results = nothing
         failures = nothing
         for modification in modifications_batch
@@ -170,6 +174,7 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
         end
         put!(results_channel, (failures, results))
     end
+    @show fetch(task)
     return fetch(failures)
 end
 function execute_modifications_parallel_nosaving(example, modifications::Array{<:Dict}, analyses,

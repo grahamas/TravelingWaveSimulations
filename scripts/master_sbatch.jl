@@ -51,6 +51,8 @@ function parse_commandline(args)
             arg_type = Int
         "--nodes", "-N"
             help="minnodes[-maxnodes]"
+        "--max-sims-in-mem"
+            help="Limit the number of bare simulations held in memory by a single task"
     end
     return parse_args(args, arg_settings; as_symbols = false)
 end
@@ -91,7 +93,7 @@ function sbatch_script(ARGS)
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
     sbatch_args["job-name"] = base_example
 
-    script_arg_names = ["mod", "analyses", "data-root", "batch"]
+    script_arg_names = ["mod", "analyses", "data-root", "batch", "max-sims-in-mem"]
     script_args = pop_args!(args, script_arg_names)
     remaining_args = args
     @show remaining_args
@@ -110,7 +112,7 @@ function sbatch_script(ARGS)
     sbatch_script = """#!/bin/bash
     cd $(project_root)
     julia $p_args $(script_path) $(single_arg_str(script_args))
-    /usr/bin/mail -s \${SLURM_JOB_NAME} $(sbatch_args["mail-user"]) < $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr"))
+    cat $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr")) $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stdout")) | /usr/bin/mail -s \${SLURM_JOB_NAME} $(sbatch_args["mail-user"])
     """
     @show sbatch_script
 
