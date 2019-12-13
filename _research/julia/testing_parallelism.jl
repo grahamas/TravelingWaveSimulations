@@ -22,7 +22,11 @@ using DiffEqBase: AbstractTimeseriesSolution
 example=TravelingWaveSimulations.examples_dict["sigmoid_normal_fft"]
 
 # %%
-execution = execute(example(n=512, x=700.0, amplitude=([25.0 -25.2; 35.0 -4.0]), stop_time=30.0));
+execution = execute(example(n=512, x=700.0, amplitude=([25.0 -25.2; 35.0 -4.0])));
+
+# %%
+length(execution.solution)
+@show execution.solution.t
 
 # %%
 anim = TravelingWaveSimulations.custom_animate(execution)

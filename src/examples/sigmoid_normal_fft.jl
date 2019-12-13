@@ -8,7 +8,7 @@
 # ioS: inhibitory output spread scale
 # iiA: inhibitory input amplitude scale
 # iiS: inhibitory input spread scale
-
+ABS_STOP = 9000.0
 @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=30.0,
                                                      Aee=24.0, See=25.0,
                                                      Aii=4.0, Sii=27.0,
@@ -37,8 +37,12 @@
       );
       space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
       save_idxs = RadialSlice(),
-      tspan = (0.0,stop_time),
+      tspan = (0.0,ABS_STOP+10.0),
       dt = 1.0,
-      algorithm=Euler()
+      algorithm=Euler(),
+      callback=DiscreteCallback((u,t,integrator) -> begin
+                    sub_u = u[integrator.opts.save_idxs];
+                ((all(sub_u .≈ 0.0) || (sub_u[end] > 0.01)) && t > 5)
+                end, terminate!)
   )
 end
