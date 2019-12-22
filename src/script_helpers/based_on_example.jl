@@ -97,12 +97,13 @@ function execute_single_modification(example, modification)
 end
 function mods_to_pkeys(modifications)
     pkeys = keys(modifications[1]) |> collect
-    disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent]
+    disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent, :save_idxs]
     pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
+    pkeys = filter((x) -> !(modifications[1][x] === nothing), pkeys)
 end
 function execute_modifications_serial(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, no_save_raw)
-    # FIXME
+    # FIXME: Needs to incorporate batching
     pkeys = mods_to_pkeys(modifications)
     data_namedtuple = nothing
     failures = nothing
@@ -119,7 +120,8 @@ function execute_modifications_serial(example, modifications::Array{<:Dict}, ana
         end
         analyse.(analyses, Ref(execution), analyses_path, mod_name)
     end
-    if !no_save_raw        
+    if !no_save_raw      
+        mkpath(data_path)
         results_table = table(data_namedtuple, pkey=pkeys)
         JuliaDB.save(results_table, joinpath(data_path, "raw_data.csv"))
         failures !== nothing && JuliaDB.save(table(failures), joinpath(data_path, "failures.csv"))
