@@ -204,7 +204,7 @@ end
 make_matrix(::Type{LinearFit}, a) = [a ones(size(a,1))]
 function linreg_dropmissing(b_with_missing, A_with_missing, weights)
     A_with_missing = make_matrix(LinearFit, A_with_missing)
-    notmissing = .!ismissing.(b_with_missing)
+    notmissing = .!ismissing.(b_with_missing) .& (b_with_missing .> 0.0001)
     A = A_with_missing[notmissing,:]
     b = b_with_missing[notmissing]
     W = diagm(weights[notmissing])
@@ -221,7 +221,12 @@ drop_score(apex::Value{T}, nadir::Value{T}, θ::T) where T = drop_proportion(ape
 function peakiness(left::Value{T}, apex::Value{T}, right::Value{T}, duration_θ::T=10) where T
     left_score = drop_score(apex, left, duration_θ)
     right_score = drop_score(apex, right, duration_θ)
-    return left_score * right_score
+    score = left_score * right_score
+    if isnan(score)
+        return 0
+    else
+        return score
+    end
 end
 choose_peakiest(::Nothing, peak::StaticPeak) = peak
 choose_peakiest(peak1::StaticPeak, peak2::StaticPeak) = (peak1.score >= peak2.score) ? peak1 : peak2
@@ -359,13 +364,27 @@ plot!(space(example_exec), sech2(coord_tuples, Optim.minimizer(fit))) |> display
 # plot([fit.param[3] for fit in fits]) |> display
 # plot([norm(fit.resid) for fit in fits]) |> display
 # plot([log(norm(fit.resid) / abs(fit.param[1])) for fit in fits]) |> display
-plot([peakiest_peak(population(frame,1),10).score for frame in example_exec.solution.u]) |> display
 stats_arr = static_wave_stats.(population.(example_exec.solution.u,1), Ref(example_coords))
+t = example_exec.solution.t
 widths = [st.width for st in stats_arr]
-scores = [st.score for st in stats_arr]
-linfit = linreg_dropmissing(widths, example_exec.solution.t, scores)
+amplitudes = [st.amplitude for st in stats_arr]
+centers = [st.center for st in stats_arr]
 
-plot([b_with_missing, linfit(example_exec.solution.t)])
+scores = [st.score for st in stats_arr]
+width_linfit = linreg_dropmissing(widths, t, scores)
+amplitude_linfit = linreg_dropmissing(amplitudes, t, scores)
+center_linfit = linreg_dropmissing(centers, t, scores)
+
+plot([scores, [score .> 0.0001 ? score : missing for score in scores]]) |> display
+plot([widths, width_linfit(t)]) |> display
+plot([amplitudes, amplitude_linfit(t)]) |> display
+plot([centers, center_linfit(t)]) |> display
+@show width_linfit
+@show amplitude_linfit
+@show center_linfit
+
+# %%
+@show scores
 
 # %%
 result = fit_traveling_wave_subset(example_exec)
