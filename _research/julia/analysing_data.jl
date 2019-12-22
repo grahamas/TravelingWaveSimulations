@@ -196,6 +196,21 @@ function static_wave_stats(frame::AbstractArray{T,1}, space::AbstractArray{T,1})
     peak_obj = from_idx_to_space(peak_idx_obj, space)
     StaticWaveStats(peak_obj, peak_val, peak_space)
 end
+
+struct LinearFit{X}
+    x::X
+end
+(lr::LinearFit)(a) = make_matrix(LinearFit, a) * lr.x
+make_matrix(::Type{LinearFit}, a) = [a ones(size(a,1))]
+function linreg_dropmissing(b_with_missing, A_with_missing, weights)
+    A_with_missing = make_matrix(LinearFit, A_with_missing)
+    notmissing = .!ismissing.(b_with_missing)
+    A = A_with_missing[notmissing,:]
+    b = b_with_missing[notmissing]
+    W = diagm(weights[notmissing])
+    x = (A' * W * A) \ (A' * W * b)
+    return LinearFit(x)
+end
     
 
 # Peakiness
@@ -217,7 +232,6 @@ function peakiest_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10) where {T<
     right = nothing
     peakiest = nothing
     max_peak = nothing
-    
     
     prev_val = frame[1]
     left = Value(1, frame[1])
@@ -347,14 +361,11 @@ plot!(space(example_exec), sech2(coord_tuples, Optim.minimizer(fit))) |> display
 # plot([log(norm(fit.resid) / abs(fit.param[1])) for fit in fits]) |> display
 plot([peakiest_peak(population(frame,1),10).score for frame in example_exec.solution.u]) |> display
 stats_arr = static_wave_stats.(population.(example_exec.solution.u,1), Ref(example_coords))
-b_with_missing = [st.width for st in stats_arr]
-A_with_missing = [example_exec.solution.t ones(size(example_exec.solution.t)...)]
-valid = .!ismissing.(b_with_missing)
-A = A_with_missing[valid,:]
-b = b_with_missing[valid]
-W = diagm([st.score for st in stats_arr[valid]])
-x = (A' * W * A) \ (A' * W * b)
-plot([b_with_missing, (A_with_missing * x)])
+widths = [st.width for st in stats_arr]
+scores = [st.score for st in stats_arr]
+linfit = linreg_dropmissing(widths, example_exec.solution.t, scores)
+
+plot([b_with_missing, linfit(example_exec.solution.t)])
 
 # %%
 result = fit_traveling_wave_subset(example_exec)
