@@ -19,7 +19,7 @@
 # TODO: Needs parsing of filename for non-pkey params
 
 # %%
-using Simulation73, TravelingWaveSimulations, Plots, Optim
+using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra
 using DiffEqBase: AbstractTimeseriesSolution
 
 # %%
@@ -163,24 +163,31 @@ struct TravelingPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL},A_TIME<:AbstractArray{<:T
     peaks::A_PEAK
 end
 
+function linear_interpolate((x1,x2), (y1,y2), x)
+    @assert x1 <= x <= x2 || x2 <= x <= x1
+    y1 + (x - x1) * ((y2 - y1) / (x2 - x1)) 
+end
 struct StaticWaveStats{T_LOC,T_VAL}
     baseline::T_VAL
     amplitude::T_VAL
     width::Union{T_LOC,Missing}
     center::T_LOC
+    score::Float64
 end
 function StaticWaveStats(sp::StaticPeak{T_LOC,T_VAL}, wave_val, wave_space) where {T_LOC,T_VAL}
     baseline = min(sp.left.val, sp.right.val)
     amplitude = sp.apex.val - baseline
     half_max = amplitude / 2
-    width = if wave_val[1] > half_max || wave_val[end] > half_max
+    width = if wave_val[1] >= half_max || wave_val[end] >= half_max
         missing
     else
-        first = findfirst(wave_val .>= half_max)
-        last = findlast(wave_val .>= half_max)
-        wave_space[last] - wave_space[first]
+        first = findfirst(wave_val .>= half_max) # must be greater than 1
+        last = findlast(wave_val .>= half_max) # must be less than end
+        left = linear_interpolate(wave_val[[first-1,first]], wave_space[[first-1,first]], half_max)
+        right = linear_interpolate(wave_val[[last,last+1]], wave_space[[last,last+1]], half_max)
+        right - left
     end
-    return StaticWaveStats{T_LOC,T_VAL}(baseline, amplitude, width, sp.apex.loc)
+    return StaticWaveStats{T_LOC,T_VAL}(baseline, amplitude, width, sp.apex.loc, sp.score)
 end
 function static_wave_stats(frame::AbstractArray{T,1}, space::AbstractArray{T,1}) where T
     peak_idx_obj = peakiest_peak(frame)
@@ -311,7 +318,7 @@ end
 example_frame = population(example_exec.solution.u[10], 1)
 example_coords = [x[1] for x in example_exec.solution.x]
 plot(space(example_exec), example_frame) |> display
-stats(example_frame, example_coords)
+static_wave_stats(example_frame, example_coords)
 # plot!(space(example_exec), [0.0, (Dx(example_frame) .< 0)...])
 #plot!(space(example_exec), [0.0, (Dx(Dx(example_frame)) .< 0)...,0.0])
 # plot!(space(example_exec), [0.0, (Dx(Dx(Dx(example_frame))) .< 0)..., 0.0, 0.0])
@@ -340,7 +347,14 @@ plot!(space(example_exec), sech2(coord_tuples, Optim.minimizer(fit))) |> display
 # plot([log(norm(fit.resid) / abs(fit.param[1])) for fit in fits]) |> display
 plot([peakiest_peak(population(frame,1),10).score for frame in example_exec.solution.u]) |> display
 stats_arr = static_wave_stats.(population.(example_exec.solution.u,1), Ref(example_coords))
-plot([st.width for st in stats_arr])
+b_with_missing = [st.width for st in stats_arr]
+A_with_missing = [example_exec.solution.t ones(size(example_exec.solution.t)...)]
+valid = .!ismissing.(b_with_missing)
+A = A_with_missing[valid,:]
+b = b_with_missing[valid]
+W = diagm([st.score for st in stats_arr[valid]])
+x = (A' * W * A) \ (A' * W * b)
+plot([b_with_missing, (A_with_missing * x)])
 
 # %%
 result = fit_traveling_wave_subset(example_exec)
