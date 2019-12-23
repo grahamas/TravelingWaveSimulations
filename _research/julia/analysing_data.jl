@@ -19,7 +19,7 @@
 # TODO: Needs parsing of filename for non-pkey params
 
 # %%
-using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra
+using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances
 using DiffEqBase: AbstractTimeseriesSolution
 
 # %%
@@ -189,12 +189,49 @@ function StaticWaveStats(sp::StaticPeak{T_LOC,T_VAL}, wave_val, wave_space) wher
     end
     return StaticWaveStats{T_LOC,T_VAL}(baseline, amplitude, width, sp.apex.loc, sp.score)
 end
-function static_wave_stats(frame::AbstractArray{T,1}, space::AbstractArray{T,1}) where T
+function StaticWaveStats(frame::AbstractArray{T,1}, space::AbstractArray{T,1}) where T
     peak_idx_obj = peakiest_peak(frame)
     peak_val = frame[peak_idx_obj.left.loc:peak_idx_obj.right.loc]
     peak_space = space[peak_idx_obj.left.loc:peak_idx_obj.right.loc]
     peak_obj = from_idx_to_space(peak_idx_obj, space)
     StaticWaveStats(peak_obj, peak_val, peak_space)
+end
+
+function calc_err(data, fit, x, w)
+    notmissing = .!ismissing.(data)
+    weuclidean(data[notmissing], fit(x[notmissing]), w[notmissing]) / sum(notmissing)
+end
+struct FitErr{T}
+    fit::LinearFit
+    err::T
+end
+FitErr(y, lf::LinearFit, x, w::AbstractArray{T}) where T = FitErr{T}(lf, calc_err(y, lf, x, w))
+struct TravelingWaveStats{T_LOC,T_VAL}
+    width::FitErr{T_LOC}
+    center::FitErr{T_LOC}
+    amplitude::FitErr{T_VAL}
+end
+function TravelingWaveStats(stats_arr::AbstractArray{<:StaticWaveStats{T_LOC,T_VAL}}, t) where {T_LOC,T_VAL}
+    widths = [st.width for st in stats_arr]
+    centers = [st.center for st in stats_arr]
+    amplitudes = [st.amplitude for st in stats_arr]
+
+    scores = [st.score for st in stats_arr]
+    width_linfit = linreg_dropmissing(widths, t, scores)
+    center_linfit = linreg_dropmissing(centers, t, scores)
+    amplitude_linfit = linreg_dropmissing(amplitudes, t, scores)
+    TravelingWaveStats(FitErr(widths, width_linfit, t, scores), 
+        FitErr(centers, center_linfit, t, scores),
+        FitErr(amplitudes, amplitude_linfit, t, scores))
+end
+# TODO: don't rely on 1D traveling wave
+function TravelingWaveStats(exec::Execution)
+    u = exec.solution.u
+    t = exec.solution.t
+    x = [x[1] for x in exec.solution.x]
+    
+    static_stats = static_wave_stats.(population.(u,1), Ref(x))
+    TravelingWaveStats(static_stats, t)
 end
 
 struct LinearFit{X}
@@ -333,7 +370,7 @@ end
 # end
 
 
-# %%
+# %% jupyter={"source_hidden": true}
 example_frame = population(example_exec.solution.u[10], 1)
 example_coords = [x[1] for x in example_exec.solution.x]
 plot(space(example_exec), example_frame) |> display
@@ -364,7 +401,7 @@ plot!(space(example_exec), sech2(coord_tuples, Optim.minimizer(fit))) |> display
 # plot([fit.param[3] for fit in fits]) |> display
 # plot([norm(fit.resid) for fit in fits]) |> display
 # plot([log(norm(fit.resid) / abs(fit.param[1])) for fit in fits]) |> display
-stats_arr = static_wave_stats.(population.(example_exec.solution.u,1), Ref(example_coords))
+stats_arr = StaticWaveStats.(population.(example_exec.solution.u,1), Ref(example_coords))
 t = example_exec.solution.t
 widths = [st.width for st in stats_arr]
 amplitudes = [st.amplitude for st in stats_arr]
@@ -375,16 +412,13 @@ width_linfit = linreg_dropmissing(widths, t, scores)
 amplitude_linfit = linreg_dropmissing(amplitudes, t, scores)
 center_linfit = linreg_dropmissing(centers, t, scores)
 
-plot([scores, [score .> 0.0001 ? score : missing for score in scores]]) |> display
-plot([widths, width_linfit(t)]) |> display
-plot([amplitudes, amplitude_linfit(t)]) |> display
-plot([centers, center_linfit(t)]) |> display
-@show width_linfit
-@show amplitude_linfit
-@show center_linfit
+# plot([scores, [score .> 0.0001 ? score : missing for score in scores]]) |> display
+# plot([widths, width_linfit(t)]) |> display
+# plot([amplitudes, amplitude_linfit(t)]) |> display
+# plot([centers, center_linfit(t)]) |> display
 
-# %%
-@show scores
+traveling_stats = TravelingWaveStats(example_exec)
+
 
 # %%
 result = fit_traveling_wave_subset(example_exec)
