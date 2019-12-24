@@ -42,7 +42,7 @@ function load_data(data_root, example_name, nth::Int)
     sims = readdir(ex_path)
     sorted_sims = sort(joinpath.(Ref(ex_path), sims), by=mtime)
     sim_path = sorted_sims[nth]
-    return (get_example(example_name), @lazy map(_load_data, joinpath.(Ref(sim_path), readdir(sim_path))))
+    return (get_example(example_name), MultiDB(joinpath.(Ref(sim_path), readdir(sim_path))))
 end
 
 macro ifsomething(ex)
@@ -52,42 +52,141 @@ macro ifsomething(ex)
         result
     end
 end
-struct MultiDBRowIter
-    dbs
+
+struct MultiDB
+    fns
 end
-function _get_row(dbs, db, dbs_state, row_state...)
-    row_tuple = iterate(db, row_state...)
-    while row_tuple === nothing
-        db, dbs_state = @ifsomething iterate(dbs)
-        row_tuple = iterate(db)
+function parse_mod_val(val)
+    parse(Float64, val)
+end
+function parse_mod_val(val1, val2)
+    parse(Float64, val1):parse(Float64, val2)
+end
+function parse_mod_val(val1, val2, val3)
+    parse(Float64, val1):parse(Float64, val2):parse(Float64, val3)
+end
+function parse_mod(str)
+    mod_name, mod_range = split(str, "=")
+    return (Symbol(mod_name), parse_mod_val(split(mod_range,":")...))
+end
+function get_mods(fn::String)
+    sim_name = splitpath(fn)[end-1]
+    @warn "Working on $sim_name..."
+    mods_str = split(sim_name, "_20")[1]
+    mods_str_arr = split(mods_str, ";")
+    mod_tuples = map(parse_mod, mods_str_arr)
+    mod_dict = Dict(map((x) -> Pair(x...), mod_tuples)...)   
+end
+function get_mods(mdb::MultiDB)
+    @assert all(map((path) -> splitpath(path)[end-1], mdb.fns) .== splitpath(mdb.fns[1])[end-1])
+    get_mods(mdb.fns[1])
+end
+Base.length(mdb::MultiDB) = length(mdb.fns)
+function Base.iterate(mdb::MultiDB, fns_state...)
+    (next_fn, new_state) = @ifsomething iterate(mdb.fns, fns_state...)
+    (_load_data(next_fn), new_state)
+end
+
+struct DBExecIter
+    example
+    db
+    constant_mods
+end
+Base.length(it::DBExecIter) = length(it.db)
+function Base.iterate(it::DBExecIter, ((keydb, valdb), (keydb_state, valdb_state)))
+    key, keydb_state = @ifsomething iterate(keydb, (keydb_state...,))
+    val, valdb_state = iterate(valdb, (valdb_state...,))
+    model = it.example(; key..., it.constant_mods...)
+    exec = Execution(model, BareSolution(; val...))
+    return ((key, exec), ((keydb, valdb), (keydb_state, valdb_state)))
+end
+function Base.iterate(it::DBExecIter)
+    keydb = select(it.db, Keys())
+    valdb = select(it.db, Not(Keys()))
+    key, keydb_state = @ifsomething iterate(keydb)
+    val, valdb_state = iterate(valdb)
+    model = it.example(; key..., it.constant_mods...)
+    exec = Execution(model, BareSolution(; val...))
+    return ((key, exec), ((keydb, valdb), (keydb_state, valdb_state)))
+end
+    
+
+struct MultiDBExecIter
+    example
+    dbs::MultiDB
+    constant_mods
+end
+function Base.iterate(it::MultiDBExecIter, (dbs_state, (db_iter, db_state)))
+    exec_tuple = iterate(db_iter, db_state...)
+    while exec_tuple === nothing
+        db, dbs_state = @ifsomething iterate(it.dbs, dbs_state)
+        db_iter = DBExecIter(db)
+        exec_tuple = iterate(db_iter)
     end
-    (row, row_state) = row_tuple
-    return (row, (dbs_state, db, row_state))
+    exec, db_state = exec_tuple
+    return (exec, (dbs_state, (db_iter, db_state)))
 end
-function iterate(it::MultiDBRowIter)
+function Base.iterate(it::MultiDBExecIter)
     (db, dbs_state) = @ifsomething iterate(it.dbs)
-    return _get_row(it.dbs, db, dbs_state)
+    db_iter = DBExecIter(it.example, db, it.constant_mods)
+    return iterate(it, (dbs_state, (db_iter,())))
 end
-function iterate(it::MultiDBRowIter, (db_state, db, row_state))
-    return _get_row(it.dbs, db, dbs_state, row_state)
+    
+function mod_idx(particular_keys, particular_values, range_keys, range_values)
+    idxs = Array{Int}(undef, length(particular_keys))
+    for (idx, (pk, pv)) in enumerate(zip(particular_keys, particular_values))
+        keydx = findfirst(range_keys .== pk)
+        if keydx === nothing
+            @show range_keys
+            @show pk
+        end
+        idxs[idx] = findfirst(range_values[keydx] .== pv)
+    end
+    return CartesianIndex(idxs...)
 end
     
 
 
 # %%
-(example, dbs) = load_data(data_root, "sigmoid_normal_fft");
+(example, mdb) = load_data(data_root, "sigmoid_normal_fft", 3);
 
 # %%
-n_db = 5
-keys1 = select(dbs[n_db], Keys())
-vals1 = select(dbs[n_db], Not(Keys()))
+# mdb_execs = MultiDBExecIter(example, dbs, ())
+GC.gc()
+mods = get_mods(mdb)
+mod_names = keys(mods) |> collect
+mod_values = values(mods) |> collect
+A_is_traveling = Array{Bool}(undef, length.(values(mods))...)
+for db in mdb
+    for (this_mod, exec) in DBExecIter(example, db, ())
+        this_mod_key = keys(this_mod)
+        this_mod_val = values(this_mod)
+        A_idx = mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
+        tws = TravelingWaveStats(exec);
+        if tws === nothing
+            A_is_traveling[A_idx] = false
+        else
+            A_is_traveling[A_idx] = true
+        end
+    end
+end
 
 # %%
-n=5
-mdl1 = example(; keys1[n]...)
-example_exec = Execution(mdl1, BareSolution(; vals1[n]...));
+@show any(A_is_traveling)
+@show all(A_is_traveling)
 
-# %% collapsed=true jupyter={"outputs_hidden": true}
+# %% jupyter={"source_hidden": true, "outputs_hidden": true} collapsed=true
+# SECOND TIME
+macro summarysizeall()
+    allnames = names(Main)
+    allsizes = [:(Base.summarysize($name)) for name in allnames]
+    quote
+        @show $(allsizes...)
+    end
+end
+@summarysizeall
+
+# %% collapsed=true jupyter={"outputs_hidden": true, "source_hidden": true}
 anim1 = custom_animate(example_exec)
 mp4(anim1, "tmp/tmp.mp4")
 
@@ -148,6 +247,11 @@ struct Value{T_LOC,T_VAL}
     val::T_VAL
 end
 from_idx_to_space(val::Value, space) = Value(space[val.loc], val.val)
+struct LinearFit{X}
+    x::X
+end
+(lr::LinearFit)(a) = make_matrix(LinearFit, a) * lr.x
+make_matrix(::Type{LinearFit}, a) = [a ones(size(a,1))]
 struct StaticPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}}
     left::V
     apex::V
@@ -206,10 +310,14 @@ struct FitErr{T}
     err::T
 end
 FitErr(y, lf::LinearFit, x, w::AbstractArray{T}) where T = FitErr{T}(lf, calc_err(y, lf, x, w))
+function Base.print(io::IO, fe::FitErr)
+    print(io, "$(fe.fit); error: $(fe.err)")
+end
 struct TravelingWaveStats{T_LOC,T_VAL}
     width::FitErr{T_LOC}
     center::FitErr{T_LOC}
     amplitude::FitErr{T_VAL}
+    score::T_VAL
 end
 function TravelingWaveStats(stats_arr::AbstractArray{<:StaticWaveStats{T_LOC,T_VAL}}, t) where {T_LOC,T_VAL}
     widths = [st.width for st in stats_arr]
@@ -217,12 +325,17 @@ function TravelingWaveStats(stats_arr::AbstractArray{<:StaticWaveStats{T_LOC,T_V
     amplitudes = [st.amplitude for st in stats_arr]
 
     scores = [st.score for st in stats_arr]
+    if norm(scores) < 1e-2 # roughly, less than 1% of the run contains TW
+        return nothing # can't try fitting; singular
+    end
+    @show norm(scores)
     width_linfit = linreg_dropmissing(widths, t, scores)
     center_linfit = linreg_dropmissing(centers, t, scores)
     amplitude_linfit = linreg_dropmissing(amplitudes, t, scores)
     TravelingWaveStats(FitErr(widths, width_linfit, t, scores), 
         FitErr(centers, center_linfit, t, scores),
-        FitErr(amplitudes, amplitude_linfit, t, scores))
+        FitErr(amplitudes, amplitude_linfit, t, scores),
+        norm(scores))
 end
 # TODO: don't rely on 1D traveling wave
 function TravelingWaveStats(exec::Execution)
@@ -230,16 +343,19 @@ function TravelingWaveStats(exec::Execution)
     t = exec.solution.t
     x = [x[1] for x in exec.solution.x]
     
-    static_stats = static_wave_stats.(population.(u,1), Ref(x))
+    static_stats = StaticWaveStats.(population.(u,1), Ref(x))
     TravelingWaveStats(static_stats, t)
 end
-
-struct LinearFit{X}
-    x::X
+function Base.show(io::IO, ::MIME"text/plain", tws::TravelingWaveStats)
+    println(io, "$(typeof(tws)):")
+    for fname in fieldnames(TravelingWaveStats)
+        println(io, "    $fname = $(getfield(tws,fname))")
+    end
 end
-(lr::LinearFit)(a) = make_matrix(LinearFit, a) * lr.x
-make_matrix(::Type{LinearFit}, a) = [a ones(size(a,1))]
+
+
 function linreg_dropmissing(b_with_missing, A_with_missing, weights)
+    # Ax = b
     A_with_missing = make_matrix(LinearFit, A_with_missing)
     notmissing = .!ismissing.(b_with_missing) .& (b_with_missing .> 0.0001)
     A = A_with_missing[notmissing,:]
@@ -303,7 +419,7 @@ function peakiest_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10) where {T<
     return max_peak
 end
 
-# %% jupyter={"source_hidden": true}
+# %%
 using LsqFit, LinearAlgebra
 function sech2(x::AbstractArray{T}, p) where {T<:NTuple{1}}
     x1s = [y[1] for y in x]
@@ -370,18 +486,18 @@ end
 # end
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 example_frame = population(example_exec.solution.u[10], 1)
 example_coords = [x[1] for x in example_exec.solution.x]
 plot(space(example_exec), example_frame) |> display
-static_wave_stats(example_frame, example_coords)
+StaticWaveStats(example_frame, example_coords)
 # plot!(space(example_exec), [0.0, (Dx(example_frame) .< 0)...])
 #plot!(space(example_exec), [0.0, (Dx(Dx(example_frame)) .< 0)...,0.0])
 # plot!(space(example_exec), [0.0, (Dx(Dx(Dx(example_frame))) .< 0)..., 0.0, 0.0])
 #plot!(space(example_exec), [0.0, 0.0, (Dx(example_frame) .< 0)..., 0.0, 0.0])
 #@show solitary_peak(example_frame)
 
-# %% collapsed=true jupyter={"outputs_hidden": true, "source_hidden": true}
+# %% collapsed=true jupyter={"outputs_hidden": true}
 example_frame = population(example_exec.solution.u[35], 1)
 @show example_frame[end-30]
 coord_tuples = example_exec.solution.x
@@ -412,13 +528,13 @@ width_linfit = linreg_dropmissing(widths, t, scores)
 amplitude_linfit = linreg_dropmissing(amplitudes, t, scores)
 center_linfit = linreg_dropmissing(centers, t, scores)
 
-# plot([scores, [score .> 0.0001 ? score : missing for score in scores]]) |> display
-# plot([widths, width_linfit(t)]) |> display
-# plot([amplitudes, amplitude_linfit(t)]) |> display
-# plot([centers, center_linfit(t)]) |> display
+plot([scores, [score .> 0.0001 ? score : missing for score in scores]], title="\"peakiness\" score") |> display
+plot([widths, width_linfit(t)], title="width") |> display
+plot([amplitudes, amplitude_linfit(t)], title="amplitude") |> display
+plot([centers, center_linfit(t)], title="center") |> display
 
 traveling_stats = TravelingWaveStats(example_exec)
-
+@show traveling_stats
 
 # %%
 result = fit_traveling_wave_subset(example_exec)
