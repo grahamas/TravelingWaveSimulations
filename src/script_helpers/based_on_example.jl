@@ -139,6 +139,8 @@ function catch_for_saving(results_channel, data_path, pkeys, n_batches)
         @show counter
         all_failures = push_namedtuple!(all_failures, these_failures)
         JuliaDB.save(table(these_data, pkey=pkeys), joinpath(data_path,"$(counter).jdb"))
+        these_data = nothing; these_failures = nothing
+        GC.gc()
         counter += 1
         n_remaining_batches -= 1
     end
@@ -163,6 +165,7 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
     task = @distributed for modifications_batch in collect(batches)
         results = nothing
         failures = nothing
+        GC.gc()
         for modification in modifications_batch
             mod_name, execution = execute_single_modification(example, modification)
             these_params = extract_params_tuple(modification, pkeys)
