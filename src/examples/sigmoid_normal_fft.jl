@@ -8,7 +8,7 @@
 # ioS: inhibitory output spread scale
 # iiA: inhibitory input amplitude scale
 # iiS: inhibitory input spread scale
-ABS_STOP = 9000.0
+ABS_STOP = 300.0
 @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
                                                      Aee=24.0, See=25.0,
                                                      Aii=4.0, Sii=27.0,
