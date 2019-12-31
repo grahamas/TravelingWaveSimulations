@@ -4,7 +4,7 @@ MOD_SEP = "+"
 
 parse_num(str) = try
         parse(Int, str)
-    catch
+    catch e
         parse(Float64, str)
     end
 

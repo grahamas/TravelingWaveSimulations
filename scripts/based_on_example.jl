@@ -1,3 +1,4 @@
+using InteractiveUtils
 if @isdefined nworkers
     @everywhere using DrWatson
     @everywhere quickactivate(@__DIR__, "TravelingWaveSimulations")
@@ -37,8 +38,12 @@ arg_settings = ArgParseSettings(; autofix_names = true)
         arg_type = Int
     "--max-sims-in-mem"
         arg_type = Int
+    "--backup-paths"
+        nargs = '*'
+        help = "Locations to copy the data to after completion (scp)"
 end
 
+@show (versioninfo())
 @warn "$ARGS"
 args = parse_args(ARGS, arg_settings; as_symbols=true)
 @warn "$args"

@@ -30,7 +30,9 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         modifications::AbstractArray=[],
         analyses::AbstractArray=[],
         batch=DEFAULT_SAVE_BATCH_SIZE,
-        max_sims_in_mem=nothing)
+        max_sims_in_mem=nothing,
+        backup_paths=[],
+        progress=false)
 
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
@@ -52,16 +54,19 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     example = get_example(example_name)
     if !(@isdefined nprocs) || nprocs() == 1
         @warn "Not parallelizing parameter sweep."
-        failures = execute_modifications_serial(example, modifications, analyses, data_path, analyses_path, no_save_raw)
+        failures = execute_modifications_serial(example, modifications, analyses, data_path, analyses_path, no_save_raw, progress)
         @show failures
     else
         @warn "Parallelizing parameter sweep."
         if no_save_raw
-            failures = execute_modifications_parallel_nosaving(example, modifications, analyses, data_path, analyses_path, batch)
+            failures = execute_modifications_parallel_nosaving(example, modifications, analyses, data_path, analyses_path, batch, progress)
         else
-            failures = execute_modifications_parallel_saving(example, modifications, analyses, data_path, analyses_path, batch, max_sims_in_mem)
+            failures = execute_modifications_parallel_saving(example, modifications, analyses, data_path, analyses_path, batch, max_sims_in_mem, progress)
         end
         @show failures
+    end
+    for backup_path in backup_paths
+        run(`scp -r $data_path $backup_path`)
     end
 end
 
@@ -102,7 +107,7 @@ function mods_to_pkeys(modifications)
     pkeys = filter((x) -> !(modifications[1][x] === nothing), pkeys)
 end
 function execute_modifications_serial(example, modifications::Array{<:Dict}, analyses,
-        data_path::String, analyses_path::String, no_save_raw)
+        data_path::String, analyses_path::String, no_save_raw, progress=false)
     # FIXME: Needs to incorporate batching
     pkeys = mods_to_pkeys(modifications)
     data_namedtuple = nothing
@@ -128,7 +133,7 @@ function execute_modifications_serial(example, modifications::Array{<:Dict}, ana
     end
     return failures
 end
-function catch_for_saving(results_channel, data_path, pkeys, n_batches)
+function catch_for_saving(results_channel, data_path, pkeys, n_batches, progress=false)
     @show data_path
     mkpath(data_path)
     n_remaining_batches = n_batches
@@ -141,6 +146,9 @@ function catch_for_saving(results_channel, data_path, pkeys, n_batches)
         JuliaDB.save(table(these_data, pkey=pkeys), joinpath(data_path,"$(counter).jdb"))
         these_data = nothing; these_failures = nothing
         GC.gc()
+        if progress
+            println("batches completed: $(counter) / $(n_batches)")
+        end
         counter += 1
         n_remaining_batches -= 1
     end
@@ -149,7 +157,7 @@ end
 
 Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
 function execute_modifications_parallel_saving(example, modifications::Array{<:Dict}, analyses,
-        data_path::String, analyses_path::String, max_batch_size, max_sims_in_mem::Int)
+        data_path::String, analyses_path::String, max_batch_size, max_sims_in_mem::Int, progress=false)
     parallel_batch_size = min(max_batch_size, ceil(Int, length(modifications) / (nprocs() - 1)))
     pkeys = mods_to_pkeys(modifications)
     @show length(modifications)
@@ -161,7 +169,7 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
     n_batches = length(batches)
     @show n_batches
     results_channel = RemoteChannel(() -> Channel{Tuple}(max_held_batches))
-    failures = @spawnat :any catch_for_saving(results_channel, data_path, pkeys, n_batches)
+    failures = @spawnat :any catch_for_saving(results_channel, data_path, pkeys, n_batches, progress)
     task = @distributed for modifications_batch in collect(batches)
         results = nothing
         failures = nothing
@@ -183,12 +191,12 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
     return fetch(failures)
 end
 function execute_modifications_parallel_nosaving(example, modifications::Array{<:Dict}, analyses,
-        data_path::String, analyses_path::String, parallel_batch_size)
+        data_path::String, analyses_path::String, parallel_batch_size, progress=false)
     pkeys = mods_to_pkeys(modifications)
-    results_channel = RemoteChannel(() -> Channel{NamedTuple}(2 * nworkers()))
+    results_channel = RemoteChannel(() -> Channel{NamedTuple}(10 * nworkers()))
     batches = Iterators.partition(modifications, parallel_batch_size)
     n_batches = length(batches)
-    @sync @distributed for modifications_batch in collect(batches)
+    task = @async @distributed for modifications_batch in collect(batches)
         failures = nothing
         for modification in modifications_batch
             mod_name, execution = execute_single_modification(example, modification)
@@ -207,7 +215,12 @@ function execute_modifications_parallel_nosaving(example, modifications::Array{<
         these_failures = take!(results_channel)
         all_failures = push_namedtuple!(all_failures, these_failures)
         n_remaining_batches -= 1
+        if progress
+            done_batches = n_batches - n_remaining_batches
+            println("batches completed: $(done_batches) / $(n_batches)")
+        end
     end
+    @show fetch(task)
     return all_failures
 end
 function merge_ddb(::Nothing, tbl)

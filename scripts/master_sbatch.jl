@@ -53,6 +53,12 @@ function parse_commandline(args)
             help="minnodes[-maxnodes]"
         "--max-sims-in-mem"
             help="Limit the number of bare simulations held in memory by a single task"
+        "--julia-exe"
+            help="Julia to call"
+            default="julia"
+        "--backup-paths"
+            nargs = '*'
+            help = "Locations to copy saved results via scp"
     end
     return parse_args(args, arg_settings; as_symbols = false)
 end
@@ -80,7 +86,8 @@ end
 function sbatch_script(ARGS)
     args = parse_commandline(ARGS)
 
-    ntasks = get(args, "ntasks", 1)
+    julia_exe = pop!(args, "julia-exe")
+    ntasks = args["ntasks"] # Needed below
     
     project_root = pop!(args, "project-root")
     base_example = pop!(args, "base-example")
@@ -93,7 +100,7 @@ function sbatch_script(ARGS)
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
     sbatch_args["job-name"] = base_example
 
-    script_arg_names = ["mod", "analyses", "data-root", "batch", "max-sims-in-mem"]
+    script_arg_names = ["mod", "analyses", "data-root", "batch", "max-sims-in-mem", "backup-paths"]
     script_args = pop_args!(args, script_arg_names)
     remaining_args = args
     @show remaining_args
@@ -111,11 +118,11 @@ function sbatch_script(ARGS)
 
     sbatch_script = """#!/bin/bash
     cd $(project_root)
-    julia $p_args $(script_path) $(single_arg_str(script_args))
+    $(julia_exe) $p_args $(script_path) $(single_arg_str(script_args))
     cat $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stderr")) $(joinpath(script_output_dir, "\${SLURM_JOB_ID}.stdout")) | /usr/bin/mail -s \${SLURM_JOB_NAME} $(sbatch_args["mail-user"])
     """
     @show sbatch_script
-
+    run(`echo "Starting job, using julia exec: $julia_exe"`)
     run(pipeline(`echo $sbatch_script`, `sbatch $(arg_str_list(sbatch_args))`))
 end
 
