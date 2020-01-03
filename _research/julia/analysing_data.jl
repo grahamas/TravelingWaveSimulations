@@ -10,7 +10,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.3.0
 #   kernelspec:
-#     display_name: Julia 1.3.0
+#     display_name: Julia 1.3.1
 #     language: julia
 #     name: julia-1.3
 # ---
@@ -19,144 +19,31 @@
 # TODO: Needs parsing of filename for non-pkey params
 
 # %%
-using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances
+using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
+    IterTools
 using DiffEqBase: AbstractTimeseriesSolution
 
 # %%
-using Lazy, JuliaDB
 
+# %%
+
+# %%
+# Load most recent simulation data
 data_root = joinpath(homedir(), "sim_data")
-
-function _load_data(sim_path)
-    @warn "loading"
-   JuliaDB.load(sim_path)
-end
-"Load most recent simulation"
-function load_data(data_root, example_name)
-    nsims = length(readdir(joinpath(data_root, example_name)))
-    load_data(data_root, example_name, nsims)
-end
-"Load nth simulation, ordered by time"
-function load_data(data_root, example_name, nth::Int)
-    ex_path = joinpath(data_root, example_name)
-    sims = readdir(ex_path)
-    sorted_sims = sort(joinpath.(Ref(ex_path), sims), by=mtime)
-    sim_path = sorted_sims[nth]
-    return (get_example(example_name), MultiDB(joinpath.(Ref(sim_path), readdir(sim_path))))
-end
-
-macro ifsomething(ex)
-    quote
-        result = $(esc(ex))
-        result === nothing && return nothing
-        result
-    end
-end
-
-struct MultiDB
-    fns
-end
-function parse_mod_val(val)
-    parse(Float64, val)
-end
-function parse_mod_val(val1, val2)
-    parse(Float64, val1):parse(Float64, val2)
-end
-function parse_mod_val(val1, val2, val3)
-    parse(Float64, val1):parse(Float64, val2):parse(Float64, val3)
-end
-function parse_mod(str)
-    mod_name, mod_range = split(str, "=")
-    return (Symbol(mod_name), parse_mod_val(split(mod_range,":")...))
-end
-function get_mods(fn::String)
-    sim_name = splitpath(fn)[end-1]
-    @warn "Working on $sim_name..."
-    mods_str = split(sim_name, "_20")[1]
-    mods_str_arr = split(mods_str, ";")
-    mod_tuples = map(parse_mod, mods_str_arr)
-    mod_dict = Dict(map((x) -> Pair(x...), mod_tuples)...)   
-end
-function get_mods(mdb::MultiDB)
-    @assert all(map((path) -> splitpath(path)[end-1], mdb.fns) .== splitpath(mdb.fns[1])[end-1])
-    get_mods(mdb.fns[1])
-end
-Base.length(mdb::MultiDB) = length(mdb.fns)
-function Base.iterate(mdb::MultiDB, fns_state...)
-    (next_fn, new_state) = @ifsomething iterate(mdb.fns, fns_state...)
-    (_load_data(next_fn), new_state)
-end
-
-struct DBExecIter
-    example
-    db
-    constant_mods
-end
-Base.length(it::DBExecIter) = length(it.db)
-function Base.iterate(it::DBExecIter, ((keydb, valdb), (keydb_state, valdb_state)))
-    key, keydb_state = @ifsomething iterate(keydb, (keydb_state...,))
-    val, valdb_state = iterate(valdb, (valdb_state...,))
-    model = it.example(; key..., it.constant_mods...)
-    exec = Execution(model, BareSolution(; val...))
-    return ((key, exec), ((keydb, valdb), (keydb_state, valdb_state)))
-end
-function Base.iterate(it::DBExecIter)
-    keydb = select(it.db, Keys())
-    valdb = select(it.db, Not(Keys()))
-    key, keydb_state = @ifsomething iterate(keydb)
-    val, valdb_state = iterate(valdb)
-    model = it.example(; key..., it.constant_mods...)
-    exec = Execution(model, BareSolution(; val...))
-    return ((key, exec), ((keydb, valdb), (keydb_state, valdb_state)))
-end
-    
-
-struct MultiDBExecIter
-    example
-    dbs::MultiDB
-    constant_mods
-end
-function Base.iterate(it::MultiDBExecIter, (dbs_state, (db_iter, db_state)))
-    exec_tuple = iterate(db_iter, db_state...)
-    while exec_tuple === nothing
-        db, dbs_state = @ifsomething iterate(it.dbs, dbs_state)
-        db_iter = DBExecIter(db)
-        exec_tuple = iterate(db_iter)
-    end
-    exec, db_state = exec_tuple
-    return (exec, (dbs_state, (db_iter, db_state)))
-end
-function Base.iterate(it::MultiDBExecIter)
-    (db, dbs_state) = @ifsomething iterate(it.dbs)
-    db_iter = DBExecIter(it.example, db, it.constant_mods)
-    return iterate(it, (dbs_state, (db_iter,())))
-end
-    
-function mod_idx(particular_keys, particular_values, range_keys, range_values)
-    idxs = Array{Int}(undef, length(particular_keys))
-    for (idx, (pk, pv)) in enumerate(zip(particular_keys, particular_values))
-        keydx = findfirst(range_keys .== pk)
-        if keydx === nothing
-            @show range_keys
-            @show pk
-        end
-        idxs[idx] = findfirst(range_values[keydx] .== pv)
-    end
-    return CartesianIndex(idxs...)
-end
-    
-
+(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft");
+example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
+sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
 # %%
-(example, mdb) = load_data(data_root, "sigmoid_normal_fft", 3);
-
-# %%
+# Analyse and extract twscore
 # mdb_execs = MultiDBExecIter(example, dbs, ())
 GC.gc()
-mods = get_mods(mdb)
+mods = TravelingWaveSimulations.get_mods(mdb)
 mod_names = keys(mods) |> collect
 mod_values = values(mods) |> collect
 A_is_traveling = Array{Bool}(undef, length.(values(mods))...)
+A_velocity= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
+A_velocity_errors= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 for db in mdb
     for (this_mod, exec) in DBExecIter(example, db, ())
         this_mod_key = keys(this_mod)
@@ -165,17 +52,74 @@ for db in mdb
         tws = TravelingWaveStats(exec);
         if tws === nothing
             A_is_traveling[A_idx] = false
+            A_velocity[A_idx] = missing
+            A_velocity_errors[A_idx] = missing
         else
             A_is_traveling[A_idx] = true
+            A_velocity[A_idx] = velocity(tws)
+            A_velocity_errors[A_idx] = tws.center.err
         end
     end
 end
+@show sum(ismissing.(A_velocity))
+@show prod(size(A_velocity))
 
 # %%
-@show any(A_is_traveling)
-@show all(A_is_traveling)
+function mean_skip_missing(A; dims)
+    missings = ismissing.(A)
+    zeroed = copy(A)
+    zeroed[missings] .= 0
+    nonmissingsum = sum(zeroed; dims=dims)
+    nonmissingmean = nonmissingsum ./ sum(.!missings; dims=dims)
+    return nonmissingmean
+end
+all_dims = 1:length(mod_names)
+for (x,y) in IterTools.subsets(all_dims, Val{2}())
+    collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
+    is_traveling = dropdims(mean_skip_missing(A_is_traveling, dims=collapsed_dims), dims=collapsed_dims)
+    velocities = dropdims(mean_skip_missing(A_velocity, dims=collapsed_dims), dims=collapsed_dims)
+    velocity_errors = dropdims(mean_skip_missing(A_velocity_errors, dims=collapsed_dims), dims=collapsed_dims)
+    prop_notmissing = dropdims(mean(.!ismissing.(A_velocity), dims=collapsed_dims), dims=collapsed_dims)
+    plot(
+        #heatmap(mod_values[x], mod_values[y], is_traveling, xlab=mod_names[x], ylab=mod_names[y], title="\"peakiness\" avgd across other spreads"),
+        heatmap(mod_values[x], mod_values[y], velocities, xlab=mod_names[x], ylab=mod_names[y], title="velocity avgd"),
+        heatmap(mod_values[x], mod_values[y], velocity_errors, xlab=mod_names[x], ylab=mod_names[y], title="error"),
+        heatmap(mod_values[x], mod_values[y], prop_notmissing, xlab=mod_names[x], ylab=mod_names[y], title="prop not missing")
+        ) |> display
+    path = "tmp/$(example_name)/$(sim_name)/$(mod_names[x])_$(mod_names[y])_centerfiterror.png"
+    mkpath(dirname(path))
+    png(path)
+end
 
-# %% jupyter={"source_hidden": true, "outputs_hidden": true} collapsed=true
+# %% collapsed=true jupyter={"outputs_hidden": true}
+function satisfies_criteria(exec, mod_keys, mod_vals, (param_criteria, tws_criterion))
+    satisfies_params = all( param_criterion(mod_vals[findfirst(mod_keys .== param)])
+        for (param, param_criterion) in param_criteria
+    )
+    if satisfies_params
+        tws = TravelingWaveStats(exec)
+        if tws_criterion(tws)
+            return true
+        end
+    end
+    return false
+end
+    
+
+criteria = ([(:Sei, (x) -> x >= 34),(:See, (x) -> x <= 16)], (tws) -> velocity(tws) >= 15)
+for (this_mod, exec) in MultiDBExecIter(example, mdb, ())
+    this_mod_key = keys(this_mod)
+    this_mod_val = values(this_mod)
+    if satisfies_criteria(exec, this_mod_key, this_mod_val, criteria)
+        tws = TravelingWaveStats(exec)
+        params = join(["$name=$val" for (name,val) in zip(this_mod_key, this_mod_val)], "_")
+        anim = custom_animate(exec; title="$(params); vel=$(velocity(tws))")
+        mp4(anim, "tmp/$(example_name)/$(sim_name)/$(params).mp4")
+        break
+    end
+end
+
+# %% jupyter={"outputs_hidden": true} collapsed=true
 # SECOND TIME
 macro summarysizeall()
     allnames = names(Main)
@@ -186,11 +130,11 @@ macro summarysizeall()
 end
 @summarysizeall
 
-# %% collapsed=true jupyter={"outputs_hidden": true, "source_hidden": true}
+# %% collapsed=true jupyter={"outputs_hidden": true}
 anim1 = custom_animate(example_exec)
 mp4(anim1, "tmp/tmp.mp4")
 
-# %% jupyter={"source_hidden": true}
+# %% jupyter={"outputs_hidden": true} collapsed=true
 # working code
 
 function solitary_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10) where {T<:Number}
@@ -239,184 +183,6 @@ function solitary_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10) where {T<
         max_solitary_peakiness = max(max_solitary_peakiness, right_drop_proportion * left_drop_proportion)
     end
     return max_solitary_peakiness
-end
-
-# %%
-struct Value{T_LOC,T_VAL}
-    loc::T_LOC
-    val::T_VAL
-end
-from_idx_to_space(val::Value, space) = Value(space[val.loc], val.val)
-struct LinearFit{X}
-    x::X
-end
-(lr::LinearFit)(a) = make_matrix(LinearFit, a) * lr.x
-make_matrix(::Type{LinearFit}, a) = [a ones(size(a,1))]
-struct StaticPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}}
-    left::V
-    apex::V
-    right::V
-    score::T_VAL
-end
-StaticPeak(left::V, apex::V, right::V) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticPeak{T_LOC,T_VAL,V}(left,apex,right,peakiness(left,apex,right))
-StaticPeak(left::V, apex::V, right::V,score) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticPeak{T_LOC,T_VAL,V}(left,apex,right,score)
-const StaticPeakIdx = StaticPeak{Int}
-from_idx_to_space(sp::StaticPeakIdx, space) = StaticPeak(from_idx_to_space(sp.left,space), from_idx_to_space(sp.apex,space), from_idx_to_space(sp.right,space), sp.score)
-struct TravelingPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL},A_TIME<:AbstractArray{<:T_VAL}, A_PEAK<:AbstractArray{<:StaticPeak{<:V}}}
-    times::A_TIME
-    peaks::A_PEAK
-end
-
-function linear_interpolate((x1,x2), (y1,y2), x)
-    @assert x1 <= x <= x2 || x2 <= x <= x1
-    y1 + (x - x1) * ((y2 - y1) / (x2 - x1)) 
-end
-struct StaticWaveStats{T_LOC,T_VAL}
-    baseline::T_VAL
-    amplitude::T_VAL
-    width::Union{T_LOC,Missing}
-    center::T_LOC
-    score::Float64
-end
-function StaticWaveStats(sp::StaticPeak{T_LOC,T_VAL}, wave_val, wave_space) where {T_LOC,T_VAL}
-    baseline = min(sp.left.val, sp.right.val)
-    amplitude = sp.apex.val - baseline
-    half_max = amplitude / 2
-    width = if wave_val[1] >= half_max || wave_val[end] >= half_max
-        missing
-    else
-        first = findfirst(wave_val .>= half_max) # must be greater than 1
-        last = findlast(wave_val .>= half_max) # must be less than end
-        left = linear_interpolate(wave_val[[first-1,first]], wave_space[[first-1,first]], half_max)
-        right = linear_interpolate(wave_val[[last,last+1]], wave_space[[last,last+1]], half_max)
-        right - left
-    end
-    return StaticWaveStats{T_LOC,T_VAL}(baseline, amplitude, width, sp.apex.loc, sp.score)
-end
-function StaticWaveStats(frame::AbstractArray{T,1}, space::AbstractArray{T,1}) where T
-    peak_idx_obj = peakiest_peak(frame)
-    peak_val = frame[peak_idx_obj.left.loc:peak_idx_obj.right.loc]
-    peak_space = space[peak_idx_obj.left.loc:peak_idx_obj.right.loc]
-    peak_obj = from_idx_to_space(peak_idx_obj, space)
-    StaticWaveStats(peak_obj, peak_val, peak_space)
-end
-
-function calc_err(data, fit, x, w)
-    notmissing = .!ismissing.(data)
-    weuclidean(data[notmissing], fit(x[notmissing]), w[notmissing]) / sum(notmissing)
-end
-struct FitErr{T}
-    fit::LinearFit
-    err::T
-end
-FitErr(y, lf::LinearFit, x, w::AbstractArray{T}) where T = FitErr{T}(lf, calc_err(y, lf, x, w))
-function Base.print(io::IO, fe::FitErr)
-    print(io, "$(fe.fit); error: $(fe.err)")
-end
-struct TravelingWaveStats{T_LOC,T_VAL}
-    width::FitErr{T_LOC}
-    center::FitErr{T_LOC}
-    amplitude::FitErr{T_VAL}
-    score::T_VAL
-end
-function TravelingWaveStats(stats_arr::AbstractArray{<:StaticWaveStats{T_LOC,T_VAL}}, t) where {T_LOC,T_VAL}
-    widths = [st.width for st in stats_arr]
-    centers = [st.center for st in stats_arr]
-    amplitudes = [st.amplitude for st in stats_arr]
-
-    scores = [st.score for st in stats_arr]
-    if norm(scores) < 1e-2 # roughly, less than 1% of the run contains TW
-        return nothing # can't try fitting; singular
-    end
-    @show norm(scores)
-    width_linfit = linreg_dropmissing(widths, t, scores)
-    center_linfit = linreg_dropmissing(centers, t, scores)
-    amplitude_linfit = linreg_dropmissing(amplitudes, t, scores)
-    TravelingWaveStats(FitErr(widths, width_linfit, t, scores), 
-        FitErr(centers, center_linfit, t, scores),
-        FitErr(amplitudes, amplitude_linfit, t, scores),
-        norm(scores))
-end
-# TODO: don't rely on 1D traveling wave
-function TravelingWaveStats(exec::Execution)
-    u = exec.solution.u
-    t = exec.solution.t
-    x = [x[1] for x in exec.solution.x]
-    
-    static_stats = StaticWaveStats.(population.(u,1), Ref(x))
-    TravelingWaveStats(static_stats, t)
-end
-function Base.show(io::IO, ::MIME"text/plain", tws::TravelingWaveStats)
-    println(io, "$(typeof(tws)):")
-    for fname in fieldnames(TravelingWaveStats)
-        println(io, "    $fname = $(getfield(tws,fname))")
-    end
-end
-
-
-function linreg_dropmissing(b_with_missing, A_with_missing, weights)
-    # Ax = b
-    A_with_missing = make_matrix(LinearFit, A_with_missing)
-    notmissing = .!ismissing.(b_with_missing) .& (b_with_missing .> 0.0001)
-    A = A_with_missing[notmissing,:]
-    b = b_with_missing[notmissing]
-    W = diagm(weights[notmissing])
-    x = (A' * W * A) \ (A' * W * b)
-    return LinearFit(x)
-end
-    
-
-# Peakiness
-drop_proportion(apex::Value, nadir::Value) = ((apex.val - nadir.val) / apex.val)
-drop_duration(apex::Value, nadir::Value) = abs(apex.loc - nadir.loc)
-sigmoid(x::Real) = one(x) / (one(x) + exp(-x))
-drop_score(apex::Value{T}, nadir::Value{T}, θ::T) where T = drop_proportion(apex, nadir) * sigmoid((drop_duration(apex, nadir) - θ))
-function peakiness(left::Value{T}, apex::Value{T}, right::Value{T}, duration_θ::T=10) where T
-    left_score = drop_score(apex, left, duration_θ)
-    right_score = drop_score(apex, right, duration_θ)
-    score = left_score * right_score
-    if isnan(score)
-        return 0
-    else
-        return score
-    end
-end
-choose_peakiest(::Nothing, peak::StaticPeak) = peak
-choose_peakiest(peak1::StaticPeak, peak2::StaticPeak) = (peak1.score >= peak2.score) ? peak1 : peak2
-    
-function peakiest_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10) where {T<:Number}
-    left = nothing
-    apex = nothing
-    right = nothing
-    peakiest = nothing
-    max_peak = nothing
-    
-    prev_val = frame[1]
-    left = Value(1, frame[1])
-    idx = 2
-    for val in frame[2:end]
-        change = val - prev_val
-        if apex === nothing
-            if change <= 0 # = so that plateaus ruin peak score.
-                apex = Value(idx-1,prev_val)
-            end
-        else
-            if change >= 0
-                right = Value(idx-1,prev_val)
-                peak = StaticPeak(left, apex, right)
-                max_peak = choose_peakiest(max_peak, peak)
-                apex = nothing
-                left = right
-            end
-        end
-        prev_val = val
-        idx +=1
-    end
-    rightmost = Value(idx-1,prev_val)
-    apex = apex === nothing ? rightmost : apex
-    final_peak = StaticPeak(left,apex,rightmost)
-    max_peak = choose_peakiest(max_peak, final_peak)
-    return max_peak
 end
 
 # %%
