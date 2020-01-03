@@ -10,7 +10,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.3.0
 #   kernelspec:
-#     display_name: Julia 1.3.0
+#     display_name: Julia 1.3.1
 #     language: julia
 #     name: julia-1.3
 # ---
@@ -75,55 +75,6 @@ function TravelingWaveSimulations.custom_animate(execution::Execution{T,<:Simula
     end
 end
 
-
-
-# %%
-ABS_STOP = 9000.0
-TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
-                                                     Aee=24.0, See=25.0,
-                                                     Aii=4.0, Sii=27.0,
-                                                     Aie=27.0, Sie=25.0,
-                                                     Aei=18.2, Sei=27.0,
-                                                     n=128, x=700.0, stim_strength=1.2)
-  simulation = Simulation(
-    WCMSpatial(;
-      pop_names = ("E", "I"),
-      α = (1.0, 1.0),
-      β = (1.0, 1.0),
-      τ = (3.0, 3.0),
-      nonlinearity = pops(SigmoidNonlinearity;
-        a = [1.2, 1.0],
-        θ = [2.6, 8.0]),
-      stimulus = [pops(GaussianNoiseStimulusParameter; SNR=[1.0, 1.0] .* SNR_scale), pops(SharpBumpStimulusParameter;
-          strength = [stim_strength,stim_strength],
-          width = [28.1, 28.1],
-          time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]])],
-      connectivity = FFTParameter(pops(GaussianConnectivityParameter;
-          amplitude = [Aee -Aei;
-                       Aie -Aii],
-          spread = [(See,See) (Sei,Sei);
-                    (Sie,Sie) (Sii,Sii)]
-          ))
-      );
-      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
-      save_idxs = RadialSlice(),
-      tspan = (0.0,stop_time),
-      dt = 1.0,
-      algorithm=Euler(),
-      callback=DiscreteCallback(if !(save_idxs === nothing)
-        (u,t,integrator) -> begin
-                    sub_u = u[integrator.opts.save_idxs];
-                    (all(sub_u .≈ 0.0) || all(u .- integrator.uprev .≈ 0)  || (sub_u[end] > 0.01)) && t > 5
-                end
-    else
-        (u,t,integrator) -> begin
-                    pop = population(u,1)
-                    (all(u .≈ 0.0) || all(u .- integrator.uprev .≈ 0) || (sum(pop[end,:]) / size(pop,1) > 0.01)) && t > 5
-            end
-                end, (x) -> (@warn "terminating!"; terminate!(x)))
-  )
-end
-
 function mod_example(example; data_root, no_save_raw=false, example_name, modifications, analyses, batch, max_sims_in_mem)
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
@@ -157,8 +108,71 @@ function mod_example(example; data_root, no_save_raw=false, example_name, modifi
     end
 end
 
+
+
 # %%
-execution = execute(example(n=512, x=700.0, amplitude=([25.0 -25.2; 35.0 -4.0])));
+# Aee: E->E amplitude
+# See: E->E spread
+
+# caS: cross-auto spread ratio
+# caA: cross-auto amplitude ratio
+
+# ioA: inhibitory output amplitude scale
+# ioS: inhibitory output spread scale
+# iiA: inhibitory input amplitude scale
+# iiS: inhibitory input spread scale
+ABS_STOP=300.0
+my_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
+                                                     Aee=280.0, See=70.0,
+                                                     Aii=1.4, Sii=70.0,
+                                                     Aie=270.0, Sie=90.0,
+                                                     Aei=-297.0, Sei=90.0,
+                                                     n=71, x=500.0)
+  simulation = Simulation(
+    WCMSpatial(;
+      pop_names = ("E", "I"),
+      α = (1.0, 1.0),
+      β = (1.1, 1.1),
+      τ = (10.0, 10.0),
+      nonlinearity = pops(GaussianNonlinearity;
+        sd = [6.7, sqrt(3.2)],
+        θ = [18.0, 10.0]),
+      stimulus = pops([SharpBumpStimulusParameter(;
+          strength = 10.0,
+          width = 100.0,
+          time_windows = [(0.0, 10.0)]),
+          NoStimulusParameter{Float64}()]),
+      connectivity = FFTParameter(pops(GaussianConnectivityParameter;
+          amplitude = [Aee -Aei;
+                       Aie -Aii],
+          spread = [(See,See) (Sei,Sei);
+                    (Sie,Sie) (Sii,Sii)]
+         ))
+      );
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
+      save_idxs = RadialSlice(),
+      tspan = (0.0,stop_time),
+      dt = 1.0,
+      algorithm=Euler(),
+      callback=DiscreteCallback(if !(save_idxs === nothing)
+        (u,t,integrator) -> begin
+                    sub_u = u[integrator.opts.save_idxs];
+                    (all(sub_u .≈ 0.0) || (sub_u[end] > 0.01)) && t > 5
+                end
+    else
+        (u,t,integrator) -> begin
+                    pop = population(u,1)
+                    (all(u .≈ 0.0) || (sum(pop[:,end]) / size(pop,1) > 0.01)) && t > 5
+            end
+    end, terminate!)
+  )
+end
+
+
+
+
+# %%
+execution = execute(my_example());
 
 # %% collapsed=true jupyter={"outputs_hidden": true}
 length(execution.solution)
