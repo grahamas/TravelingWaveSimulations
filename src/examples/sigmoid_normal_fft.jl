@@ -14,7 +14,8 @@ ABS_STOP = 300.0
                                                      Aii=4.0, Sii=27.0,
                                                      Aie=27.0, Sie=25.0,
                                                      Aei=18.2, Sei=27.0,
-                                                     n=128, x=700.0, stim_strength=1.2)
+                                                     n=128, x=700.0, stim_strength=1.2,
+                                                     stim_width=28.1)
   simulation = Simulation(
     WCMSpatial(;
       pop_names = ("E", "I"),
@@ -26,7 +27,7 @@ ABS_STOP = 300.0
         θ = [2.6, 8.0]),
       stimulus =  pops(SharpBumpStimulusParameter;
           strength = [stim_strength,stim_strength],
-          width = [28.1, 28.1],
+          width = [stim_width, stim_width],
           time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]]),
       connectivity = FFTParameter(pops(GaussianConnectivityParameter;
           amplitude = [Aee -Aei;

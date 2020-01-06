@@ -83,7 +83,7 @@ struct TravelingWaveStats{T_LOC,T_VAL}
     amplitude::FitErr{T_VAL}
     score::T_VAL
 end
-valid_metric(metric, score, min_score=0.0001) = !ismissing(metric) || (!ismissing(score) && (score > min_score))
+valid_metric(metric, score, min_score=0.0001) = !ismissing(metric) && (!ismissing(score) && (score > min_score))
 function TravelingWaveStats(stats_arr::AbstractArray{<:StaticWaveStats{T_LOC,T_VAL}}, t) where {T_LOC,T_VAL}
     widths = [st.width for st in stats_arr]
     centers = [st.center for st in stats_arr]
@@ -133,6 +133,7 @@ function linreg_dropmissing(b_with_missing, A_with_missing, weights)
     try
         x = (A' * W * A) \ (A' * W * b)
     catch e
+        @show e
         @show b_with_missing
         @show A_with_missing
         @show A
