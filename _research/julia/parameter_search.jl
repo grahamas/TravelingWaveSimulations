@@ -21,6 +21,11 @@ using TravelingWaveSimulations
 function search_for_traveling_behavior(example, mod_bounds)
     # Need to map from arry to kwargs
     # Should properly be done at the DEProblem interface...
-    minfn(p) = 1 - tw_score(execute(example(; p...)))
+    names_arr = keys(mod_bounds)
+    bound_arr = values(mod_bounds)
+    function minfn(p)
+        mods = zip(names_arr, p)
+        1 - tw_score(execute(example(; mods...)))
+    end
     result = optimize(minfn, starting_mods, mod_bounds, SAMIN)
 end

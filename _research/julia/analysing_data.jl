@@ -24,8 +24,47 @@ using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Dista
 using DiffEqBase: AbstractTimeseriesSolution
 
 # %%
+valid_metric(metric, score, min_score=0.0001) = !ismissing(metric) && (!ismissing(score) && (score > min_score))
+function TravelingWaveSimulations.TravelingWaveStats(stats_arr::AbstractArray{<:StaticWaveStats{T_LOC,T_VAL}}, t) where {T_LOC,T_VAL}
+    widths = [st.width for st in stats_arr]
+    centers = [st.center for st in stats_arr]
+    amplitudes = [st.amplitude for st in stats_arr]
+    scores = [st.score for st in stats_arr]
+    
+    if sum(valid_metric.(widths, scores)) < 5 || sum(valid_metric.(centers, scores)) < 5 || sum(valid_metric.(amplitudes,scores)) < 5 #At least five wave frames
+        return nothing
+    end
+
+    if mean(scores) < 1e-2 || mean(amplitudes) < 1e-3 # roughly, less than 1% of the run contains TW
+        return nothing # can't try fitting; singular
+    end
+    width_linfit = TravelingWaveSimulations.linreg_dropmissing(widths, t, scores)
+    center_linfit = TravelingWaveSimulations.linreg_dropmissing(centers, t, scores)
+    amplitude_linfit = TravelingWaveSimulations.linreg_dropmissing(amplitudes, t, scores)
+    TravelingWaveStats(TravelingWaveSimulations.FitErr(widths, width_linfit, t, scores), 
+        TravelingWaveSimulations.FitErr(centers, center_linfit, t, scores),
+        TravelingWaveSimulations.FitErr(amplitudes, amplitude_linfit, t, scores),
+        norm(scores))
+end
 
 # %%
+function linreg_dropmissing(b_with_missing, A_with_missing, weights)
+    # Ax = b
+    A_with_missing = TravelingWaveSimulations.make_matrix(LinearFit, A_with_missing)
+    notmissing = valid_metric.(b_with_missing, weights)
+    A = A_with_missing[notmissing,:]
+    b = b_with_missing[notmissing]
+    W = diagm(weights[notmissing])
+    x = nothing
+    try
+        x = (A' * W * A) \ (A' * W * b)
+    catch e
+        @show b_with_missing
+        @show A_with_missing
+        @show A
+    end
+    return LinearFit(x)
+end
 
 # %%
 # Load most recent simulation data
@@ -48,7 +87,7 @@ for db in mdb
     for (this_mod, exec) in DBExecIter(example, db, ())
         this_mod_key = keys(this_mod)
         this_mod_val = values(this_mod)
-        A_idx = mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
+        A_idx = TravelingWaveSimulations.mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
         tws = TravelingWaveStats(exec);
         if tws === nothing
             A_is_traveling[A_idx] = false
@@ -56,7 +95,7 @@ for db in mdb
             A_velocity_errors[A_idx] = missing
         else
             A_is_traveling[A_idx] = true
-            A_velocity[A_idx] = velocity(tws)
+            A_velocity[A_idx] = TravelingWaveSimulations.velocity(tws)
             A_velocity_errors[A_idx] = tws.center.err
         end
     end

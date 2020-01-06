@@ -16,7 +16,7 @@
 # ---
 
 # %%
-using TravelingWaveSimulations, Simulation73, Plots, JuliaDB, DifferentialEquations, Revise, Dates, DrWatson, NeuralModels, WilsonCowanModel
+using TravelingWaveSimulations, Simulation73, Plots, JuliaDB, DifferentialEquations, Dates, DrWatson, NeuralModels, WilsonCowanModel
 using DiffEqBase: AbstractTimeseriesSolution
 
 # %%
@@ -66,7 +66,7 @@ function TravelingWaveSimulations.custom_animate(execution::Execution{T,<:Simula
     @animate for time_dx in 1:length(t) # TODO @views
         plot([
                 plot(
-                    x, population_timepoint(solution, 1, time_dx); label=pop_names[1],
+                    x, population_timepoint(solution, i_pop, time_dx); label=pop_names[i_pop],
                     val_lim=(min_val,max_val), title="t = $(round(t[time_dx], digits=4))",
                     xlab = "Space (a.u. approx. um)",kwargs...
                     )
@@ -111,6 +111,19 @@ end
 
 
 # %%
+
+##############
+
+### Difference of Sigmoids
+struct DifferenceOfSigmoids{T} <: AbstractNonlinearity{T}
+    firing_sigmoid::SigmoidNonlinearity{T}
+    blocking_sigmoid::SigmoidNonlinearity{T}
+    DifferenceOfSigmoids(fsig::SigmoidNonlinearity{T},bsig::SigmoidNonlinearity{T}) where T = new{T}(fsig,bsig)
+end
+DifferenceOfSigmoids(; firing_a, firing_θ, blocking_a, blocking_θ) where T = DifferenceOfSigmoids(SigmoidNonlinearity(; θ=firing_θ,a=firing_a), SigmoidNonlinearity(; θ=blocking_θ,a=blocking_a))
+(dos::DifferenceOfSigmoids)(output::AbstractArray, ignored_source, ignored_t) = output .= NeuralModels.rectified_sigmoid_fn.(output, dos.firing_sigmoid.a, dos.firing_sigmoid.θ) - NeuralModels.rectified_sigmoid_fn.(output, dos.blocking_sigmoid.a, dos.blocking_sigmoid.θ)
+
+# %%
 # Aee: E->E amplitude
 # See: E->E spread
 
@@ -122,7 +135,7 @@ end
 # iiA: inhibitory input amplitude scale
 # iiS: inhibitory input spread scale
 ABS_STOP=300.0
-my_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
+dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
                                                      Aee=280.0, See=70.0,
                                                      Aii=1.4, Sii=70.0,
                                                      Aie=270.0, Sie=90.0,
@@ -132,16 +145,20 @@ my_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_
     WCMSpatial(;
       pop_names = ("E", "I"),
       α = (1.0, 1.0),
-      β = (1.1, 1.1),
+      β = (1.0, 1.0),
       τ = (10.0, 10.0),
-      nonlinearity = pops(GaussianNonlinearity;
-        sd = [6.7, sqrt(3.2)],
-        θ = [18.0, 10.0]),
-      stimulus = pops([SharpBumpStimulusParameter(;
-          strength = 10.0,
-          width = 100.0,
-          time_windows = [(0.0, 10.0)]),
-          NoStimulusParameter{Float64}()]),
+      nonlinearity = pops(DifferenceOfSigmoids;
+        #sd = [6.7, sqrt(3.2)],
+        #θ = [18.0, 10.0]),
+        firing_θ = [10.0, 5.0],
+        firing_a = [1.2, 1.0],
+        blocking_θ = [18.0, 13.0],
+        blocking_a = [1.2, 1.0]),
+      stimulus = pops(SharpBumpStimulusParameter;
+          strength = [10.0, 0.0],
+          width = [28.1, 28.1],
+          time_windows = [[(0.0, 10.0)], [(0.0, 10.0)]],
+          baseline=[0.0, 0.0]),
       connectivity = FFTParameter(pops(GaussianConnectivityParameter;
           amplitude = [Aee -Aei;
                        Aie -Aii],
@@ -157,12 +174,12 @@ my_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_
       callback=DiscreteCallback(if !(save_idxs === nothing)
         (u,t,integrator) -> begin
                     sub_u = u[integrator.opts.save_idxs];
-                    (all(sub_u .≈ 0.0) || (sub_u[end] > 0.01)) && t > 5
+                    (all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end] > 0.01)) && t > 5
                 end
     else
         (u,t,integrator) -> begin
                     pop = population(u,1)
-                    (all(u .≈ 0.0) || (sum(pop[:,end]) / size(pop,1) > 0.01)) && t > 5
+                    (all(isapprox.(u, 0.0, atol=1e-4)) || (sum(pop[:,end]) / size(pop,1) > 0.01)) && t > 5
             end
     end, terminate!)
   )
@@ -170,17 +187,21 @@ end
 
 
 
-
 # %%
-execution = execute(my_example());
-
-# %% collapsed=true jupyter={"outputs_hidden": true}
-length(execution.solution)
-@show execution.solution.t
-
-# %% collapsed=true jupyter={"outputs_hidden": true}
+execution = execute(dos_example(; n=256, x=700.0, See=25.0, Sii=25.0, Sie=27.0, Sei=27.0,
+                                Aee=300.0, Aei=50.0, Aie=50.0, Aii=10.0, strengthE=10.0, widthE=50.0));
 anim = TravelingWaveSimulations.custom_animate(execution)
 mp4(anim, "tmp/_tmp.mp4")
+
+# %%
+aees = 1.0:3.0:40.0
+maxes = [maximum(execute(my_example(; n=256, x=700.0, See=25.0, Sii=25.0, Sie=27.0, Sei=27.0,
+                                Aee=Aee, Aei=0.0, Aie=0.0, Aii=0.1, strengthE=6.0)).solution) for Aee in aees]
+
+# %%
+plot(aees, maxes)
+
+# %%
 
 # %%
 N_ATT = 128; SAVE=RadialSlice()
