@@ -69,7 +69,7 @@ end
 # %%
 # Load most recent simulation data
 data_root = joinpath(homedir(), "sim_data")
-(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft");
+(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft", 5);
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
@@ -121,9 +121,9 @@ for (x,y) in IterTools.subsets(all_dims, Val{2}())
     prop_notmissing = dropdims(mean(.!ismissing.(A_velocity), dims=collapsed_dims), dims=collapsed_dims)
     plot(
         #heatmap(mod_values[x], mod_values[y], is_traveling, xlab=mod_names[x], ylab=mod_names[y], title="\"peakiness\" avgd across other spreads"),
-        heatmap(mod_values[x], mod_values[y], velocities, xlab=mod_names[x], ylab=mod_names[y], title="velocity avgd"),
-        heatmap(mod_values[x], mod_values[y], velocity_errors, xlab=mod_names[x], ylab=mod_names[y], title="error"),
-        heatmap(mod_values[x], mod_values[y], prop_notmissing, xlab=mod_names[x], ylab=mod_names[y], title="prop not missing")
+        heatmap(mod_values[y], mod_values[x], velocities, xlab=mod_names[y], ylab=mod_names[x], title="velocity avgd"),
+        heatmap(mod_values[y], mod_values[x], velocity_errors, xlab=mod_names[y], ylab=mod_names[x], title="error"),
+        heatmap(mod_values[y], mod_values[x], prop_notmissing, xlab=mod_names[y], ylab=mod_names[x], title="prop not missing")
         ) |> display
     path = "tmp/$(example_name)/$(sim_name)/$(mod_names[x])_$(mod_names[y])_centerfiterror.png"
     mkpath(dirname(path))
