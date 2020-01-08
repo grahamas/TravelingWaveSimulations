@@ -46,6 +46,9 @@ function TravelingWaveSimulations.TravelingWaveStats(stats_arr::AbstractArray{<:
         TravelingWaveSimulations.FitErr(amplitudes, amplitude_linfit, t, scores),
         norm(scores))
 end
+equals_str(key,val) = "$key=$val"
+equals_strs(mods) = [equals_str(p...) for p in pairs(mods)]
+mods_filename(x) = join(equals_strs(x), "_")
 
 # %%
 function linreg_dropmissing(b_with_missing, A_with_missing, weights)
@@ -69,7 +72,7 @@ end
 # %%
 # Load most recent simulation data
 data_root = joinpath(homedir(), "sim_data")
-(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft", 5);
+(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft");
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
@@ -129,6 +132,11 @@ for (x,y) in IterTools.subsets(all_dims, Val{2}())
     mkpath(dirname(path))
     png(path)
 end
+
+# %%
+mods = Dict(:See=>20.0, :Sei=>30.0)
+anim = custom_animate(execute(example(;mods...)))
+mp4(anim, "tmp/$(example_name)/$(sim_name)/anim_$(mods_filename(mods)).mp4")
 
 # %% collapsed=true jupyter={"outputs_hidden": true}
 function satisfies_criteria(exec, mod_keys, mod_vals, (param_criteria, tws_criterion))
