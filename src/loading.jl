@@ -9,7 +9,6 @@ macro ifsomething(ex)
 end
 
 function _load_data(sim_path)
-    @warn "loading"
    JuliaDB.load(sim_path)
 end
 struct MultiDB
