@@ -82,7 +82,7 @@ end
 @show sum(ismissing.(A_velocity))
 @show prod(size(A_velocity))
 
-# %%
+# %% collapsed=true jupyter={"outputs_hidden": true}
 factor_names, factors = calculate_factor_matrix(mdb, 2);
 parameters_mx = reshape(factors, (:,size(factors)[end]));
 df = DataFrame(Dict(zip(factor_names, [parameters_mx[:,i] for i in 1:size(parameters_mx,2)])))
@@ -91,12 +91,33 @@ df.tws = A_tws[:]
 wts = dropmissing(df).tws
 
 # %%
+bics = map(1:3) do i
+    factor_names, factors = calculate_factor_matrix(mdb, i)
+    parameters_mx = reshape(factors, (:, size(factors)[end]))
+    df = DataFrame(Dict(zip(factor_names, [parameters_mx[:,i] for i in 1:size(parameters_mx, 2)])))
+    df.vel = A_velocity[:]
+    df.tws = A_tws[:]
+    wts = dropmissing(df).tws
+    fmla = Term(:vel) ~ sum(Term.(Symbol.(factor_names))) + ConstantTerm(1);
+    lm_fit = lm(fmla, dropmissing(df))
+    glm_fit = glm(fmla, dropmissing(df), Normal(), IdentityLink(); wts=wts)
+    return StatsModels.bic.([lm_fit, glm_fit])
+end
+lm_bics, glm_bics = zip(bics...)
+plot([lm_bics...], title="LM BIC") |> display
+plot([glm_bics...], title="GLM BIC") |> display
+    
+
+# %%
+lm_bics
+
+# %%
 fit = TravelingWaveSimulations.linreg_dropmissing(A_velocity[:], parameters_mx, wts)
 
 # %%
 fmla = Term(:vel) ~ sum(Term.(Symbol.(factor_names))) + ConstantTerm(1);
 
-# %%
+# %% collapsed=true jupyter={"outputs_hidden": true}
 lm_fit = lm(fmla, dropmissing(df))
 
 # %%
@@ -104,3 +125,6 @@ glm_fit = glm(fmla, dropmissing(df), Normal(), IdentityLink(); wts=wts)
 
 # %%
 deviance(lm_fit)
+
+# %%
+deviance(glm_fit)
