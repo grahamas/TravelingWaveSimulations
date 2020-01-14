@@ -48,7 +48,7 @@ end
 
 # %%
 data_root = joinpath(homedir(), "sim_data")
-(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft", 1);
+(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft",4);
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
@@ -87,15 +87,20 @@ factor_names, factors = calculate_factor_matrix(mdb, 2);
 parameters_mx = reshape(factors, (:,size(factors)[end]));
 df = DataFrame(Dict(zip(factor_names, [parameters_mx[:,i] for i in 1:size(parameters_mx,2)])))
 df.vel = A_velocity[:]
+df.tws = A_tws[:]
+wts = dropmissing(df).tws
 
 # %%
-fit = TravelingWaveSimulations.linreg_dropmissing(A_velocity[:], parameters_mx, A_tws[:])
+fit = TravelingWaveSimulations.linreg_dropmissing(A_velocity[:], parameters_mx, wts)
 
 # %%
 fmla = Term(:vel) ~ sum(Term.(Symbol.(factor_names))) + ConstantTerm(1);
 
 # %%
-lm_fit = lm(fmla, df)
+lm_fit = lm(fmla, dropmissing(df))
+
+# %%
+glm_fit = glm(fmla, dropmissing(df), Normal(), IdentityLink(); wts=wts)
 
 # %%
 deviance(lm_fit)
