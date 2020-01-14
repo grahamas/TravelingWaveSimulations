@@ -16,7 +16,7 @@
 
 # %%
 using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
-    IterTools
+    IterTools, Combinatorics, DataFrames, GLM
 
 # %%
 multi_factor_name(name_combo) = join(name_combo, "_")
@@ -25,7 +25,7 @@ function calculate_factor_matrix(mdb, max_order)
     mods = TravelingWaveSimulations.get_mods(mdb)
     mod_names = keys(mods) |> collect # These must be same order v
     mod_values = values(mods) |> collect # These must be same order ^
-    dx_combos = cat((IterTools.subsets.(Ref(1:length(mod_names)), 1:max_order) .|> collect)..., dims=1)
+    dx_combos = cat((Combinatorics.with_replacement_combinations.(Ref(1:length(mod_names)), 1:max_order) .|> collect)..., dims=1)
     name_combos = map((dx_combo) -> mod_names[dx_combo], dx_combos)
     col_combos = map((dx_combo) -> mod_names[dx_combo], dx_combos)
     
@@ -45,6 +45,7 @@ function calculate_factor_matrix(mdb, max_order)
 end
 
 
+
 # %%
 data_root = joinpath(homedir(), "sim_data")
 (example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft", 1);
@@ -58,7 +59,7 @@ GC.gc()
 mods = TravelingWaveSimulations.get_mods(mdb)
 mod_names = keys(mods) |> collect
 mod_values = values(mods) |> collect
-A_is_traveling = Array{Bool}(undef, length.(values(mods))...)
+A_tws = Array{Float64}(undef, length.(values(mods))...)
 A_velocity= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 A_velocity_errors= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 for db in mdb
@@ -68,11 +69,11 @@ for db in mdb
         A_idx = TravelingWaveSimulations.mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
         tws = TravelingWaveStats(exec);
         if tws === nothing
-            A_is_traveling[A_idx] = false
+            A_tws[A_idx] = 0.0
             A_velocity[A_idx] = missing
             A_velocity_errors[A_idx] = missing
         else
-            A_is_traveling[A_idx] = true
+            A_tws[A_idx] = tws.score
             A_velocity[A_idx] = TravelingWaveSimulations.velocity(tws)
             A_velocity_errors[A_idx] = tws.center.err
         end
@@ -82,3 +83,19 @@ end
 @show prod(size(A_velocity))
 
 # %%
+factor_names, factors = calculate_factor_matrix(mdb, 2);
+parameters_mx = reshape(factors, (:,size(factors)[end]));
+df = DataFrame(Dict(zip(factor_names, [parameters_mx[:,i] for i in 1:size(parameters_mx,2)])))
+df.vel = A_velocity[:]
+
+# %%
+fit = TravelingWaveSimulations.linreg_dropmissing(A_velocity[:], parameters_mx, A_tws[:])
+
+# %%
+fmla = Term(:vel) ~ sum(Term.(Symbol.(factor_names))) + ConstantTerm(1);
+
+# %%
+lm_fit = lm(fmla, df)
+
+# %%
+deviance(lm_fit)

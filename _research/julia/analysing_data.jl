@@ -29,7 +29,7 @@ mods_filename(x) = join(equals_strs(x), "_")
 # %%
 # Load most recent simulation data
 data_root = joinpath(homedir(), "sim_data")
-(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft", 1);
+(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft");
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 

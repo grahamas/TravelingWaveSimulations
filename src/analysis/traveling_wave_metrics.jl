@@ -8,12 +8,16 @@ struct Value{T_LOC,T_VAL}
     val::T_VAL
 end
 from_idx_to_space(val::Value, space) = Value(space[val.loc], val.val)
-struct LinearFit{T}
-    coefs::SVector{2,T}
+struct LinearFit{N,T}
+    coefs::SVector{N,T}
 end
-LinearFit(coefs::AbstractArray{T}) where T = LinearFit{T}(SVector{2,T}(coefs))
-linear_coef(lf::LinearFit) = lf.coefs[1]
-const_coef(lf::LinearFit) = lf.coefs[2]
+function LinearFit(coefs::AbstractArray{T}) where T
+    N = length(coefs)
+    LinearFit{N,T}(SVector{N,T}(coefs))
+end
+linear_coef(lf::LinearFit{2}) = lf.coefs[1]
+slope_coefs(lf::LinearFit{N}) where N = lf.coefs[1:N-1]
+const_coef(lf::LinearFit) = lf.coefs[end]
 (lf::LinearFit)(a) = make_matrix(LinearFit, a) * lf.coefs
 make_matrix(::Type{LinearFit}, a) = [a ones(size(a,1))]
 struct StaticPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}}
@@ -122,8 +126,9 @@ function Base.show(io::IO, ::MIME"text/plain", tws::TravelingWaveStats)
 end
 velocity(tws::TravelingWaveStats) = linear_coef(tws.center.fit)
 
-function linreg_dropmissing(b_with_missing, A_with_missing, weights)
+function linreg_dropmissing(b_with_missing::AbstractVector, A_with_missing::Union{AbstractVector,AbstractMatrix}, weights::AbstractVector)
     # Ax = b
+    # Add constant row
     A_with_missing = make_matrix(LinearFit, A_with_missing)
     notmissing = valid_metric.(b_with_missing, weights)
     A = A_with_missing[notmissing,:]
