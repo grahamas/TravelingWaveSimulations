@@ -20,98 +20,6 @@ using TravelingWaveSimulations, Simulation73, Plots, JuliaDB, DifferentialEquati
 using DiffEqBase: AbstractTimeseriesSolution
 
 # %%
-
-
-function most_recent_subdir(datadir)
-    subdirs = joinpath.(Ref(datadir), readdir(datadir))
-    sort(subdirs, by=mtime, rev=true)[1]
-end
-
-# abstract type AbstractSolution{S} end
-# const SomeSolution{S} = Union{AbstractTimeseriesSolution{S}, AbstractSolution{S}}
-struct BareSolution{S,N,U<:Array{<:Array{<:S,N}},X,T} <: AbstractTimeseriesSolution{S,N}
-    u::U
-    x::X
-    t::T
-end
-BareSolution(; u::U, x::X, t::T) where {S,N,U<:Array{<:Array{<:S,N}},X,T} = BareSolution{S,N,U,X,T}(u,x,t)
-timepoints(bs::BareSolution) = bs.t
-coordinates(bs::BareSolution) = bs.x
-function Base.show(io::IO, A::BareSolution)
-  print(io,"t: ")
-  show(io, A.t)
-  println(io)
-  print(io,"u: ")
-  show(io, A.u)
-end
-function Base.show(io::IO, m::MIME"text/plain", A::BareSolution)
-  print(io,"t: ")
-  show(io,m,A.t)
-  println(io)
-  print(io,"u: ")
-  show(io,m,A.u)
-end
-@generated function Simulation73.population_timepoint(solution::BareSolution{T,NP}, pop_dx::Int, time_dx::Int) where {T,NP}
-    N = NP - 1 # N + pops
-    colons = [:(:) for i in 1:N]
-    :(solution[time_dx][$(colons...), pop_dx])
-end
-function TravelingWaveSimulations.custom_animate(execution::Execution{T,<:Simulation{T},<:BareSolution}; kwargs...) where T
-    solution = execution.solution
-    pop_names = execution.simulation.model.pop_names
-    x = space(execution)
-    t = Simulation73.timepoints(execution)
-    max_val = maximum(solution)
-    min_val = minimum(solution)
-    @animate for time_dx in 1:length(t) # TODO @views
-        plot([
-                plot(
-                    x, population_timepoint(solution, i_pop, time_dx); label=pop_names[i_pop],
-                    val_lim=(min_val,max_val), title="t = $(round(t[time_dx], digits=4))",
-                    xlab = "Space (a.u. approx. um)",kwargs...
-                    )
-                for i_pop in 1:length(pop_names)
-            ]...)
-    end
-end
-
-function mod_example(example; data_root, no_save_raw=false, example_name, modifications, analyses, batch, max_sims_in_mem)
-    modifications, modifications_prefix = parse_modifications_argument(modifications)
-    analyses, analyses_prefix = parse_analyses_argument(analyses)
-    @show analyses
-
-    # Initialize saving paths
-    if length(analyses) > 0
-        analyses_path = joinpath(plotsdir(), example_name, "$(modifications_prefix)$(analyses_prefix)_$(Dates.now())_$(gitdescribe())")
-        mkpath(analyses_path)
-    else
-        analyses_path = ""
-    end
-    if !no_save_raw
-        data_path = joinpath(data_root, example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
-    else
-        data_path = nothing
-    end
-    
-    if !(@isdefined nprocs) || nprocs() == 1
-        @warn "Not parallelizing parameter sweep."
-        failures = TravelingWaveSimulations.execute_modifications_serial(example, modifications, analyses, data_path, analyses_path, no_save_raw)
-        @show failures
-    else
-        @warn "Parallelizing parameter sweep."
-        if no_save_raw
-            failures = TravelingWaveSimulations.execute_modifications_parallel_nosaving(example, modifications, analyses, data_path, analyses_path, batch)
-        else
-            failures = TravelingWaveSimulations.execute_modifications_parallel_saving(example, modifications, analyses, data_path, analyses_path, batch, max_sims_in_mem)
-        end
-        @show failures
-    end
-end
-
-
-
-# %%
-
 ##############
 
 ### Difference of Sigmoids
@@ -189,9 +97,61 @@ end
 
 # %%
 execution = execute(dos_example(; n=256, x=700.0, See=25.0, Sii=25.0, Sie=27.0, Sei=27.0,
-                                Aee=300.0, Aei=50.0, Aie=50.0, Aii=10.0, strengthE=10.0, widthE=50.0));
+                                Aee=200.0, Aei=75.0, Aie=50.0, Aii=10.0, strengthE=10.0, widthE=50.0));
 anim = TravelingWaveSimulations.custom_animate(execution)
-mp4(anim, "tmp/_tmp.mp4")
+mp4(anim, "tmp/dos_tmp.mp4")
+
+# %%
+
+function point_timecourse(exec::Execution, location_proportion)
+    us = exec.solution.u
+    t = timepoints(exec)
+    xs = space(exec)
+    n_xs = size(xs)
+    x_dx = floor.(Int, n_xs .* location_proportion)
+    @show x_dx
+    x = xs[x_dx...]
+    u = [[u[x_dx...]] for u in us]
+    return BareSolution(u=u,x=[x],t=t)    
+end
+function point_average(u::AbstractArray, pt::Tuple, xs, σ)
+    pt_dist = map(xs) do x
+        -sum((x .- pt) ./ σ) .^ 2) / 2
+    end
+    unscaled = exp.(pt_dist)
+    return unscaled ./ sum(unscaled)
+end
+
+function point_average_timecourse(exec::Execution, location_proportion, σ)
+    us = exec.solution.u
+    t = timepoints(exec)
+    xs = space(exec)
+    n_xs = size(xs)
+    x_dx = floor.(Int, n_xs .* location_proportion)
+    @show x_dx
+    x = xs[x_dx...]
+    @show x
+    u = [[point_average(u, x, xs.arr, σ)] for u in us]
+    return BareSolution(u=u,x=[x],t=t)  
+end
+Base.getindex(lat::CompactLattice, dx) = getindex(lat.arr, dx)
+function Base.getproperty(bs::BareSolution, sym::Symbol)
+    if sym ∈ [:dense, :prob]
+        return false
+    elseif sym == :tslocation
+        return 0
+    else
+        return Base.getfield(bs, sym)
+    end
+end
+
+
+
+# %%
+pt_over_time = point_timecourse(execution, 0.2)
+plot(pt_over_time, labels=:E) |> display
+pt_avg_over_time(point_average_timecourse(execution, 0.5, 25))
+plot(pt_avg_over_time, labels=:E) |> display
 
 # %%
 aees = 1.0:3.0:40.0

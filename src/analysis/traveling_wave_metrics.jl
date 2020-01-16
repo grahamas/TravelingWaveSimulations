@@ -20,7 +20,11 @@ slope_coefs(lf::LinearFit{N}) where N = lf.coefs[1:N-1]
 const_coef(lf::LinearFit) = lf.coefs[end]
 (lf::LinearFit)(a) = make_matrix(LinearFit, a) * lf.coefs
 make_matrix(::Type{LinearFit}, a) = [a ones(size(a,1))]
-struct StaticPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}}
+
+abstract type AbstractPeak{T_LOC,T_VAL} end
+abstract type AbstractPeakStats{T_LOC,T_VAL} end
+
+struct StaticPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractPeak{T_LOC,T_VAL}
     left::V
     apex::V
     right::V
@@ -28,18 +32,24 @@ struct StaticPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}}
 end
 StaticPeak(left::V, apex::V, right::V) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticPeak{T_LOC,T_VAL,V}(left,apex,right,peakiness(left,apex,right))
 StaticPeak(left::V, apex::V, right::V,score) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticPeak{T_LOC,T_VAL,V}(left,apex,right,score)
+
+struct StaticFront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractPeak{T_LOC,T_VAL}
+    left::V
+    apex::V
+    right::V
+    score::T_VAL
+end
+StaticFront(left::V, apex::V, right::V) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticFront{T_LOC,T_VAL,V}(left,apex,right,frontiness(left,apex,right))
+StaticFront(left::V, apex::V, right::V,score) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticFront{T_LOC,T_VAL,V}(left,apex,right,score)
+
 const StaticPeakIdx = StaticPeak{Int}
 from_idx_to_space(sp::StaticPeakIdx, space) = StaticPeak(from_idx_to_space(sp.left,space), from_idx_to_space(sp.apex,space), from_idx_to_space(sp.right,space), sp.score)
-struct TravelingPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL},A_TIME<:AbstractArray{<:T_VAL}, A_PEAK<:AbstractArray{<:StaticPeak{<:V}}}
-    times::A_TIME
-    peaks::A_PEAK
-end
 
 function linear_interpolate((x1,x2), (y1,y2), x)
     @assert x1 <= x <= x2 || x2 <= x <= x1
     y1 + (x - x1) * ((y2 - y1) / (x2 - x1)) 
 end
-struct StaticWaveStats{T_LOC,T_VAL}
+struct StaticWaveStats{T_LOC,T_VAL} <: AbstractPeakStats{T_LOC,T_VAL}
     baseline::T_VAL
     amplitude::T_VAL
     width::Union{T_LOC,Missing}
@@ -88,7 +98,7 @@ struct TravelingWaveStats{T_LOC,T_VAL}
     score::T_VAL
 end
 valid_metric(metric, score, min_score=0.0001) = !ismissing(metric) && (!ismissing(score) && (score > min_score))
-function TravelingWaveStats(stats_arr::AbstractArray{<:StaticWaveStats{T_LOC,T_VAL}}, t) where {T_LOC,T_VAL}
+function TravelingWaveStats(stats_arr::AbstractArray{<:AbstractPeakStats{T_LOC,T_VAL}}, t) where {T_LOC,T_VAL}
     widths = [st.width for st in stats_arr]
     centers = [st.center for st in stats_arr]
     amplitudes = [st.amplitude for st in stats_arr]
@@ -165,10 +175,23 @@ function peakiness(left::Value{T}, apex::Value{T}, right::Value{T}, duration_θ:
         return score
     end
 end
-choose_peakiest(::Nothing, peak::StaticPeak) = peak
-choose_peakiest(peak1::StaticPeak, peak2::StaticPeak) = (peak1.score >= peak2.score) ? peak1 : peak2
+function frontiness(left::Value{T}, apex::Value{T}, right::Value{T}, duration_θ::T=10) where T
+    left_score = drop_score(apex, left, duration_θ)
+    right_score = drop_score(apex, right, duration_θ)
+    score = max(left_score, right_score)
+    if isnan(score)
+        return 0
+    elseif score < 0
+        @warn "negative score: left: $left, apex: $apex, right: $right"
+        return 0
+    else
+        return score
+    end
+end
+choose_peakiest(::Nothing, peak::AbstractPeak) = peak
+choose_peakiest(peak1::AbstractPeak, peak2::StaticPeak) = (peak1.score >= peak2.score) ? peak1 : peak2
     
-function peakiest_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10) where {T<:Number}
+function peakiest_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10, peak_type::Type{<:AbstractPeak}=StaticPeak) where {T<:Number}
     left = nothing
     apex = nothing
     right = nothing
@@ -187,7 +210,7 @@ function peakiest_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10) where {T<
         else
             if change >= 0
                 right = Value(idx-1,prev_val)
-                peak = StaticPeak(left, apex, right)
+                peak = peak_type(left, apex, right)
                 max_peak = choose_peakiest(max_peak, peak)
                 apex = nothing
                 left = right
@@ -198,7 +221,7 @@ function peakiest_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10) where {T<
     end
     rightmost = Value(idx-1,prev_val)
     apex = apex === nothing ? rightmost : apex
-    final_peak = StaticPeak(left,apex,rightmost)
+    final_peak = peak_type(left,apex,rightmost)
     max_peak = choose_peakiest(max_peak, final_peak)
     return max_peak
 end

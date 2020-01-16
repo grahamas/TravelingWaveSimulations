@@ -22,6 +22,16 @@
 using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
     IterTools
 
+function Base.getproperty(bs::BareSolution, sym)
+    if sym ∈ [:dense, :prob]
+        return false
+    elseif sym == :tslocation
+        return 0
+    else
+        return Base.getfield(bs, sym)
+    end
+end
+
 equals_str(key,val) = "$key=$val"
 equals_strs(mods) = [equals_str(p...) for p in pairs(mods)]
 mods_filename(x) = join(equals_strs(x), "_")
