@@ -16,7 +16,7 @@
 # ---
 
 # %%
-using Simulation73, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
+using Simulation73, NeuralModels, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
     IterTools, Combinatorics, DataFrames, GLM
 
 # %%
@@ -131,111 +131,114 @@ deviance(lm_fit)
 deviance(glm_fit)
 
 # %%
-# Define an activation as a local D1 peak
-abstract type AbstractActivation{T_LOC,T_SCR} <: AbstractScored{T_LOC} end
+const MaybeData{T} = Union{T,Missing}
+using TravelingWaveSimulations: Value, linear_interpolate
 
-
-struct RightmostActivation{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractActivation{T_LOC,T_VAL}
-    left::V
-    max_derivative::V
-    right::V
-    score::T_VAL
-    function RightmostActivation{T_LOC,T_VAL,V}(l::V,m::V,r::V) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}}
-        new{T_LOC,T_VAL,V}(l,m,r,score(RightmostActivation,l,m,r))
-    end
+function translate(val::Value{<:Union{Int,CartesianIndex}}, new_arr::AbstractArray, offset=0)
+    Value(val.loc + offset, new_arr[val.loc + offset])
 end
-RightmostActivation(l::V,m::V,r::V) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = RightmostActivation{T_LOC,T_VAL,V}(l,m,r)
-const RightmostActivationIdx = RightmostActivation{Int}
-from_idx_to_space(idx::RightmostActivationIdx, space) = RightmostActivation(from_idx_to_space(idx.location,space), idx.score)
+from_idx_to_space(val::Value, space) = Value(space[val.loc], val.val)
 
-function score(::Type{<:RightmostActivation},l::V,m::V,r::V,θ=5.0) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}}
-    left_score = drop_score(l, m, θ)
-    right_score = drop_score(m, r, θ)
-    score = max(left_score, right_score)
-    if isnan(score)
+struct Scored{OBJ,SCR}
+    obj::OBJ
+    score::SCR
+end
+Scored(obj::OBJ) where OBJ = Scored(obj, score(obj))
+abstract type AbstractWaveform{T_LOC,T_VAL} end
+
+drop_proportion(apex::Value, nadir::Value) = ((apex.val - nadir.val) / apex.val)
+drop_duration(apex::Value, nadir::Value) = abs(apex.loc - nadir.loc)
+sigmoid(x::Real) = one(x) / (one(x) + exp(-x))
+drop_score(apex::Value{T}, nadir::Value{T}, θ) where T = drop_proportion(apex, nadir) * sigmoid((drop_duration(apex, nadir) - θ))
+valid_score(score) = if isnan(score)
         return 0
     elseif score < 0
+        # Confirm score range
         @warn "negative score: left: $left, apex: $apex, right: $right"
         return 0
     else
         return score
-    end
+    end 
+struct SolitaryWaveform{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
+    left::V
+    apex::V
+    right::V
+    width::T_VAL # Never in index units
+end
+function score(swf::SolitaryWaveform, width_θ::T=10) where T
+    left_score = drop_score(swf.apex, swf.left, width_θ)
+    right_score = drop_score(swf.apex, swf.right, width_θ)
+    score = left_score * right_score
+    return valid_score(score)
+end
+struct Wavefront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
+    left::V
+    front::V
+    front_slope::T_VAL # Actually T_VAL / T_LOC
+    apex::V
+    right::V
+end
+function score(wf::Wavefront, width_θ::T=5) where T
+    left_score = drop_score(wf.apex, wf.left, width_θ)
+    right_score = drop_score(wf.apex, wf.right, width_θ)
+    score = max(left_score, right_score)
+    return valid_score(score)
 end
 
-# Ughhhh needs to be robust to noise... (incl numerical noise)
-function best_activation(frame::AbstractArray{T,1}, min_wing_dxs::Int=5) where {T<:Number}
-    d_frame = frame[2:end] - frame[1:end-1]
-    left = if d_frame[1] < 0
-        Value(1, d_frame[1])
-    else
-        nothing
-    end
-    potential_d_mins = if d_frame[1] < d_frame[2]
-        [left]
-    else
-        []
-    end
-    right = nothing
-    for idx in 2:(length(frame)-1)
-        if left === nothing
-            if d_frame[idx] <= 0
-                left = Value(idx, d_frame[idx])
-            end
-        end
-        if d_frame[idx] < 0
-            if d_frame[idx-1] >= d_frame[idx] < d_frame
-                push!(potential_d_mins, Value(idx, d_frame[idx]))
-            end
-        else
-            right = Value(idx, d_frame[idx])
-            if d_frame[idx] >= 0
-                right = Value(idx, d_frame[idx])
-                this_activation = reduce(potential_d_mins) do d_min1, d_min2
-                    choose_best(RightActivation(left,dmin1,right),
-                                RightActivation(left,dmin2,right))
-                end
-                best_activation = choose_best(best_activation, this_activation)
-                right = left = nothing
-                potential_d_mins = []
-            end
-        end
-    end
-    if left !== nothing
-        if d_frame[end] < d_frame[end-1]
-            push!(potential_d_mins, Value(length(frame), d_frame[end]))
-        end
-        final_activation = reduce(potential_d_mins) do d_min1, d_min2
-            choose_best(RightActivation(left,dmin1,right),
-                        RightActivation(left,dmin2,right))
-        end
-        best_activation = choose_best(best_activation, final_activation)
-    end
-    return best_activation
+struct WaveformMetrics{T}
+    left_baseline::T
+    right_baseline::T
+    apex_height::T
+    apex_loc::T
+    width::MaybeData{T}
+    front_slope::T
+    front_loc::T
 end
-
-function RightmostActivationStats(ra::RightmostActivation{T_LOC,T_VAL}, ra_val, ra_space)
+function metrics(swf::SolitaryWaveform)
+    WaveformMetrics(
+        swf.left.val,
+        swf.right.val,
+        swf.apex.val,
+        swf.apex.loc,
+        swf.width,
+        missing,
+        missing
+    )
+end
+function metrics(wf::Wavefront)
+    WaveformMetrics(
+        wf.left.val,
+        wf.right.val,
+        wf.apex.val,
+        wf.apex.loc,
+        missing,
+        wf.front_slope,
+        wf.front.loc        
+    ) 
+end
     
-end
-
-function RightmostActivationStats(frame::AbstractArray{T,1}, space::AbstractArray{T,1})
-    ra_idx_obj = best_activation(frame)
-    ra_val = frame[ra_idx_obj.left.loc:ra_idx_obj.right.loc] 
-    ra_space = space[ra_idx_obj.left.loc:ra_idx_obj.right.loc]
-    ra_obj = from_idx_to_space(ra_idx_obj, space)
-    RightmostActivationStats(ra_obj, ra_val, ra_space)
-end
-
-# %%
-
-choose_best(::Nothing, s::AbstractScored) = s
-choose_best(s1::AbstractScored, s2::AbstractScored) = (s1.score >= s2.score) ? s1 : s2
-function choose_best(arr1::AbstractArray{<:Sd}, arr2::AbstractArray{<:Sd}) where {Sd <: AbstractScored}
+choose_best(::Nothing, s::Scored) = s
+choose_best(s1::Sd, s2::Sd) where {OBJ,Sd <: Scored{OBJ}} = (s1.score >= s2.score) ? s1 : s2
+function choose_best(arr1::AbstractArray{<:Sd}, arr2::AbstractArray{<:Sd}) where {OBJ,Sd <: Scored{OBJ}}
     sum((elt) -> elt.score, arr1) > sum((elt) -> elt.score, arr2) ? arr1 : arr2
 end
 
+function wave_width(wave_left, wave_apex, wave_right, wave_val, wave_space)
+    half_max = (wave_apex.val - min(wave_left.val, wave_right.val)) / 2
+    width = if wave_val[1] >= half_max || wave_val[end] >= half_max
+        missing
+    else
+        first = findfirst(wave_val .>= half_max) # must be greater than 1
+        last = findlast(wave_val .>= half_max) # must be less than end
+        left = linear_interpolate(wave_val[[first-1,first]], wave_space[[first-1,first]], half_max)
+        right = linear_interpolate(wave_val[[last,last+1]], wave_space[[last,last+1]], half_max)
+        right - left
+    end
+    return width
+end
+
 # Ughhhh needs to be robust to noise... (incl numerical noise)
-function detect_peak_with_wings(frame::AbstractArray{T,1}, min_wing_dxs::Int=5,
-        peak_type::Type{<:AbstractPeak}=StaticPeak) where {T<:Number}
+function detect_peak_with_wings(frame::AbstractVector{T}, xs::AbstractVector{T}, min_wing_dxs::Int=5) where {T<:Number}
     # Find peak, with surrounding left and right d_frame zeros
     apex = right = max_scoring_peak = nothing
     left = Value(1, frame[1])
@@ -250,8 +253,9 @@ function detect_peak_with_wings(frame::AbstractArray{T,1}, min_wing_dxs::Int=5,
         else
             if change >= 0
                 right = Value(idx-1, prev_val)
-                peak = peak_type(left, apex, right)
-                max_scoring_peak = choose_max_scoring(max_scoring_peak, peak)
+                peak = SolitaryWaveform(left, apex, right, wave_width(left, apex, right, frame, xs))
+                scored_peak = peak |> Scored
+                max_scoring_peak = choose_best(max_scoring_peak, scored_peak)
                 apex = nothing
                 left = right
             end
@@ -261,74 +265,74 @@ function detect_peak_with_wings(frame::AbstractArray{T,1}, min_wing_dxs::Int=5,
     end
     rightmost = Value(idx-1, prev_val)
     apex = apex === nothing ? rightmost : apex
-    final_peak = peak_type(left, apex, rightmost)
-    max_peak = choose_peakiest(max_peak, final_peak)
+    final_peak = SolitaryWaveform(left, apex, rightmost, wave_width(left, apex, right, frame, xs))
+    scored_final_peak = final_peak |> Scored
+    max_scoring_peak = choose_best(max_scoring_peak, scored_final_peak)
+    return max_scoring_peak
+end
+
+function best_waveform(::Type{<:SolitaryWaveform}, frame::AbstractArray{T,1}, xs::AbstractArray, min_wing_dxs::Int=10) where T
+    best_peak = detect_peak_with_wings(frame, xs, min_wing_dxs)
     return max_peak
 end
-
-function WaveSolitary(frame::AbstractArray{T,1}, min_wing_dxs::Int=10) where T
-    detect_peak_with_wings(frame, min_wing_dxs)
-end
-function WaveFront(frame::AbstractArray{T,1}, min_wing_dxs::Int=5) where T
-    detect_peak_with_wings(diff(frame))
-end
-
-function TravelingWave(frames)
-    choose_best(WaveSolitary.(frames), WaveFront.(frames))
-end
-
-function stats(wave_arr::AbstractArray{<:WaveSolitary})
-    widths = [st.width for st in wave_arr]
-    centers = [st.center for st in wave_arr]
-    amplitudes = [st.amplitude for st in wave_arr]
-    scores = [st.score for st in wave_arr]
-    
-    if sum(valid_metric.(widths, scores)) < 5 || sum(valid_metric.(centers, scores)) < 5 || sum(valid_metric.(amplitudes,scores)) < 5 #At least five wave frames
-        return nothing
-    end
-
-    if mean(scores) < 1e-2 || mean(amplitudes) < 1e-3 # roughly, less than 1% of the run contains TW
-        return nothing # can't try fitting; singular
-    end
-    width_linfit = linreg_dropmissing(widths, t, scores)
-    center_linfit = linreg_dropmissing(centers, t, scores)
-    amplitude_linfit = linreg_dropmissing(amplitudes, t, scores)
-    StatsWaveSolitary(FitErr(widths, width_linfit, t, scores), 
-        FitErr(centers, center_linfit, t, scores),
-        FitErr(amplitudes, amplitude_linfit, t, scores),
-        norm(scores))
+function best_waveform(::Type{<:Wavefront}, frame::AbstractArray{T,1}, xs::AbstractArray, min_wing_dxs::Int=5) where T
+    scored_max_d_peak = detect_peak_with_wings(-diff(frame), xs, min_wing_dxs)
+    max_d_peak = scored_max_d_peak.obj
+    front_left = translate(max_d_peak.left, frame, 1)
+    front = translate(max_d_peak.apex, frame, 1)
+    front_right = translate(max_d_peak.apex, frame, 1)
+    apex_val, apex_locp1 = findmax(frame[front_left.loc:front_right.loc])
+    apex_loc = apex_locp1 - 1
+    apex = Value(apex_loc, apex_val)
+    max_wavefront = Wavefront(
+            from_idx_to_space(front_left, xs),
+            from_idx_to_space(front, xs),
+            max_d_peak.apex.val,
+            from_idx_to_space(apex, xs),
+            from_idx_to_space(front_right, xs)
+        ) |> Scored
+    return max_wavefront
 end
 
-function stats(wave_arr::AbstractArray{<:WaveFront}, t)
-    front_locs = [st.front for st in wave_arr]
-    amplitudes = [st.amplitude for st in wave_arr]
-    left_baselines = [st.left_baseline for st in wave_arr]
-    right_baselines = [st.right_baseline for st in wave_arr]
-    scores = [st.score for st in wave_arr]
-    
-    if sum(valid_metric.(right_baselines, scores)) < 5 || sum(valid_metric.(front_locs, scores)) < 5 || sum(valid_metric.(amplitudes, scores)) < 5 || sum(valid_metric.(left_baselines,scores)) < 5 #At least five wave frames
-        return nothing
-    end
-    
-    if mean(scores) < 1e-2 || mean(amplitudes) < 1e-3 # roughly, less than 1% of the run contains TW
-        return nothing # can't try fitting; singular
-    end
-    front_locs_lf = linreg_dropmissing(front_locs, t, scores)
-    amplitudes_lf = linreg_dropmissing(amplitudes, t, scores)
-    left_baselines_lf = linreg_dropmissing(left_baselines, t, scores)
-    right_baselines_lf = linreg_dropmissing(right_baselines, t, scores)
-    StatsWaveFront(
-        FitErr(front_locs, t, scores),
-        FitErr(amplitudes, t, scores),
-        FitErr(left_baselines, t, scores),
-        FitErr(right_baselines, t, scores)
-    )
+function traveling_wave_metrics_linear_regression(scored_wave_arr::AbstractArray{<:Scored{WAVE}}, t) where {WAVE <: AbstractWaveform}
+    waveform_metrics = [metrics(s.obj) for s in scored_wave_arr]
+    scores = [s.score for s in scored_wave_arr]
+    wave_metric_syms = fieldnames(WAVE)
+    wave_metrics_df = DataFrame(Dict(zip(metric_syms, [[getproperty(wave, sym) for wave in waves] for sym in metric_syms])))
+    wave_metrics_df.t = t
+    # TODO: don't attempt to do bad fit
+    fomulae = [(Term(metric) ~ :t + ConstantTerm(1)) for metric in wave_metric_syms]
+    results = map(wave_metric_syms) do metric_sym
+        fmla = Term(metric_sym) ~ :t + ConstantTerm(1)
+        glm_fit = glm(fmla, dropmissing(wave_metrics_df), Normal(), IdentityLink(); wts=scores)
+        return metric_sym => glm_fit
+    end |> Dict
+    return results
 end
 
-function stats(frames)
-    stats(TravelingWave(frames))
+
+# vvvvvvvvvvvv Maybe... vvvvvvvvvvvvv
+
+function TravelingWave(frames, x)
+    choose_best(best_waveform.(SolitaryWaveform, frames, Ref(x)), best_waveform.(Wavefront, frames, Ref(x)))
 end
-    
-    
 
+function stats(frames, t, x)
+    stats(stats(TravelingWave(frames), x), t)
+end
 
+function stats(exec::Execution)
+    u = exec.solution.u
+    t = exec.solution.t
+    x = [x[1] for x in exec.solution.x]
+    stats(u, t, x)
+end
+
+# %%
+# tests
+
+test_xs = 0.0:0.1:20.0
+test_sigmoid = 1.0 .- NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 10.0)
+test_sech2 = NeuralModels.sech2_fn.(test_xs, 0.7, 10.0)
+plot([plot(test_xs, test_sigmoid), plot(test_xs, test_sech2)]...) |> display
+best_waveform(Wavefront, test_sech2, test_xs)

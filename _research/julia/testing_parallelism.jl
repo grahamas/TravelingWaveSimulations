@@ -97,7 +97,8 @@ end
 
 # %%
 execution = execute(dos_example(; n=256, x=700.0, See=25.0, Sii=25.0, Sie=27.0, Sei=27.0,
-                                Aee=200.0, Aei=75.0, Aie=50.0, Aii=10.0, strengthE=10.0, widthE=50.0));
+                                Aee=250.0, Aei=75.0, Aie=50.0, Aii=10.0, strengthE=10.0, widthE=50.0,
+                                algorithm=Tsit5()));
 anim = TravelingWaveSimulations.custom_animate(execution)
 mp4(anim, "tmp/dos_tmp.mp4")
 
