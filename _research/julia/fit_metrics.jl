@@ -131,6 +131,8 @@ deviance(lm_fit)
 deviance(glm_fit)
 
 # %%
+Value(loc::Int, val::T) where T = (@assert loc > 0; Value{Int,T}(loc,val))
+
 const MaybeData{T} = Union{T,Missing}
 using TravelingWaveSimulations: Value, linear_interpolate
 
@@ -151,11 +153,11 @@ drop_duration(apex::Value, nadir::Value) = abs(apex.loc - nadir.loc)
 sigmoid(x::Real) = one(x) / (one(x) + exp(-x))
 drop_score(apex::Value{T}, nadir::Value{T}, θ) where T = drop_proportion(apex, nadir) * sigmoid((drop_duration(apex, nadir) - θ))
 valid_score(score) = if isnan(score)
-        return 0
+        return 0.0
     elseif score < 0
         # Confirm score range
         @warn "negative score: left: $left, apex: $apex, right: $right"
-        return 0
+        return 0.0
     else
         return score
     end 
@@ -163,7 +165,7 @@ struct SolitaryWaveform{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T
     left::V
     apex::V
     right::V
-    width::T_VAL # Never in index units
+    width::MaybeData{T_VAL} # Never in index units
 end
 function score(swf::SolitaryWaveform, width_θ::T=10) where T
     left_score = drop_score(swf.apex, swf.left, width_θ)
@@ -171,6 +173,7 @@ function score(swf::SolitaryWaveform, width_θ::T=10) where T
     score = left_score * right_score
     return valid_score(score)
 end
+# RIGHT WAVEFRONT FIXME
 struct Wavefront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
     left::V
     front::V
@@ -181,7 +184,7 @@ end
 function score(wf::Wavefront, width_θ::T=5) where T
     left_score = drop_score(wf.apex, wf.left, width_θ)
     right_score = drop_score(wf.apex, wf.right, width_θ)
-    score = max(left_score, right_score)
+    score = right_score - left_score
     return valid_score(score)
 end
 
@@ -237,52 +240,66 @@ function wave_width(wave_left, wave_apex, wave_right, wave_val, wave_space)
     return width
 end
 
-# Ughhhh needs to be robust to noise... (incl numerical noise)
-function detect_peak_with_wings(frame::AbstractVector{T}, xs::AbstractVector{T}, min_wing_dxs::Int=5) where {T<:Number}
-    # Find peak, with surrounding left and right d_frame zeros
-    apex = right = max_scoring_peak = nothing
-    left = Value(1, frame[1])
-    prev_val = frame[1]
-    idx = 2
-    for val in frame[2:end]
-        change = val - prev_val
-        if apex === nothing
-            if change <= 0
-                apex = Value(idx-1, prev_val)
-            end
-        else
-            if change >= 0
-                right = Value(idx-1, prev_val)
-                peak = SolitaryWaveform(left, apex, right, wave_width(left, apex, right, frame, xs))
-                scored_peak = peak |> Scored
-                max_scoring_peak = choose_best(max_scoring_peak, scored_peak)
-                apex = nothing
-                left = right
-            end
-        end
-        prev_val = val
-        idx += 1
-    end
-    rightmost = Value(idx-1, prev_val)
-    apex = apex === nothing ? rightmost : apex
-    final_peak = SolitaryWaveform(left, apex, rightmost, wave_width(left, apex, right, frame, xs))
-    scored_final_peak = final_peak |> Scored
-    max_scoring_peak = choose_best(max_scoring_peak, scored_final_peak)
-    return max_scoring_peak
+# Divide between peaks of second derivative (inflection points)
+# Center on peaks of first derivative
+
+# TODO: principled way not relying on arbitrary atol
+function is_extremum(i, vec::Vector, atol=1e-16)
+    (vec[i-2] < vec[i-1] <= vec[i] >= vec[i+1] > vec[i+2] || vec[i-2] > vec[i-1] >= vec[i] <= vec[i+1] < vec[i+2]) 
 end
+
+function detect_all_fronts(signal::Vector)
+    @assert length(signal) > 2
+    d_signal = diff(signal)
+    dd_signal = diff(d_signal)
+    fronts = Wavefront[]
+    left_bd = Value(1, signal[1])
+    center = nothing
+    first = true
+    # TODO: indices are fucked up
+    for i=3:length(signal)-4
+        if is_extremum(i, d_signal)
+            center = Value(i, signal[i])
+            @assert !is_extremum(i, dd_signal)
+            first = false
+        elseif center === nothing && first && is_extremum(i, dd_signal)
+            left_bd = Value(i, signal[i])
+            first = false
+        elseif center !== nothing && is_extremum(i, dd_signal)
+            here = Value(i, signal[i])
+            (max_val, max_dx) = findmax(signal[left_bd.loc:i])
+            apex = Value(max_dx, max_val)
+            push!(fronts, Wavefront(left_bd, center, d_signal[center.loc], apex, here))
+            center = nothing
+            left_bd = here
+        end
+    end
+    if center !== nothing
+        (max_val, max_dx) = findmax(signal[left_bd.loc:end])
+        apex = Value(max_dx, max_val)
+        push!(fronts, Wavefront(left_bd, center, d_signal[center.loc], apex, Value(length(signal), signal[end])))
+    end
+    return fronts
+end
+
+# Steps:
+# 1. Detect local maxima and minima in derivative
+# 2. Categorize as maxima (left facing, LF) and minima (right facing, RF)
+# 3. Return list
+# 4. Simple approach: consider only movement of right-most RF. Call "solitary waveform" if preceded by LF
 
 function best_waveform(::Type{<:SolitaryWaveform}, frame::AbstractArray{T,1}, xs::AbstractArray, min_wing_dxs::Int=10) where T
     best_peak = detect_peak_with_wings(frame, xs, min_wing_dxs)
-    return max_peak
+    return best_peak
 end
 function best_waveform(::Type{<:Wavefront}, frame::AbstractArray{T,1}, xs::AbstractArray, min_wing_dxs::Int=5) where T
     scored_max_d_peak = detect_peak_with_wings(-diff(frame), xs, min_wing_dxs)
     max_d_peak = scored_max_d_peak.obj
     front_left = translate(max_d_peak.left, frame, 1)
     front = translate(max_d_peak.apex, frame, 1)
-    front_right = translate(max_d_peak.apex, frame, 1)
+    front_right = translate(max_d_peak.right, frame, 1)
     apex_val, apex_locp1 = findmax(frame[front_left.loc:front_right.loc])
-    apex_loc = apex_locp1 - 1
+    apex_loc = apex_locp1 + front_left.loc - 1
     apex = Value(apex_loc, apex_val)
     max_wavefront = Wavefront(
             from_idx_to_space(front_left, xs),
@@ -334,5 +351,70 @@ end
 test_xs = 0.0:0.1:20.0
 test_sigmoid = 1.0 .- NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 10.0)
 test_sech2 = NeuralModels.sech2_fn.(test_xs, 0.7, 10.0)
-plot([plot(test_xs, test_sigmoid), plot(test_xs, test_sech2)]...) |> display
-best_waveform(Wavefront, test_sech2, test_xs)
+test_double_sigmoid = NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 10.0) - NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 15.0)
+plot([plot(test_xs, test_double_sigmoid), plot(test_xs, test_sech2)]...) |> display
+plot(plot(test_xs[2:end], -diff(test_double_sigmoid)), plot(test_xs[2:end], -diff(test_sech2)))|> display
+plot(plot(test_xs[3:end], diff(-diff(test_double_sigmoid))), plot(test_xs[3:end], diff(-diff(test_sech2)))) |> display
+plot(plot(test_xs[4:end], diff(diff(-diff(test_sigmoid)))), plot(test_xs[4:end], diff(diff(-diff(test_sech2))))) |> display
+
+detect_all_fronts(test_double_sigmoid)
+
+# %%
+ABS_STOP=300.0
+dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
+                                                     Aee=280.0, See=70.0,
+                                                     Aii=1.4, Sii=70.0,
+                                                     Aie=270.0, Sie=90.0,
+                                                     Aei=-297.0, Sei=90.0,
+                                                     n=71, x=500.0)
+  simulation = Simulation(
+    WCMSpatial(;
+      pop_names = ("E", "I"),
+      α = (1.0, 1.0),
+      β = (1.0, 1.0),
+      τ = (10.0, 10.0),
+      nonlinearity = pops(DifferenceOfSigmoids;
+        #sd = [6.7, sqrt(3.2)],
+        #θ = [18.0, 10.0]),
+        firing_θ = [10.0, 5.0],
+        firing_a = [1.2, 1.0],
+        blocking_θ = [18.0, 13.0],
+        blocking_a = [1.2, 1.0]),
+      stimulus = pops(SharpBumpStimulusParameter;
+          strength = [10.0, 0.0],
+          width = [28.1, 28.1],
+          time_windows = [[(0.0, 10.0)], [(0.0, 10.0)]],
+          baseline=[0.0, 0.0]),
+      connectivity = FFTParameter(pops(GaussianConnectivityParameter;
+          amplitude = [Aee -Aei;
+                       Aie -Aii],
+          spread = [(See,See) (Sei,Sei);
+                    (Sie,Sie) (Sii,Sii)]
+         ))
+      );
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
+      save_idxs = RadialSlice(),
+      tspan = (0.0,stop_time),
+      dt = 1.0,
+      algorithm=Euler(),
+      callback=DiscreteCallback(if !(save_idxs === nothing)
+        (u,t,integrator) -> begin
+                    sub_u = u[integrator.opts.save_idxs];
+                    (all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end] > 0.01)) && t > 5
+                end
+    else
+        (u,t,integrator) -> begin
+                    pop = population(u,1)
+                    (all(isapprox.(u, 0.0, atol=1e-4)) || (sum(pop[:,end]) / size(pop,1) > 0.01)) && t > 5
+            end
+    end, terminate!)
+  )
+end
+
+# %%
+using DifferentialEquations
+execution = execute(dos_example(; n=256, x=700.0, See=25.0, Sii=25.0, Sie=27.0, Sei=27.0,
+                                Aee=250.0, Aei=75.0, Aie=50.0, Aii=10.0, strengthE=10.0, widthE=50.0,
+                                algorithm=Tsit5()));
+anim = TravelingWaveSimulations.custom_animate(execution)
+mp4(anim, "tmp/dos_tmp.mp4")
