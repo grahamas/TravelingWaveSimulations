@@ -16,6 +16,7 @@
 # ---
 
 # %%
+using Revise
 using Simulation73, NeuralModels, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
     IterTools, Combinatorics, DataFrames, GLM
 
@@ -83,7 +84,7 @@ end
 @show sum(ismissing.(A_velocity))
 @show prod(size(A_velocity))
 
-# %% collapsed=true jupyter={"outputs_hidden": true}
+# %%
 factor_names, factors = calculate_factor_matrix(mdb, 2);
 parameters_mx = reshape(factors, (:,size(factors)[end]));
 df = DataFrame(Dict(zip(factor_names, [parameters_mx[:,i] for i in 1:size(parameters_mx,2)])))
@@ -110,34 +111,21 @@ plot([glm_bics...], title="GLM BIC") |> display
 
 
 # %%
-lm_bics
-
-# %%
-fit = TravelingWaveSimulations.linreg_dropmissing(A_velocity[:], parameters_mx, wts)
-
-# %%
-fmla = Term(:vel) ~ sum(Term.(Symbol.(factor_names))) + ConstantTerm(1);
-
-# %% collapsed=true jupyter={"outputs_hidden": true}
-lm_fit = lm(fmla, dropmissing(df))
-
-# %%
-glm_fit = glm(fmla, dropmissing(df), Normal(), IdentityLink(); wts=wts)
-
-# %%
-deviance(lm_fit)
-
-# %%
-deviance(glm_fit)
-
-# %%
-Value(loc::Int, val::T) where T = (@assert loc > 0; Value{Int,T}(loc,val))
+TravelingWaveSimulations.Value(loc::Int, val::T) where T = (@assert loc > 0; Value{Int,T}(loc,val))
 
 const MaybeData{T} = Union{T,Missing}
 using TravelingWaveSimulations: Value, linear_interpolate
 
-function translate(val::Value{<:Union{Int,CartesianIndex}}, new_arr::AbstractArray, offset=0)
-    Value(val.loc + offset, new_arr[val.loc + offset])
+# function TravelingWaveSimulations.linear_interpolate(x, new_vals, locs)
+#     idx1 = findlast(locs .<= x)
+#     idx2 = findfirst(locs .>= x)
+#     x1, y1 = locs[idx1], new_vals[idx1]
+#     x2, y2 = locs[idx2], new_vals[idx2]
+#     linear_interpolate((x1,x2), (y1,y2), x)
+# end
+    
+function translate(val::Value{Float64}, new_vals::AbstractVector, common_locs::Vector{Float64}, offset=0.0)
+    Value(val.loc + offset, linear_interpolate(val.loc + offset, new_vals, common_locs)) 
 end
 from_idx_to_space(val::Value, space) = Value(space[val.loc], val.val)
 
@@ -161,18 +149,6 @@ valid_score(score) = if isnan(score)
     else
         return score
     end 
-struct SolitaryWaveform{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
-    left::V
-    apex::V
-    right::V
-    width::MaybeData{T_VAL} # Never in index units
-end
-function score(swf::SolitaryWaveform, width_θ::T=10) where T
-    left_score = drop_score(swf.apex, swf.left, width_θ)
-    right_score = drop_score(swf.apex, swf.right, width_θ)
-    score = left_score * right_score
-    return valid_score(score)
-end
 # RIGHT WAVEFRONT FIXME
 struct Wavefront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
     left::V
@@ -181,10 +157,29 @@ struct Wavefront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_
     apex::V
     right::V
 end
+function translate(wf::Wavefront, args...)
+    Wavefront(
+        translate(wf.left, args...),
+        translate(wf.front, args...),
+        wf.front_slope,
+        translate(wf.apex, args...),
+        translate(wf.right, args...)
+        )
+end
+function from_idx_to_space(wf::Wavefront, xs::AbstractVector)
+    Wavefront(
+        from_idx_to_space(wf.left, xs),
+        from_idx_to_space(wf.front, xs),
+        wf.front_slope, # TODO should divide by Δx
+        from_idx_to_space(wf.apex, xs),
+        from_idx_to_space(wf.right, xs)
+    )
+end
+
 function score(wf::Wavefront, width_θ::T=5) where T
     left_score = drop_score(wf.apex, wf.left, width_θ)
     right_score = drop_score(wf.apex, wf.right, width_θ)
-    score = right_score - left_score
+    score = max(right_score, left_score) # TODO account for slope
     return valid_score(score)
 end
 
@@ -196,17 +191,6 @@ struct WaveformMetrics{T}
     width::MaybeData{T}
     front_slope::T
     front_loc::T
-end
-function metrics(swf::SolitaryWaveform)
-    WaveformMetrics(
-        swf.left.val,
-        swf.right.val,
-        swf.apex.val,
-        swf.apex.loc,
-        swf.width,
-        missing,
-        missing
-    )
 end
 function metrics(wf::Wavefront)
     WaveformMetrics(
@@ -243,106 +227,170 @@ end
 # Divide between peaks of second derivative (inflection points)
 # Center on peaks of first derivative
 
-# TODO: principled way not relying on arbitrary atol
-function is_extremum(i, vec::Vector, atol=1e-16)
-    (vec[i-2] < vec[i-1] <= vec[i] >= vec[i+1] > vec[i+2] || vec[i-2] > vec[i-1] >= vec[i] <= vec[i+1] < vec[i+2]) 
+# TODO: Don't require monotonicity.
+# function is_extremum(i, vec::Vector, atol=1e-16)
+#     (vec[i-2] < vec[i-1] <= vec[i] >= vec[i+1] > vec[i+2]) || (vec[i-2] > vec[i-1] >= vec[i] <= vec[i+1] < vec[i+2]) 
+# end
+function is_extremum(i, vec::Vector)
+    all([vec[i-2:i-1]; vec[i+1:i+2]] .< vec[i]) || all([vec[i-2:i-1]; vec[i+1:i+2]] .> vec[i]) 
 end
 
-function detect_all_fronts(signal::Vector)
+function float_index(arr, real_idx::Float64)
+    idx = floor(Int, real_idx)
+    linear_interpolate((idx+0.0, idx+1.0), (arr[idx], arr[idx+1]), real_idx)
+end
+function space_index(idx::Tuple, xs::Vector{T}) where T
+    idx1 = findfirst(xs .>= idx[1])
+    idx2 = findlast(xs .< idx[2]) + 1
+    return idx1:idx2
+end
+function space_index(idx::Number, xs::Vector{T}) where T
+    min_val, closest_idx = findmin(abs.(xs .- idx))
+    @assert min_val < abs(xs[1] - xs[2])
+    return closest_idx
+end
+
+value_from_idx(idx::Int, xs::Vector, signal::Vector) = Value(xs[idx], signal[idx])
+function value_from_idx(fidx::Float64, xs::Vector, signal::Vector)
+    loc = float_index(xs, fidx)
+    val = float_index(signal, fidx)
+    return Value(loc, val)
+end
+
+function detect_all_fronts(signal::Vector, xs::Vector)
+    @assert length(signal) == length(xs)
     @assert length(signal) > 2
     d_signal = diff(signal)
     dd_signal = diff(d_signal)
-    fronts = Wavefront[]
-    left_bd = Value(1, signal[1])
+    fronts = Wavefront{Float64,Float64}[]
+    left_bd = value_from_idx(1, xs, signal)
     center = nothing
-    first = true
-    # TODO: indices are fucked up
     for i=3:length(signal)-4
-        if is_extremum(i, d_signal)
-            center = Value(i, signal[i])
-            @assert !is_extremum(i, dd_signal)
-            first = false
-        elseif center === nothing && first && is_extremum(i, dd_signal)
-            left_bd = Value(i, signal[i])
-            first = false
-        elseif center !== nothing && is_extremum(i, dd_signal)
-            here = Value(i, signal[i])
-            (max_val, max_dx) = findmax(signal[left_bd.loc:i])
-            apex = Value(max_dx, max_val)
-            push!(fronts, Wavefront(left_bd, center, d_signal[center.loc], apex, here))
+        if center !== nothing && is_extremum(i, dd_signal)
+            here = value_from_idx(i+1, xs, signal)
+            idxs = space_index((left_bd.loc, here.loc), xs)
+            @show (left_bd.loc, here.loc)
+            @show idxs
+            (max_val, max_dx) = findmax(signal[idxs])
+            apex = Value(xs[idxs[max_dx]], max_val)
+            push!(fronts, Wavefront(left_bd, 
+                                    center, 
+                                    d_signal[space_index(center.loc - 0.5, xs)], 
+                                    apex, 
+                                    here))
             center = nothing
             left_bd = here
+        elseif is_extremum(i, d_signal)
+            center = value_from_idx(i+0.5, xs, signal)
         end
     end
+    rightmost = value_from_idx(length(signal), xs, signal)
     if center !== nothing
-        (max_val, max_dx) = findmax(signal[left_bd.loc:end])
-        apex = Value(max_dx, max_val)
-        push!(fronts, Wavefront(left_bd, center, d_signal[center.loc], apex, Value(length(signal), signal[end])))
+        idxs = space_index((left_bd.loc, rightmost.loc), xs)
+        (max_val, max_idx) = findmax(signal[idxs])
+        apex = value_from_idx(max_idx, xs, signal)
+        push!(fronts, Wavefront(left_bd, center, d_signal[space_index(center.loc, xs)], apex, rightmost))
+    end
+    if length(fronts) == 0
+        max_slope, d_max_idx = findmax(d_signal)
+        signal_max, signal_max_idx = findmax(signal)
+        dapex = value_from_idx(d_max_idx + 0.5, xs, signal)
+        apex = Value(signal_max_idx, xs, signal)
+        push!(fronts, Wavefront(left, dapex, max_slope, apex, rightmost))
     end
     return fronts
 end
 
-# Steps:
-# 1. Detect local maxima and minima in derivative
-# 2. Categorize as maxima (left facing, LF) and minima (right facing, RF)
-# 3. Return list
-# 4. Simple approach: consider only movement of right-most RF. Call "solitary waveform" if preceded by LF
-
-function best_waveform(::Type{<:SolitaryWaveform}, frame::AbstractArray{T,1}, xs::AbstractArray, min_wing_dxs::Int=10) where T
-    best_peak = detect_peak_with_wings(frame, xs, min_wing_dxs)
-    return best_peak
+function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, frame, slope_min, xs)
+    if length(fronts) == 0
+        return fronts
+    end
+    new_fronts = Wavefront[]
+    first_suff_dx = 1
+    while abs(fronts[first_suff_dx].front_slope) < slope_min
+        if first_suff_dx < length(fronts)
+            first_suff_dx += 1
+        else
+            break
+        end
+    end
+    current_front = if fronts[first_suff_dx].left.loc > 1
+        max_val, max_dx = findmax(frame[1:fronts[first_suff_dx].right.loc])
+        apex = value_from_idx(max_dx, xs, frame)
+        Wavefront(value_from_idx(1, xs, frame), fronts[first_suff_dx].front, fronts[first_suff_dx].front_slope, apex, fronts[first_suff_dx].right)
+    else
+        fronts[first_suff_dx]
+    end
+    if length(fronts) > first_suff_dx
+        for i in first_suff_dx+1:length(fronts)
+            next_front = fronts[i]
+            if next_front.front_slope < slope_min
+                idxs = space_index((current_front.left.loc,next_front.right.loc), xs)
+                max_val, max_dx = findmax(frame[idxs])
+                apex = Value(xs[idxs[max_dx]], max_val)
+                current_front = Wavefront(current_front.left, current_front.front, current_front.front_slope, apex, next_front.right)
+            else
+                push!(new_fronts, current_front)
+                current_front = next_front
+            end
+        end
+    end
+    if current_front.right.loc < length(frame)
+        idxs = space_index((left_bd.loc, rightmost.loc), xs)
+        (max_val, max_idx) = findmax(signal[idxs])
+        apex = Value(xs[idxs[max_idx]], signal[max_idx])
+        current_front = Wavefront(current_front.left, current_front.front, current_front.front_slope, apex, Value(length(frame), frame[end]))
+    end
+    push!(new_fronts, current_front)
+    return new_fronts
 end
-function best_waveform(::Type{<:Wavefront}, frame::AbstractArray{T,1}, xs::AbstractArray, min_wing_dxs::Int=5) where T
-    scored_max_d_peak = detect_peak_with_wings(-diff(frame), xs, min_wing_dxs)
-    max_d_peak = scored_max_d_peak.obj
-    front_left = translate(max_d_peak.left, frame, 1)
-    front = translate(max_d_peak.apex, frame, 1)
-    front_right = translate(max_d_peak.right, frame, 1)
-    apex_val, apex_locp1 = findmax(frame[front_left.loc:front_right.loc])
-    apex_loc = apex_locp1 + front_left.loc - 1
-    apex = Value(apex_loc, apex_val)
-    max_wavefront = Wavefront(
-            from_idx_to_space(front_left, xs),
-            from_idx_to_space(front, xs),
-            max_d_peak.apex.val,
-            from_idx_to_space(apex, xs),
-            from_idx_to_space(front_right, xs)
-        ) |> Scored
-    return max_wavefront
+
+function substantial_fronts(frame, xs::AbstractVector, slope_min=1e-4)
+    all_fronts = detect_all_fronts(frame)
+    @show all_fronts
+    consolidated = consolidate_fronts(all_fronts, frame, slope_min, xs)
+    @show consolidated
+    return from_idx_to_space.(consolidated, Ref(xs))
 end
 
-function traveling_wave_metrics_linear_regression(scored_wave_arr::AbstractArray{<:Scored{WAVE}}, t) where {WAVE <: AbstractWaveform}
+function scored_rightmost_wavefront(frame::AbstractVector{T}, xs::AbstractVector)::Scored{<:Wavefront{T,T},T} where T
+    fronts = substantial_fronts(frame, xs)
+    if length(fronts) == 0
+        return fronts
+    else
+        return Scored(fronts[end])
+    end
+end
+scored_rightmost_wavefront(multipop::AbstractArray{T,2}, xs) where T = scored_rightmost_wavefront(multipop[:,1], xs)
+
+function metrics_df(scored_wave_arr::AbstractArray{<:Scored{WAVE}}) where {WAVE <: AbstractWaveform}
     waveform_metrics = [metrics(s.obj) for s in scored_wave_arr]
     scores = [s.score for s in scored_wave_arr]
-    wave_metric_syms = fieldnames(WAVE)
-    wave_metrics_df = DataFrame(Dict(zip(metric_syms, [[getproperty(wave, sym) for wave in waves] for sym in metric_syms])))
+    wave_metric_syms = fieldnames(WaveformMetrics)
+    wave_metrics_df = DataFrame(Dict(zip(wave_metric_syms, [[getproperty(wave, sym) for wave in waveform_metrics] for sym in wave_metric_syms])))
+end
+
+function traveling_wave_metrics_linear_regression(wave_metrics_df::DataFrame, t)
+    wave_metrics_syms = names(wave_metrics_df)
+    mostly_extant_cols = filter(c -> count(ismissing, wave_metrics_df[:,c])/size(wave_metrics_df,1) < 0.01, wave_metrics_syms)
     wave_metrics_df.t = t
-    # TODO: don't attempt to do bad fit
-    fomulae = [(Term(metric) ~ :t + ConstantTerm(1)) for metric in wave_metric_syms]
-    results = map(wave_metric_syms) do metric_sym
-        fmla = Term(metric_sym) ~ :t + ConstantTerm(1)
-        glm_fit = glm(fmla, dropmissing(wave_metrics_df), Normal(), IdentityLink(); wts=scores)
+    results = map(mostly_extant_cols) do metric_sym
+        fmla = Term(metric_sym) ~ Term(:t) + ConstantTerm(1)
+        glm_fit = glm(fmla, wave_metrics_df, Normal(), IdentityLink(); wts=scores)
         return metric_sym => glm_fit
     end |> Dict
-    return results
+    return (results, scores, wave_metrics_df)
 end
 
-
-# vvvvvvvvvvvv Maybe... vvvvvvvvvvvvv
-
-function TravelingWave(frames, x)
-    choose_best(best_waveform.(SolitaryWaveform, frames, Ref(x)), best_waveform.(Wavefront, frames, Ref(x)))
+function tw_metrics(frames, t, x)
+    traveling_wave_metrics_linear_regression(metrics_df(scored_rightmost_wavefront.(frames, Ref(x))), t)
 end
 
-function stats(frames, t, x)
-    stats(stats(TravelingWave(frames), x), t)
-end
-
-function stats(exec::Execution)
+function tw_metrics(exec::Execution)
     u = exec.solution.u
-    t = exec.solution.t
-    x = [x[1] for x in exec.solution.x]
-    stats(u, t, x)
+    t = timepoints(exec)
+    x = [x[1] for x in space(exec).arr]
+    tw_metrics(u, t, x)
 end
 
 # %%
@@ -351,16 +399,17 @@ end
 test_xs = 0.0:0.1:20.0
 test_sigmoid = 1.0 .- NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 10.0)
 test_sech2 = NeuralModels.sech2_fn.(test_xs, 0.7, 10.0)
-test_double_sigmoid = NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 10.0) - NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 15.0)
-plot([plot(test_xs, test_double_sigmoid), plot(test_xs, test_sech2)]...) |> display
-plot(plot(test_xs[2:end], -diff(test_double_sigmoid)), plot(test_xs[2:end], -diff(test_sech2)))|> display
-plot(plot(test_xs[3:end], diff(-diff(test_double_sigmoid))), plot(test_xs[3:end], diff(-diff(test_sech2)))) |> display
-plot(plot(test_xs[4:end], diff(diff(-diff(test_sigmoid)))), plot(test_xs[4:end], diff(diff(-diff(test_sech2))))) |> display
+test_double_sigmoid = NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 10.0) + NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 15.0)
+# plot([plot(test_xs, test_double_sigmoid), plot(test_xs, test_sech2)]...) |> display
+# plot(plot(test_xs[2:end], -diff(test_double_sigmoid)), plot(test_xs[2:end], -diff(test_sech2)))|> display
+# plot(plot(test_xs[3:end], diff(-diff(test_double_sigmoid))), plot(test_xs[3:end], diff(-diff(test_sech2)))) |> display
+# plot(plot(test_xs[4:end], diff(diff(-diff(test_sigmoid)))), plot(test_xs[4:end], diff(diff(-diff(test_sech2))))) |> display
 
-detect_all_fronts(test_double_sigmoid)
+scored_rightmost_wavefront(test_sech2, test_xs)
 
 # %%
 ABS_STOP=300.0
+using WilsonCowanModel
 dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
                                                      Aee=280.0, See=70.0,
                                                      Aii=1.4, Sii=70.0,
@@ -368,7 +417,7 @@ dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N
                                                      Aei=-297.0, Sei=90.0,
                                                      n=71, x=500.0)
   simulation = Simulation(
-    WCMSpatial(;
+    WilsonCowanModel.WCMSpatial(;
       pop_names = ("E", "I"),
       α = (1.0, 1.0),
       β = (1.0, 1.0),
@@ -418,3 +467,53 @@ execution = execute(dos_example(; n=256, x=700.0, See=25.0, Sii=25.0, Sie=27.0, 
                                 algorithm=Tsit5()));
 anim = TravelingWaveSimulations.custom_animate(execution)
 mp4(anim, "tmp/dos_tmp.mp4")
+
+# %%
+results, scores, df = tw_metrics(execution)
+
+# %%
+plot(df.t, df.front_slope)
+
+# %%
+exec = execution    
+u = exec.solution.u
+t = timepoints(exec)
+x = [x[1] for x in space(exec).arr]
+complex_wave = u[30][:,1]
+
+@recipe function f(wf_arr::Array{<:Wavefront})
+    seriestype := :scatter
+    @series begin
+        color := :green
+        marker := :star
+        markersize := 10
+        [wf.left.loc for wf in wf_arr], [wf.left.val for wf in wf_arr]
+    end
+    @series begin
+        color := :red
+        [wf.right.loc for wf in wf_arr], [wf.right.val for wf in wf_arr]
+    end
+    @series begin
+        color := :blue
+        [wf.front.loc for wf in wf_arr], [wf.front.val for wf in wf_arr]
+    end
+end
+wfs = detect_all_fronts(complex_wave,x)
+plot(x, complex_wave)
+plot!(wfs)
+@show float_index.(Ref(x), (2:length(x)) .- 0.5) |> length
+@show diff(complex_wave) |> length
+@show length(complex_wave)
+plot!(float_index.(Ref(x), (2:length(x)) .- 0.5), diff(complex_wave))
+plot!(x[2:end-1], diff(diff(complex_wave)))
+plot!(float_index.(Ref(x), (3:length(x)-1) .- 0.5), diff(complex_wave)|> diff |> diff) |> display
+plot(x, complex_wave)
+cwfs = consolidate_fronts(detect_all_fronts(complex_wave,x), complex_wave, 1e-4, x)
+@show x
+plot!(cwfs) |> display
+plot(x[2:end], diff(complex_wave)) |> display 
+plot(x[3:end], diff(diff(complex_wave))) |> display
+
+# %%
+@show is_extremum(10, diff(complex_wave))
+scatter(diff(complex_wave[1:20])) |> display
