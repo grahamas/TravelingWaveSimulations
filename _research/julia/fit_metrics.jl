@@ -111,23 +111,69 @@ plot([glm_bics...], title="GLM BIC") |> display
 
 
 # %%
-TravelingWaveSimulations.Value(loc::Int, val::T) where T = (@assert loc > 0; Value{Int,T}(loc,val))
-
-const MaybeData{T} = Union{T,Missing}
 using TravelingWaveSimulations: Value, linear_interpolate
+const MaybeData{T} = Union{T,Missing}
 
-# function TravelingWaveSimulations.linear_interpolate(x, new_vals, locs)
-#     idx1 = findlast(locs .<= x)
-#     idx2 = findfirst(locs .>= x)
-#     x1, y1 = locs[idx1], new_vals[idx1]
-#     x2, y2 = locs[idx2], new_vals[idx2]
-#     linear_interpolate((x1,x2), (y1,y2), x)
+TravelingWaveSimulations.Value(loc::Int, val::T) where T = (@assert loc > 0; Value{Int,T}(loc,val))
+Base.:(==)(a::Value, b::Value) = a.val == b.val
+Base.:(==)(a::Value, b::Number) = a.val == b
+Base.isless(a::Value, b::Value) = a.val < b.val
+Base.isless(a::Value, b::Number) = a.val < b
+Base.isless(a::Number, b::Value) = a < b.val
+
+# function Base.minimum(arr::Array{<:Value})
+#     val, idx = findmin([elt.val for elt in arr]) 
+#     return arr[idx]
 # end
-    
-function translate(val::Value{Float64}, new_vals::AbstractVector, common_locs::Vector{Float64}, offset=0.0)
-    Value(val.loc + offset, linear_interpolate(val.loc + offset, new_vals, common_locs)) 
+
+
+function linear_interpolate_loc((left,right)::Tuple{Value,Value}, val)
+    loc = linear_interpolate((left.val,right.val), (left.loc,right.loc), val)
+    Value(loc, val)
 end
-from_idx_to_space(val::Value, space) = Value(space[val.loc], val.val)
+function linear_interpolate_val((left,right)::Tuple{Value,Value}, loc)
+    val = linear_interpolate((left.loc,right.loc), (left.val,right.val), loc)
+    Value(loc, val)
+end
+
+all_but_last(itr, n=1) = Iterators.take(itr, length(itr)-n)
+
+struct ValuedSpace{T,C,N,AT<:AbstractArray{T,N},AC<:AbstractArray{C,N}} <: AbstractArray{T,N}
+    values::AT
+    coordinates::AC
+end
+
+function ValuedSpace(values::AT, coordinates::AC) where {T,C,N,AT<:AbstractArray{T,N},AC<:AbstractArray{C,N}}
+    @assert size(values) == size(coordinates)
+    return ValuedSpace{T,C,N,AT,AC}(values, coordinates)
+end
+
+Base.getindex(vs::ValuedSpace, I::AbstractArray) = [vs[i] for i in I]
+Base.getindex(vs::ValuedSpace, idx::Union{CartesianIndex,Int}) = Value(vs.coordinates[idx], vs.values[idx])
+function Base.getindex(vs::ValuedSpace, fidx::AbstractFloat)
+    lidx = findlast(vs.coordinates .< fidx)
+    if lidx == length(vs)
+        return vs[lidx]
+    end
+    val = linear_interpolate_val((vs[lidx], vs[lidx+1]), fidx)
+    return val
+end
+Base.size(vs::ValuedSpace) = size(vs.values)
+function zero_crossing(A::AbstractArray, i, j, atol=1e-4)
+    if (A[i] <= 0 && A[j] >= 0) || (A[i] >= 0 && A[j] <= 0)
+        return linear_interpolate_loc((A[i],A[j]), 0.0)
+    elseif (A[i] < -atol && A[j] >= -atol) || (A[i] > atol && A[j] <= atol)
+        return A[j]
+    else
+        return nothing
+    end
+end
+
+Base.diff(vs::ValuedSpace) = ValuedSpace(diff(vs.values) ./ diff(vs.coordinates), 0.5 .* diff(vs.coordinates) .+ collect(all_but_last(vs.coordinates)))
+
+function translate(val::Value, vs::ValuedSpace)
+    vs[val.loc]
+end
 
 struct Scored{OBJ,SCR}
     obj::OBJ
@@ -152,55 +198,39 @@ valid_score(score) = if isnan(score)
 # RIGHT WAVEFRONT FIXME
 struct Wavefront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
     left::V
-    front::V
-    front_slope::T_VAL # Actually T_VAL / T_LOC
-    apex::V
+    slope::V
     right::V
 end
 function translate(wf::Wavefront, args...)
     Wavefront(
         translate(wf.left, args...),
-        translate(wf.front, args...),
-        wf.front_slope,
-        translate(wf.apex, args...),
+        translate(wf.slope, args...),
         translate(wf.right, args...)
         )
 end
-function from_idx_to_space(wf::Wavefront, xs::AbstractVector)
-    Wavefront(
-        from_idx_to_space(wf.left, xs),
-        from_idx_to_space(wf.front, xs),
-        wf.front_slope, # TODO should divide by Δx
-        from_idx_to_space(wf.apex, xs),
-        from_idx_to_space(wf.right, xs)
-    )
-end
 
 function score(wf::Wavefront, width_θ::T=5) where T
-    left_score = drop_score(wf.apex, wf.left, width_θ)
-    right_score = drop_score(wf.apex, wf.right, width_θ)
+    apex = max(wf.left, wf.right)
+    left_score = drop_score(apex, wf.left, width_θ)
+    right_score = drop_score(apex, wf.right, width_θ)
     score = max(right_score, left_score) # TODO account for slope
     return valid_score(score)
 end
 
 struct WaveformMetrics{T}
-    left_baseline::T
-    right_baseline::T
-    apex_height::T
-    apex_loc::T
-    width::MaybeData{T}
-    front_slope::T
-    front_loc::T
+    left_height::T
+    right_height::T
+    slope::T
+    slope_loc::T
+    width::T
 end
 function metrics(wf::Wavefront)
     WaveformMetrics(
         wf.left.val,
         wf.right.val,
-        wf.apex.val,
-        wf.apex.loc,
-        missing,
-        wf.front_slope,
-        wf.front.loc        
+        wf.slope.val,
+        wf.slope.loc,
+        wf.right.loc - wf.left.loc        
     ) 
 end
     
@@ -210,147 +240,124 @@ function choose_best(arr1::AbstractArray{<:Sd}, arr2::AbstractArray{<:Sd}) where
     sum((elt) -> elt.score, arr1) > sum((elt) -> elt.score, arr2) ? arr1 : arr2
 end
 
-function wave_width(wave_left, wave_apex, wave_right, wave_val, wave_space)
-    half_max = (wave_apex.val - min(wave_left.val, wave_right.val)) / 2
-    width = if wave_val[1] >= half_max || wave_val[end] >= half_max
-        missing
+
+function find_min_between((left,right)::Tuple{Value,Value}, vs::ValuedSpace)
+    xs = vs.coordinates
+    maybe_left = findlast(xs .< left.loc)
+    left_idx = if maybe_left === nothing
+        findfirst(xs .>= left.loc)
     else
-        first = findfirst(wave_val .>= half_max) # must be greater than 1
-        last = findlast(wave_val .>= half_max) # must be less than end
-        left = linear_interpolate(wave_val[[first-1,first]], wave_space[[first-1,first]], half_max)
-        right = linear_interpolate(wave_val[[last,last+1]], wave_space[[last,last+1]], half_max)
-        right - left
+        maybe_left + 1
     end
-    return width
+    maybe_right = findfirst(xs .> right.loc)
+    right_idx = if maybe_right === nothing
+        findlast(xs .<= right.loc)
+    else
+        maybe_right - 1
+    end
+    return minimum(vs[left_idx:right_idx])
 end
 
 # Divide between peaks of second derivative (inflection points)
 # Center on peaks of first derivative
 
-# TODO: Don't require monotonicity.
-# function is_extremum(i, vec::Vector, atol=1e-16)
-#     (vec[i-2] < vec[i-1] <= vec[i] >= vec[i+1] > vec[i+2]) || (vec[i-2] > vec[i-1] >= vec[i] <= vec[i+1] < vec[i+2]) 
-# end
-function is_extremum(i, vec::Vector)
-    all([vec[i-2:i-1]; vec[i+1:i+2]] .< vec[i]) || all([vec[i-2:i-1]; vec[i+1:i+2]] .> vec[i]) 
-end
-
-function float_index(arr, real_idx::Float64)
-    idx = floor(Int, real_idx)
-    linear_interpolate((idx+0.0, idx+1.0), (arr[idx], arr[idx+1]), real_idx)
-end
-function space_index(idx::Tuple, xs::Vector{T}) where T
-    idx1 = findfirst(xs .>= idx[1])
-    idx2 = findlast(xs .< idx[2]) + 1
-    return idx1:idx2
-end
-function space_index(idx::Number, xs::Vector{T}) where T
-    min_val, closest_idx = findmin(abs.(xs .- idx))
-    @assert min_val < abs(xs[1] - xs[2])
-    return closest_idx
-end
-
-value_from_idx(idx::Int, xs::Vector, signal::Vector) = Value(xs[idx], signal[idx])
-function value_from_idx(fidx::Float64, xs::Vector, signal::Vector)
-    loc = float_index(xs, fidx)
-    val = float_index(signal, fidx)
-    return Value(loc, val)
-end
-
-function detect_all_fronts(signal::Vector, xs::Vector)
-    @assert length(signal) == length(xs)
-    @assert length(signal) > 2
-    d_signal = diff(signal)
-    dd_signal = diff(d_signal)
+function detect_all_fronts(valued_space::ValuedSpace)
+    d_values = diff(valued_space)
+    dd_values = diff(valued_space)
     fronts = Wavefront{Float64,Float64}[]
-    left_bd = value_from_idx(1, xs, signal)
-    center = nothing
-    for i=3:length(signal)-4
-        if center !== nothing && is_extremum(i, dd_signal)
-            here = value_from_idx(i+1, xs, signal)
-            idxs = space_index((left_bd.loc, here.loc), xs)
-            @show (left_bd.loc, here.loc)
-            @show idxs
-            (max_val, max_dx) = findmax(signal[idxs])
-            apex = Value(xs[idxs[max_dx]], max_val)
-            push!(fronts, Wavefront(left_bd, 
-                                    center, 
-                                    d_signal[space_index(center.loc - 0.5, xs)], 
-                                    apex, 
-                                    here))
-            center = nothing
-            left_bd = here
-        elseif is_extremum(i, d_signal)
-            center = value_from_idx(i+0.5, xs, signal)
+    left_boundary = valued_space[CartesianIndex(1)]
+    d_steepest_slope = nothing
+    for idx=all_but_last(eachindex(d_values))
+        this_d_steepest_slope = zero_crossing(dd_values, idx, idx+1)
+        if this_d_steepest_slope !== nothing
+            if d_steepest_slope === nothing
+                d_steepest_slope = this_d_steepest_slope
+            elseif this_d_steepest_slope.val > d_steepest_slope.val
+                d_steepest_slope = this_d_steepest_slope
+            end
+        end
+        d_right_boundary = zero_crossing(d_values, idx, idx+1, 1e-4)
+        if d_right_boundary !== nothing
+            steepest_slope = if d_steepest_slope === nothing
+                find_min_between((left_boundary, d_right_boundary), d_values)
+            else
+                translate(d_steepest_slope, d_values)
+            end
+            right_boundary = translate(d_right_boundary, valued_space)
+            push!(fronts, Wavefront(left_boundary,
+                                    steepest_slope,
+                                    right_boundary)
+            )
+            d_steepest_slope = nothing
+            left_boundary = right_boundary
+            d_right_boundary = nothing
         end
     end
-    rightmost = value_from_idx(length(signal), xs, signal)
-    if center !== nothing
-        idxs = space_index((left_bd.loc, rightmost.loc), xs)
-        (max_val, max_idx) = findmax(signal[idxs])
-        apex = value_from_idx(max_idx, xs, signal)
-        push!(fronts, Wavefront(left_bd, center, d_signal[space_index(center.loc, xs)], apex, rightmost))
+    right_boundary = valued_space[end]
+    steepest_slope = if d_steepest_slope === nothing
+        find_min_between((left_boundary, right_boundary), d_values)
+    else
+        translate(d_steepest_slope, d_values)
     end
-    if length(fronts) == 0
-        max_slope, d_max_idx = findmax(d_signal)
-        signal_max, signal_max_idx = findmax(signal)
-        dapex = value_from_idx(d_max_idx + 0.5, xs, signal)
-        apex = Value(signal_max_idx, xs, signal)
-        push!(fronts, Wavefront(left, dapex, max_slope, apex, rightmost))
-    end
+    push!(fronts, Wavefront(left_boundary,
+                            steepest_slope,
+                            right_boundary)
+    )
     return fronts
 end
 
-function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, frame, slope_min, xs)
-    if length(fronts) == 0
-        return fronts
-    end
-    new_fronts = Wavefront[]
-    first_suff_dx = 1
-    while abs(fronts[first_suff_dx].front_slope) < slope_min
-        if first_suff_dx < length(fronts)
-            first_suff_dx += 1
-        else
-            break
-        end
-    end
-    current_front = if fronts[first_suff_dx].left.loc > 1
-        max_val, max_dx = findmax(frame[1:fronts[first_suff_dx].right.loc])
-        apex = value_from_idx(max_dx, xs, frame)
-        Wavefront(value_from_idx(1, xs, frame), fronts[first_suff_dx].front, fronts[first_suff_dx].front_slope, apex, fronts[first_suff_dx].right)
-    else
-        fronts[first_suff_dx]
-    end
-    if length(fronts) > first_suff_dx
-        for i in first_suff_dx+1:length(fronts)
-            next_front = fronts[i]
-            if next_front.front_slope < slope_min
-                idxs = space_index((current_front.left.loc,next_front.right.loc), xs)
-                max_val, max_dx = findmax(frame[idxs])
-                apex = Value(xs[idxs[max_dx]], max_val)
-                current_front = Wavefront(current_front.left, current_front.front, current_front.front_slope, apex, next_front.right)
-            else
-                push!(new_fronts, current_front)
-                current_front = next_front
-            end
-        end
-    end
-    if current_front.right.loc < length(frame)
-        idxs = space_index((left_bd.loc, rightmost.loc), xs)
-        (max_val, max_idx) = findmax(signal[idxs])
-        apex = Value(xs[idxs[max_idx]], signal[max_idx])
-        current_front = Wavefront(current_front.left, current_front.front, current_front.front_slope, apex, Value(length(frame), frame[end]))
-    end
-    push!(new_fronts, current_front)
-    return new_fronts
-end
+# function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, frame, slope_min, xs)
+#     if length(fronts) == 0
+#         return fronts
+#     end
+#     new_fronts = Wavefront[]
+#     first_suff_dx = 1
+#     while abs(fronts[first_suff_dx].front_slope) < slope_min
+#         if first_suff_dx < length(fronts)
+#             first_suff_dx += 1
+#         else
+#             break
+#         end
+#     end
+#     current_front = if fronts[first_suff_dx].left.loc > 1
+#         max_val, max_dx = findmax(frame[1:fronts[first_suff_dx].right.loc])
+#         apex = value_from_idx(max_dx, xs, frame)
+#         Wavefront(value_from_idx(1, xs, frame), fronts[first_suff_dx].front, fronts[first_suff_dx].front_slope, apex, fronts[first_suff_dx].right)
+#     else
+#         fronts[first_suff_dx]
+#     end
+#     if length(fronts) > first_suff_dx
+#         for i in first_suff_dx+1:length(fronts)
+#             next_front = fronts[i]
+#             if next_front.front_slope < slope_min
+#                 idxs = space_index((current_front.left.loc,next_front.right.loc), xs)
+#                 max_val, max_dx = findmax(frame[idxs])
+#                 apex = Value(xs[idxs[max_dx]], max_val)
+#                 current_front = Wavefront(current_front.left, current_front.front, current_front.front_slope, apex, next_front.right)
+#             else
+#                 push!(new_fronts, current_front)
+#                 current_front = next_front
+#             end
+#         end
+#     end
+#     if current_front.right.loc < length(frame)
+#         idxs = space_index((left_bd.loc, rightmost.loc), xs)
+#         (max_val, max_idx) = findmax(signal[idxs])
+#         apex = Value(xs[idxs[max_idx]], signal[max_idx])
+#         current_front = Wavefront(current_front.left, current_front.front, current_front.front_slope, apex, Value(length(frame), frame[end]))
+#     end
+#     push!(new_fronts, current_front)
+#     return new_fronts
+# end
 
 function substantial_fronts(frame, xs::AbstractVector, slope_min=1e-4)
-    all_fronts = detect_all_fronts(frame)
+    vs = ValuedSpace(frame, xs)
+    all_fronts = detect_all_fronts(vs)
     @show all_fronts
-    consolidated = consolidate_fronts(all_fronts, frame, slope_min, xs)
-    @show consolidated
-    return from_idx_to_space.(consolidated, Ref(xs))
+    return all_fronts
+#     consolidated = consolidate_fronts(all_fronts, frame, slope_min, xs)
+#     @show consolidated
+#     return consolidated
 end
 
 function scored_rightmost_wavefront(frame::AbstractVector{T}, xs::AbstractVector)::Scored{<:Wavefront{T,T},T} where T
@@ -481,6 +488,10 @@ t = timepoints(exec)
 x = [x[1] for x in space(exec).arr]
 complex_wave = u[30][:,1]
 
+@recipe function f(vs::ValuedSpace)
+    (vs.coordinates, vs.values)
+end
+
 @recipe function f(wf_arr::Array{<:Wavefront})
     seriestype := :scatter
     @series begin
@@ -495,25 +506,23 @@ complex_wave = u[30][:,1]
     end
     @series begin
         color := :blue
-        [wf.front.loc for wf in wf_arr], [wf.front.val for wf in wf_arr]
+        [wf.slope.loc for wf in wf_arr], [wf.slope.val for wf in wf_arr]
     end
 end
-wfs = detect_all_fronts(complex_wave,x)
-plot(x, complex_wave)
-plot!(wfs)
-@show float_index.(Ref(x), (2:length(x)) .- 0.5) |> length
-@show diff(complex_wave) |> length
-@show length(complex_wave)
-plot!(float_index.(Ref(x), (2:length(x)) .- 0.5), diff(complex_wave))
-plot!(x[2:end-1], diff(diff(complex_wave)))
-plot!(float_index.(Ref(x), (3:length(x)-1) .- 0.5), diff(complex_wave)|> diff |> diff) |> display
-plot(x, complex_wave)
-cwfs = consolidate_fronts(detect_all_fronts(complex_wave,x), complex_wave, 1e-4, x)
-@show x
-plot!(cwfs) |> display
-plot(x[2:end], diff(complex_wave)) |> display 
-plot(x[3:end], diff(diff(complex_wave))) |> display
+vs = ValuedSpace(complex_wave,x)
+wfs = detect_all_fronts(vs)
+plot(vs)
+plot!(wfs) |> display
+plot(diff(vs))
+plot!(wfs, ylim=[-0.05,0.05]) |> display
+# plot!(diff(diff(vs)))
+# # plot!(float_index.(Ref(x), (3:length(x)-1) .- 0.5), diff(complex_wave)|> diff |> diff) |> display
+# plot(vs)
+# cwfs = consolidate_fronts(detect_all_fronts(complex_wave,x), complex_wave, 1e-4, x)
+# @show x
+# plot!(cwfs) |> display
+# plot(x[2:end], diff(complex_wave)) |> display 
+# plot(x[3:end], diff(diff(complex_wave))) |> display
 
 # %%
-@show is_extremum(10, diff(complex_wave))
-scatter(diff(complex_wave[1:20])) |> display
+diff(vs)[162.0]
