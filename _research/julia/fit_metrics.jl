@@ -113,6 +113,9 @@ plot([glm_bics...], title="GLM BIC") |> display
 # %%
 using TravelingWaveSimulations: Value, linear_interpolate
 const MaybeData{T} = Union{T,Missing}
+abstract type AbstractWaveform{T_LOC,T_VAL} end
+abstract type AbstractWaveformMetrics{T} end
+
 
 TravelingWaveSimulations.Value(loc::Int, val::T) where T = (@assert loc > 0; Value{Int,T}(loc,val))
 Base.:(==)(a::Value, b::Value) = a.val == b.val
@@ -229,7 +232,6 @@ struct Scored{OBJ,SCR}
     score::SCR
 end
 Scored(obj::OBJ) where OBJ = Scored(obj, score(obj))
-abstract type AbstractWaveform{T_LOC,T_VAL} end
 
 drop_proportion(apex::Value, nadir::Value) = ((apex.val - nadir.val) / apex.val)
 drop_duration(apex::Value, nadir::Value) = abs(apex.loc - nadir.loc)
@@ -257,7 +259,6 @@ function translate(wf::Wavefront, args...)
         translate(wf.right, args...)
         )
 end
-
 function score(wf::Wavefront, width_θ::T=5) where T
     apex = max(wf.left, wf.right)
     left_score = drop_score(apex, wf.left, width_θ)
@@ -265,8 +266,7 @@ function score(wf::Wavefront, width_θ::T=5) where T
     score = max(right_score, left_score) # TODO account for slope
     return valid_score(score)
 end
-
-struct WaveformMetrics{T}
+struct WavefrontMetrics{T} <: AbstractWaveformMetrics{T}
     left_height::T
     right_height::T
     slope::T
@@ -274,13 +274,56 @@ struct WaveformMetrics{T}
     width::T
 end
 function metrics(wf::Wavefront)
-    WaveformMetrics(
+    WavefrontMetrics(
         wf.left.val,
         wf.right.val,
         wf.slope.val,
         wf.slope.loc,
         wf.right.loc - wf.left.loc        
     ) 
+end
+
+struct SolitaryWaveform{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
+    left::V
+    left_slope::V
+    apex::V
+    right_slope::V
+    right::V
+end
+function SolitaryWaveform(left::WF, right::WF) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL},WF<:Wavefront{T_LOC,T_VAL,V}}
+    SolitaryWaveform{T_LOC,T_VAL,V}(
+        left.left,
+        left.slope,
+        left.right, # == right.left
+        right.slope,
+        right.right
+    )
+end
+function score(sw::SolitaryWaveform, width_θ::T=10) where T
+    apex = sw.apex
+    left_score = drop_score(apex, sw.left, width_θ)
+    right_score = drop_score(apex, sw.right, width_θ)
+    score = right_score * left_score # TODO account for slope
+    return valid_score(score)
+end
+
+struct SolitaryWaveformMetrics{T} <: AbstractWaveformMetrics{T}
+    left_baseline_height::T
+    right_baseline_height::T
+    right_slope_loc::T
+    apex_height::T
+    apex_loc::T
+    between_slopes_width::T
+end
+function metrics(sw::SolitaryWaveform)
+    SolitaryWaveformMetrics(
+        sw.left.val,
+        sw.right.val,
+        sw.right.loc,
+        sw.apex.val,
+        sw.apex.loc,
+        sw.right.loc - sw.left.loc
+    )
 end
     
 choose_best(::Nothing, s::Scored) = s
@@ -327,38 +370,78 @@ function detect_all_fronts(valued_space::ValuedSpace)
     return fronts
 end
 
-
-
-function substantial_fronts(frame, xs::AbstractVector, slope_min=1e-4)
-    vs = ValuedSpace(frame, xs)
-    all_fronts = detect_all_fronts(vs)
-    return all_fronts
-#     consolidated = consolidate_fronts(all_fronts, frame, slope_min, xs)
-#     @show consolidated
-#     return consolidated
+eat_left(left, right) = Wavefront(left.left, right.slope, right.right)
+eat_right(left, right) = Wavefront(left.left, left.slope, right.right)
+function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, vs::ValuedSpace, slope_min=1e-4)
+    if length(fronts) == 0
+        return fronts
+    end
+    new_fronts = Wavefront[]
+    first_suff_dx = 1
+    while abs(fronts[first_suff_dx].slope.val) < slope_min
+        if first_suff_dx < length(fronts)
+            first_suff_dx += 1
+        else
+            break
+        end
+    end
+    
+    current_front = eat_left(fronts[1], fronts[first_suff_dx])
+    if length(fronts) > first_suff_dx
+        for i in first_suff_dx+1:length(fronts)
+            next_front = fronts[i]
+            if abs(next_front.slope.val) < slope_min
+                current_front = eat_right(current_front, next_front)
+            else
+                push!(new_fronts, current_front)
+                current_front = next_front
+            end
+        end
+    end
+    push!(new_fronts, current_front)
+    return new_fronts
 end
 
-function scored_rightmost_wavefront(frame::AbstractVector{T}, xs::AbstractVector)::Scored{<:Wavefront{T,T},T} where T
-    fronts = substantial_fronts(frame, xs)
+# TODO deal with multipop
+substantial_fronts(multipop::AbstractMatrix, xs::AbstractVector, slope_min=1e-4) = substantial_fronts(multipop[:,1], xs)
+function substantial_fronts(frame::AbstractVector, xs::AbstractVector, slope_min=1e-4)
+    vs = ValuedSpace(frame, xs)
+    all_fronts = detect_all_fronts(vs)
+    consolidated = consolidate_fronts(all_fronts, vs, slope_min)
+    return consolidated
+end
+
+function scored_rightmost(::Type{<:WavefrontMetrics}, fronts::AbstractArray{<:Wavefront})#::Scored{<:Wavefront{T,T},T} where T
     if length(fronts) == 0
         return fronts
     else
         return Scored(fronts[end])
     end
 end
+function scored_rightmost(::Type{<:SolitaryWaveformMetrics}, fronts::AbstractArray{<:Wavefront})
+    for idx = length(fronts):-1:2
+        if fronts[idx].slope.val < 0 && fronts[idx-1].slope.val > 0
+            return Scored(SolitaryWaveform(fronts[idx-1], fronts[idx]))
+        end
+    end
+    return nothing
+end
 scored_rightmost_wavefront(multipop::AbstractArray{T,2}, xs) where T = scored_rightmost_wavefront(multipop[:,1], xs)
 
-function metrics_df(scored_wave_arr::AbstractArray{<:Scored{WAVE}}) where {WAVE <: AbstractWaveform}
-    waveform_metrics = [metrics(s.obj) for s in scored_wave_arr]
-    scores = [s.score for s in scored_wave_arr]
-    wave_metric_syms = fieldnames(WaveformMetrics)
+function metrics_df(metrics_type::Type{<:AbstractWaveformMetrics}, scored_wave_arr::AbstractArray, t)
+    waveform_metrics = [metrics(s.obj) for s in scored_wave_arr if s !== nothing]
+    scores = [s.score for s in scored_wave_arr if s !== nothing]
+    wave_metric_syms = fieldnames(metrics_type)
     wave_metrics_df = DataFrame(Dict(zip(wave_metric_syms, [[getproperty(wave, sym) for wave in waveform_metrics] for sym in wave_metric_syms])))
+    wave_metrics_df.score = scores
+    wave_metrics_df.t = t[scores .!== nothing]
+    return wave_metrics_df
 end
 
-function traveling_wave_metrics_linear_regression(wave_metrics_df::DataFrame, t)
-    wave_metrics_syms = names(wave_metrics_df)
+function traveling_wave_metrics_linear_regression(wave_metrics_df::DataFrame)
+    scores = wave_metrics_df.score
+    wave_metrics_syms = filter(name -> name ∉ [:score, :t], names(wave_metrics_df))
     mostly_extant_cols = filter(c -> count(ismissing, wave_metrics_df[:,c])/size(wave_metrics_df,1) < 0.01, wave_metrics_syms)
-    wave_metrics_df.t = t
     results = map(mostly_extant_cols) do metric_sym
         fmla = Term(metric_sym) ~ Term(:t) + ConstantTerm(1)
         glm_fit = glm(fmla, wave_metrics_df, Normal(), IdentityLink(); wts=scores)
@@ -367,18 +450,18 @@ function traveling_wave_metrics_linear_regression(wave_metrics_df::DataFrame, t)
     return (results, scores, wave_metrics_df)
 end
 
-function tw_metrics(frames, t, x)
-    traveling_wave_metrics_linear_regression(metrics_df(scored_rightmost_wavefront.(frames, Ref(x))), t)
-end
-
-function tw_metrics(exec::Execution)
+function tw_metrics(metrics_type::Type{<:AbstractWaveformMetrics}, exec::Execution)
     u = exec.solution.u
     t = timepoints(exec)
     x = [x[1] for x in space(exec).arr]
-    tw_metrics(u, t, x)
+    tw_metrics(metrics_type, u, t, x)
+end
+function tw_metrics(metrics_type::Type{<:AbstractWaveformMetrics}, frames, t, x)
+    fronts = substantial_fronts.(frames, Ref(x))
+    traveling_wave_metrics_linear_regression(metrics_df(metrics_type, scored_rightmost.(Ref(metrics_type), fronts), t))
 end
 
-# %%
+# %% jupyter={"outputs_hidden": true} collapsed=true
 # tests
 
 test_xs = 0.0:0.1:20.0
@@ -392,7 +475,9 @@ test_double_sigmoid = NeuralModels.simple_sigmoid_fn.(test_xs, 4.0, 10.0) + Neur
 
 scored_rightmost_wavefront(test_sech2, test_xs)
 
-# %%
+# %% jupyter={"outputs_hidden": true} collapsed=true
+## Difference of Sigmoids example
+
 ABS_STOP=300.0
 using WilsonCowanModel
 dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
@@ -445,7 +530,7 @@ dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N
   )
 end
 
-# %%
+# %% jupyter={"outputs_hidden": true} collapsed=true
 using DifferentialEquations
 execution = execute(dos_example(; n=256, x=700.0, See=25.0, Sii=25.0, Sie=27.0, Sei=27.0,
                                 Aee=250.0, Aei=75.0, Aie=50.0, Aii=10.0, strengthE=10.0, widthE=50.0,
@@ -493,37 +578,7 @@ end
     end
 end
 
-eat_left(left, right) = Wavefront(left.left, right.slope, right.right)
-eat_right(left, right) = Wavefront(left.left, left.slope, right.right)
-function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, vs::ValuedSpace, slope_min=1e-4)
-    if length(fronts) == 0
-        return fronts
-    end
-    new_fronts = Wavefront[]
-    first_suff_dx = 1
-    while abs(fronts[first_suff_dx].slope.val) < slope_min
-        if first_suff_dx < length(fronts)
-            first_suff_dx += 1
-        else
-            break
-        end
-    end
-    
-    current_front = eat_left(fronts[1], fronts[first_suff_dx])
-    if length(fronts) > first_suff_dx
-        for i in first_suff_dx+1:length(fronts)
-            next_front = fronts[i]
-            if abs(next_front.slope.val) < slope_min
-                current_front = eat_right(current_front, next_front)
-            else
-                push!(new_fronts, current_front)
-                current_front = next_front
-            end
-        end
-    end
-    push!(new_fronts, current_front)
-    return new_fronts
-end
+
 
 vs = ValuedSpace(complex_wave,x)
 wfs = detect_all_fronts(vs)
@@ -551,4 +606,71 @@ x = vs .+ 1.0;
 typeof(x)
 
 # %%
-wfs
+tw_metrics(WavefrontMetrics, exec)
+
+# %%
+# Aee: E->E amplitude
+# See: E->E spread
+
+# caS: cross-auto spread ratio
+# caA: cross-auto amplitude ratio
+
+# ioA: inhibitory output amplitude scale
+# ioS: inhibitory output spread scale
+# iiA: inhibitory input amplitude scale
+# iiS: inhibitory input spread scale
+ABS_STOP = 300.0
+sigmoid_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
+                                                     Aee=24.0, See=25.0,
+                                                     Aii=4.0, Sii=27.0,
+                                                     Aie=27.0, Sie=25.0,
+                                                     Aei=18.2, Sei=27.0,
+                                                     n=128, x=700.0, stim_strength=1.2,
+                                                     stim_width=28.1)
+  simulation = Simulation(
+    WCMSpatial(;
+      pop_names = ("E", "I"),
+      α = (1.0, 1.0),
+      β = (1.0, 1.0),
+      τ = (3.0, 3.0),
+      nonlinearity = pops(SigmoidNonlinearity;
+        a = [1.2, 1.0],
+        θ = [2.6, 8.0]),
+      stimulus =  pops(SharpBumpStimulusParameter;
+          strength = [stim_strength,stim_strength],
+          width = [stim_width, stim_width],
+          time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]]),
+      connectivity = FFTParameter(pops(GaussianConnectivityParameter;
+          amplitude = [Aee -Aei;
+                       Aie -Aii],
+          spread = [(See,See) (Sei,Sei);
+                    (Sie,Sie) (Sii,Sii)]
+          ))
+      );
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
+      save_idxs = RadialSlice(),
+      tspan = (0.0,stop_time),
+      dt = 1.0,
+      algorithm=Euler(),
+      callback=DiscreteCallback(if !(save_idxs === nothing)
+        (u,t,integrator) -> begin
+                    sub_u = u[integrator.opts.save_idxs];
+                    (all(sub_u .≈ 0.0) || (sub_u[end] > 0.01)) && t > 5
+                end
+    else
+        (u,t,integrator) -> begin
+                    pop = population(u,1)
+                    (all(u .≈ 0.0) || (sum(pop[:,end]) / size(pop,1) > 0.01)) && t > 5
+            end
+    end, terminate!)
+  )
+end
+
+
+using DifferentialEquations
+execution = execute(sigmoid_example(; algorithm=Tsit5()));
+anim = TravelingWaveSimulations.custom_animate(execution)
+mp4(anim, "tmp/sigmoid_tmp.mp4")
+
+# %%
+tw_metrics(SolitaryWaveformMetrics, execution)
