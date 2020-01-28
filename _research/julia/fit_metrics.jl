@@ -126,6 +126,14 @@ Base.isless(a::Number, b::Value) = a < b.val
 #     return arr[idx]
 # end
 
+function TravelingWaveSimulations.linear_interpolate((x1,x2), (y1,y2), x)
+    @assert x1 <= x <= x2 || x2 <= x <= x1
+    if x1 == x2
+        return y1 + (y2 - y1) / 2 # FIXME: if flat, just split the difference
+    end
+    y1 + (x - x1) * ((y2 - y1) / (x2 - x1)) 
+end
+
 
 function linear_interpolate_loc((left,right)::Tuple{Value,Value}, val)
     loc = linear_interpolate((left.val,right.val), (left.loc,right.loc), val)
@@ -147,33 +155,74 @@ function ValuedSpace(values::AT, coordinates::AC) where {T,C,N,AT<:AbstractArray
     @assert size(values) == size(coordinates)
     return ValuedSpace{T,C,N,AT,AC}(values, coordinates)
 end
+Base.BroadcastStyle(::Type{<:ValuedSpace}) = Broadcast.ArrayStyle{ValuedSpace}()
 
-Base.getindex(vs::ValuedSpace, I::AbstractArray) = [vs[i] for i in I]
-Base.getindex(vs::ValuedSpace, idx::Union{CartesianIndex,Int}) = Value(vs.coordinates[idx], vs.values[idx])
+Base.size(vs::ValuedSpace) = size(vs.values)
+Base.getindex(vs::ValuedSpace, inds::Vararg{Int,N}) where N = vs.values[inds...]#ValuedSpace(vs.values[I], vs.coordinates[I])
+getvalue(vs::ValuedSpace, idx::Union{CartesianIndex,Int}) = Value(vs.coordinates[idx], vs.values[idx])
+#Base.getindex(vs::ValuedSpace, idx::Union{CartesianIndex,Int}) = ValuedSpace([vs.values[idx]], [vs.coordinates[idx]])
 function Base.getindex(vs::ValuedSpace, fidx::AbstractFloat)
     lidx = findlast(vs.coordinates .< fidx)
     if lidx == length(vs)
-        return vs[lidx]
+        return getvalue(vs,lidx)
     end
-    val = linear_interpolate_val((vs[lidx], vs[lidx+1]), fidx)
+    val = linear_interpolate_val((getvalue(vs,lidx), getvalue(vs,lidx+1)), fidx)
     return val
 end
+function getslice(vs::ValuedSpace, (left,right)::Tuple{Value,Value})
+    return getslice(vs, (left.loc, right.loc))
+end
+function getslice(vs::ValuedSpace, (left_loc,right_loc)::Tuple{AbstractFloat,AbstractFloat})
+    xs = vs.coordinates
+    maybe_left = findlast(xs .< left_loc)
+    left_idx = if maybe_left === nothing
+        findfirst(xs .>= left_loc)
+    else
+        maybe_left + 1
+    end
+    maybe_right = findfirst(xs .> right_loc)
+    right_idx = if maybe_right === nothing
+        findlast(xs .<= right_loc)
+    else
+        maybe_right - 1
+    end
+    return vs[left_idx:right_idx]
+end
+Base.setindex!(vs::ValuedSpace, val, inds::Vararg{Int,N}) where N = vs.values[inds...] = val
+Base.showarg(io::IO, vs::ValuedSpace, toplevel) = print(io, typeof(vs), ":\n\tValues: $(vs.values)\n\tCoordinates: $(vs.coordinates)")
+
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{ValuedSpace}}, ::Type{ElType}) where {ElType}
+    # Scan the inputs for the ValuedSpace:
+    vs = find_valuedspace(bc)
+    # Use the char field of A to create the output
+    ValuedSpace(similar(Array{ElType}, axes(bc)), vs.coordinates)
+end
+
+"`A = find_valuedspace(bc)` returns the first ValuedSpace among the arguments."
+find_valuedspace(bc::Base.Broadcast.Broadcasted) = find_valuedspace(bc.args)
+find_valuedspace(args::Tuple) = find_valuedspace(find_valuedspace(args[1]), Base.tail(args))
+find_valuedspace(x) = x
+find_valuedspace(a::ValuedSpace, rest) = a
+find_valuedspace(::Any, rest) = find_valuedspace(rest)
+
+
 Base.size(vs::ValuedSpace) = size(vs.values)
-function zero_crossing(A::AbstractArray, i, j, atol=1e-4)
+function zero_crossing(A::ValuedSpace, i, j, atol=1e-4)
     if (A[i] <= 0 && A[j] >= 0) || (A[i] >= 0 && A[j] <= 0)
-        return linear_interpolate_loc((A[i],A[j]), 0.0)
+        return linear_interpolate_loc((getvalue(A,i),getvalue(A,j)), 0.0)
     elseif (A[i] < -atol && A[j] >= -atol) || (A[i] > atol && A[j] <= atol)
-        return A[j]
+        return getvalue(A,j)
     else
         return nothing
     end
 end
 
-Base.diff(vs::ValuedSpace) = ValuedSpace(diff(vs.values) ./ diff(vs.coordinates), 0.5 .* diff(vs.coordinates) .+ collect(all_but_last(vs.coordinates)))
+Base.diff(vs::ValuedSpace) = ValuedSpace(diff(vs.values) ./ diff(vs.coordinates), collect(all_but_last(vs.coordinates)) .+ (0.5 .* diff(vs.coordinates)))
 
-function translate(val::Value, vs::ValuedSpace)
+@noinline function translate(val::Value, vs::ValuedSpace)
     vs[val.loc]
 end
+translate(::Nothing, args...) = nothing
 
 struct Scored{OBJ,SCR}
     obj::OBJ
@@ -241,64 +290,36 @@ function choose_best(arr1::AbstractArray{<:Sd}, arr2::AbstractArray{<:Sd}) where
 end
 
 
-function find_min_between((left,right)::Tuple{Value,Value}, vs::ValuedSpace)
-    xs = vs.coordinates
-    maybe_left = findlast(xs .< left.loc)
-    left_idx = if maybe_left === nothing
-        findfirst(xs .>= left.loc)
-    else
-        maybe_left + 1
-    end
-    maybe_right = findfirst(xs .> right.loc)
-    right_idx = if maybe_right === nothing
-        findlast(xs .<= right.loc)
-    else
-        maybe_right - 1
-    end
-    return minimum(vs[left_idx:right_idx])
-end
+
 
 # Divide between peaks of second derivative (inflection points)
 # Center on peaks of first derivative
 
 function detect_all_fronts(valued_space::ValuedSpace)
     d_values = diff(valued_space)
-    dd_values = diff(valued_space)
+    dd_values = diff(d_values)
     fronts = Wavefront{Float64,Float64}[]
-    left_boundary = valued_space[CartesianIndex(1)]
-    d_steepest_slope = nothing
-    for idx=all_but_last(eachindex(d_values))
-        this_d_steepest_slope = zero_crossing(dd_values, idx, idx+1)
-        if this_d_steepest_slope !== nothing
-            if d_steepest_slope === nothing
-                d_steepest_slope = this_d_steepest_slope
-            elseif this_d_steepest_slope.val > d_steepest_slope.val
-                d_steepest_slope = this_d_steepest_slope
-            end
-        end
-        d_right_boundary = zero_crossing(d_values, idx, idx+1, 1e-4)
-        if d_right_boundary !== nothing
-            steepest_slope = if d_steepest_slope === nothing
-                find_min_between((left_boundary, d_right_boundary), d_values)
-            else
-                translate(d_steepest_slope, d_values)
-            end
-            right_boundary = translate(d_right_boundary, valued_space)
+    left_boundary = getvalue(valued_space, 1)
+    steepest_slope = nothing
+    for idx=all_but_last(eachindex(d_values),2)
+        right_boundary = translate(zero_crossing(d_values, idx, idx+1, 1e-4), valued_space)
+        if right_boundary !== nothing
+            this_front = getslice(d_values, (left_boundary, right_boundary))
+            _, midx = findmax(abs.(this_front))
+            steepest_slope = getvalue(this_front, midx)
             push!(fronts, Wavefront(left_boundary,
                                     steepest_slope,
                                     right_boundary)
             )
-            d_steepest_slope = nothing
+            steepest_slope = nothing
             left_boundary = right_boundary
-            d_right_boundary = nothing
+            right_boundary = nothing
         end
     end
-    right_boundary = valued_space[end]
-    steepest_slope = if d_steepest_slope === nothing
-        find_min_between((left_boundary, right_boundary), d_values)
-    else
-        translate(d_steepest_slope, d_values)
-    end
+    right_boundary = getvalue(valued_space, length(valued_space))
+    this_front = getslice(d_values, (left_boundary, right_boundary))
+    _, midx = findmax(abs.(this_front))
+    steepest_slope = getvalue(this_front, midx)
     push!(fronts, Wavefront(left_boundary,
                             steepest_slope,
                             right_boundary)
@@ -306,54 +327,11 @@ function detect_all_fronts(valued_space::ValuedSpace)
     return fronts
 end
 
-# function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, frame, slope_min, xs)
-#     if length(fronts) == 0
-#         return fronts
-#     end
-#     new_fronts = Wavefront[]
-#     first_suff_dx = 1
-#     while abs(fronts[first_suff_dx].front_slope) < slope_min
-#         if first_suff_dx < length(fronts)
-#             first_suff_dx += 1
-#         else
-#             break
-#         end
-#     end
-#     current_front = if fronts[first_suff_dx].left.loc > 1
-#         max_val, max_dx = findmax(frame[1:fronts[first_suff_dx].right.loc])
-#         apex = value_from_idx(max_dx, xs, frame)
-#         Wavefront(value_from_idx(1, xs, frame), fronts[first_suff_dx].front, fronts[first_suff_dx].front_slope, apex, fronts[first_suff_dx].right)
-#     else
-#         fronts[first_suff_dx]
-#     end
-#     if length(fronts) > first_suff_dx
-#         for i in first_suff_dx+1:length(fronts)
-#             next_front = fronts[i]
-#             if next_front.front_slope < slope_min
-#                 idxs = space_index((current_front.left.loc,next_front.right.loc), xs)
-#                 max_val, max_dx = findmax(frame[idxs])
-#                 apex = Value(xs[idxs[max_dx]], max_val)
-#                 current_front = Wavefront(current_front.left, current_front.front, current_front.front_slope, apex, next_front.right)
-#             else
-#                 push!(new_fronts, current_front)
-#                 current_front = next_front
-#             end
-#         end
-#     end
-#     if current_front.right.loc < length(frame)
-#         idxs = space_index((left_bd.loc, rightmost.loc), xs)
-#         (max_val, max_idx) = findmax(signal[idxs])
-#         apex = Value(xs[idxs[max_idx]], signal[max_idx])
-#         current_front = Wavefront(current_front.left, current_front.front, current_front.front_slope, apex, Value(length(frame), frame[end]))
-#     end
-#     push!(new_fronts, current_front)
-#     return new_fronts
-# end
+
 
 function substantial_fronts(frame, xs::AbstractVector, slope_min=1e-4)
     vs = ValuedSpace(frame, xs)
     all_fronts = detect_all_fronts(vs)
-    @show all_fronts
     return all_fronts
 #     consolidated = consolidate_fronts(all_fronts, frame, slope_min, xs)
 #     @show consolidated
@@ -492,7 +470,7 @@ complex_wave = u[30][:,1]
     (vs.coordinates, vs.values)
 end
 
-@recipe function f(wf_arr::Array{<:Wavefront})
+@recipe function f(wf_arr::Array{<:Wavefront}, vs=nothing)
     seriestype := :scatter
     @series begin
         color := :green
@@ -505,24 +483,72 @@ end
         [wf.right.loc for wf in wf_arr], [wf.right.val for wf in wf_arr]
     end
     @series begin
-        color := :blue
-        [wf.slope.loc for wf in wf_arr], [wf.slope.val for wf in wf_arr]
+        if vs !== nothing
+            color := :blue
+            [wf.slope.loc for wf in wf_arr], [vs[wf.slope.loc].val for wf in wf_arr]
+        else
+            color := :blue
+            [wf.slope.loc for wf in wf_arr], [wf.slope.val for wf in wf_arr]
+        end
     end
 end
+
+eat_left(left, right) = Wavefront(left.left, right.slope, right.right)
+eat_right(left, right) = Wavefront(left.left, left.slope, right.right)
+function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, vs::ValuedSpace, slope_min=1e-4)
+    if length(fronts) == 0
+        return fronts
+    end
+    new_fronts = Wavefront[]
+    first_suff_dx = 1
+    while abs(fronts[first_suff_dx].slope.val) < slope_min
+        if first_suff_dx < length(fronts)
+            first_suff_dx += 1
+        else
+            break
+        end
+    end
+    
+    current_front = eat_left(fronts[1], fronts[first_suff_dx])
+    if length(fronts) > first_suff_dx
+        for i in first_suff_dx+1:length(fronts)
+            next_front = fronts[i]
+            if abs(next_front.slope.val) < slope_min
+                current_front = eat_right(current_front, next_front)
+            else
+                push!(new_fronts, current_front)
+                current_front = next_front
+            end
+        end
+    end
+    push!(new_fronts, current_front)
+    return new_fronts
+end
+
 vs = ValuedSpace(complex_wave,x)
 wfs = detect_all_fronts(vs)
-plot(vs)
-plot!(wfs) |> display
-plot(diff(vs))
-plot!(wfs, ylim=[-0.05,0.05]) |> display
+# plot(vs)
+# plot!(wfs, vs) |> display
+# plot(diff(vs))
+# plot!(wfs, ylim=[-0.03,0.03]) |> display
+# plot!(diff(diff(vs)), ylim=[-0.003, 0.003])|> display
+# plot(getslice(vs, (-Inf,35.0)), xlim=[0.0,35.0], legend=false, seriestype=:scatter, markersize=20)
+# plot!(wfs, vs) |> display
+# plot(diff(vs), xlim=[0.0,35.0], legend=false, seriestype=:scatter)
+# plot!([wfs[1].right.loc], [diff(vs)[wfs[1].right.loc].val], seriestype=:scatter) |> display
 # plot!(diff(diff(vs)))
 # # plot!(float_index.(Ref(x), (3:length(x)-1) .- 0.5), diff(complex_wave)|> diff |> diff) |> display
-# plot(vs)
-# cwfs = consolidate_fronts(detect_all_fronts(complex_wave,x), complex_wave, 1e-4, x)
-# @show x
-# plot!(cwfs) |> display
-# plot(x[2:end], diff(complex_wave)) |> display 
-# plot(x[3:end], diff(diff(complex_wave))) |> display
+plot(vs)
+cwfs = consolidate_fronts(wfs, vs)
+plot!(cwfs) |> display
+plot(x[2:end], diff(complex_wave)) |> display 
+plot(x[3:end], diff(diff(complex_wave))) |> display
 
 # %%
-diff(vs)[162.0]
+Base.Broadcast.broadcasted(f, vs::ValuedSpace, x) = Broadcast.broadcasted(Broadcast.ArrayStyle{ValuedSpace}(), f, vs, x);
+
+x = vs .+ 1.0;
+typeof(x)
+
+# %%
+wfs
