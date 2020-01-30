@@ -324,7 +324,7 @@ scored_rightmost_wavefront(multipop::AbstractArray{T,2}, xs) where T = scored_ri
 function metrics_df(metrics_type::Type{<:AbstractWaveformMetrics}, scored_wave_arr::AbstractArray, t)
     waveform_metrics = [metrics(s.obj) for s in scored_wave_arr if s !== nothing]
     scores = [s.score for s in scored_wave_arr if s !== nothing]
-    if length(scores) < 3 || mean(scores) < 1e-2 # FIXME magic number
+    if length(scores) < 3 || mean(scores) < 1e-2 # FIXME magic numbers
         return nothing
     end
     wave_metric_syms = fieldnames(metrics_type)

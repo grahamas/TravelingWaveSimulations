@@ -47,7 +47,7 @@ dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N
                                                      Aee=280.0, See=70.0,
                                                      Aii=1.4, Sii=70.0,
                                                      Aie=270.0, Sie=90.0,
-                                                     Aei=-297.0, Sei=90.0,
+                                                     Aei=297.0, Sei=90.0,
                                                      n=71, x=500.0)
   simulation = Simulation(
     WCMSpatial(;
