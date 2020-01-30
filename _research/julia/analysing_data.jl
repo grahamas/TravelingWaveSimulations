@@ -58,15 +58,14 @@ for db in mdb
         this_mod_key = keys(this_mod)
         this_mod_val = values(this_mod)
         A_idx = TravelingWaveSimulations.mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
-        tws = TravelingWaveStats(exec);
+        (results, score, tw_df) = tw_metrics(SolitaryWaveformMetrics, exec);
         if tws === nothing
             A_is_traveling[A_idx] = false
             A_velocity[A_idx] = missing
             A_velocity_errors[A_idx] = missing
         else
             A_is_traveling[A_idx] = true
-            A_velocity[A_idx] = TravelingWaveSimulations.velocity(tws)
-            A_velocity_errors[A_idx] = tws.center.err
+            A_velocity[A_idx], A_velocity_errors[A_idx] = velocity_results(results)
         end
     end
 end

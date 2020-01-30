@@ -48,13 +48,13 @@ end
 
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 data_root = joinpath(homedir(), "sim_data")
 (example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft",4);
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
-# %% jupyter={"source_hidden": true}
+# %%
 # Analyse and extract twscore
 # mdb_execs = MultiDBExecIter(example, dbs, ())
 GC.gc()
@@ -84,7 +84,7 @@ end
 @show sum(ismissing.(A_velocity))
 @show prod(size(A_velocity))
 
-# %% jupyter={"source_hidden": true}
+# %%
 factor_names, factors = calculate_factor_matrix(mdb, 2);
 parameters_mx = reshape(factors, (:,size(factors)[end]));
 df = DataFrame(Dict(zip(factor_names, [parameters_mx[:,i] for i in 1:size(parameters_mx,2)])))
@@ -92,7 +92,7 @@ df.vel = A_velocity[:]
 df.tws = A_tws[:]
 wts = dropmissing(df).tws
 
-# %% jupyter={"source_hidden": true}
+# %%
 bics = map(1:3) do i
     factor_names, factors = calculate_factor_matrix(mdb, i)
     parameters_mx = reshape(factors, (:, size(factors)[end]))
