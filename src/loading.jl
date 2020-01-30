@@ -73,8 +73,8 @@ function Base.iterate(it::DBExecIter, ((keydb, valdb), (keydb_state, valdb_state
     return ((key, exec), ((keydb, valdb), (keydb_state, valdb_state)))
 end
 function Base.iterate(it::DBExecIter)
-    keydb = select(it.db, Keys())
-    valdb = select(it.db, Not(Keys()))
+    keydb = JuliaDB.select(it.db, Keys())
+    valdb = JuliaDB.select(it.db, JuliaDB.Not(Keys()))
     key, keydb_state = @ifsomething iterate(keydb)
     val, valdb_state = iterate(valdb)
     model = it.example(; key..., it.constant_mods...)

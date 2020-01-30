@@ -11,9 +11,9 @@ using DifferentialEquations
 using Plots
 using ArgParse
 using IterTools
-using Statistics, LinearAlgebra, Distances
+using Statistics, LinearAlgebra, Distances, GLM
 
-using JuliaDB, CSV
+using JuliaDB, CSV, DataFrames
 
 export get_example
 export plot_and_save

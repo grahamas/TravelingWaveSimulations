@@ -1,227 +1,398 @@
-using StaticArrays
+export tw_metrics,
+    SolitaryWaveformMetrics, WavefrontMetrics,
+    ValuedSpace
 
-export StaticWaveStats, TravelingWaveStats
+const MaybeData{T} = Union{T,Missing}
+abstract type AbstractWaveform{T_LOC,T_VAL} end
+abstract type AbstractWaveformMetrics{T} end
 
-# Analysis functions
 struct Value{T_LOC,T_VAL}
     loc::T_LOC
     val::T_VAL
 end
-from_idx_to_space(val::Value, space) = Value(space[val.loc], val.val)
-struct LinearFit{N,T}
-    coefs::SVector{N,T}
-end
-function LinearFit(coefs::AbstractArray{T}) where T
-    N = length(coefs)
-    LinearFit{N,T}(SVector{N,T}(coefs))
-end
-linear_coef(lf::LinearFit{2}) = lf.coefs[1]
-slope_coefs(lf::LinearFit{N}) where N = lf.coefs[1:N-1]
-const_coef(lf::LinearFit) = lf.coefs[end]
-(lf::LinearFit)(a) = make_matrix(LinearFit, a) * lf.coefs
-make_matrix(::Type{LinearFit}, a) = [a ones(size(a,1))]
+Value(loc::Int, val::T) where T = (@assert loc > 0; Value{Int,T}(loc,val))
+Base.:(==)(a::Value, b::Value) = a.val == b.val
+Base.:(==)(a::Value, b::Number) = a.val == b
+Base.isless(a::Value, b::Value) = a.val < b.val
+Base.isless(a::Value, b::Number) = a.val < b
+Base.isless(a::Number, b::Value) = a < b.val
 
-abstract type AbstractPeak{T_LOC,T_VAL} end
-abstract type AbstractPeakStats{T_LOC,T_VAL} end
-
-struct StaticPeak{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractPeak{T_LOC,T_VAL}
-    left::V
-    apex::V
-    right::V
-    score::T_VAL
-end
-StaticPeak(left::V, apex::V, right::V) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticPeak{T_LOC,T_VAL,V}(left,apex,right,peakiness(left,apex,right))
-StaticPeak(left::V, apex::V, right::V,score) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticPeak{T_LOC,T_VAL,V}(left,apex,right,score)
-
-struct StaticFront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractPeak{T_LOC,T_VAL}
-    left::V
-    apex::V
-    right::V
-    score::T_VAL
-end
-StaticFront(left::V, apex::V, right::V) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticFront{T_LOC,T_VAL,V}(left,apex,right,frontiness(left,apex,right))
-StaticFront(left::V, apex::V, right::V,score) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} = StaticFront{T_LOC,T_VAL,V}(left,apex,right,score)
-
-const StaticPeakIdx = StaticPeak{Int}
-from_idx_to_space(sp::StaticPeakIdx, space) = StaticPeak(from_idx_to_space(sp.left,space), from_idx_to_space(sp.apex,space), from_idx_to_space(sp.right,space), sp.score)
+# function Base.minimum(arr::Array{<:Value})
+#     val, idx = findmin([elt.val for elt in arr]) 
+#     return arr[idx]
+# end
 
 function linear_interpolate((x1,x2), (y1,y2), x)
     @assert x1 <= x <= x2 || x2 <= x <= x1
+    if x1 == x2
+        return y1 + (y2 - y1) / 2 # FIXME: if flat, just split the difference
+    end
     y1 + (x - x1) * ((y2 - y1) / (x2 - x1)) 
 end
-struct StaticWaveStats{T_LOC,T_VAL} <: AbstractPeakStats{T_LOC,T_VAL}
-    baseline::T_VAL
-    amplitude::T_VAL
-    width::Union{T_LOC,Missing}
-    center::T_LOC
-    score::Float64
+
+
+function linear_interpolate_loc((left,right)::Tuple{Value,Value}, val)
+    loc = linear_interpolate((left.val,right.val), (left.loc,right.loc), val)
+    Value(loc, val)
 end
-function StaticWaveStats(sp::StaticPeak{T_LOC,T_VAL}, wave_val, wave_space) where {T_LOC,T_VAL}
-    baseline = min(sp.left.val, sp.right.val)
-    amplitude = sp.apex.val - baseline
-    half_max = amplitude / 2
-    width = if wave_val[1] >= half_max || wave_val[end] >= half_max
-        missing
-    else
-        first = findfirst(wave_val .>= half_max) # must be greater than 1
-        last = findlast(wave_val .>= half_max) # must be less than end
-        left = linear_interpolate(wave_val[[first-1,first]], wave_space[[first-1,first]], half_max)
-        right = linear_interpolate(wave_val[[last,last+1]], wave_space[[last,last+1]], half_max)
-        right - left
-    end
-    return StaticWaveStats{T_LOC,T_VAL}(baseline, amplitude, width, sp.apex.loc, sp.score)
-end
-function StaticWaveStats(frame::AbstractArray{T,1}, space::AbstractArray{T,1}) where T
-    peak_idx_obj = peakiest_peak(frame)
-    peak_val = frame[peak_idx_obj.left.loc:peak_idx_obj.right.loc]
-    peak_space = space[peak_idx_obj.left.loc:peak_idx_obj.right.loc]
-    peak_obj = from_idx_to_space(peak_idx_obj, space)
-    StaticWaveStats(peak_obj, peak_val, peak_space)
+function linear_interpolate_val((left,right)::Tuple{Value,Value}, loc)
+    val = linear_interpolate((left.loc,right.loc), (left.val,right.val), loc)
+    Value(loc, val)
 end
 
-function calc_err(data, fit, x, w)
-    notmissing = .!ismissing.(data)
-    weuclidean(data[notmissing], fit(x[notmissing]), w[notmissing]) / sum(notmissing)
+all_but_last(itr, n=1) = Iterators.take(itr, length(itr)-n)
+
+struct ValuedSpace{T,C,N,AT<:AbstractArray{T,N},AC<:AbstractArray{C,N}} <: AbstractArray{T,N}
+    values::AT
+    coordinates::AC
+    function ValuedSpace(values::AT, coordinates::AC) where {T,C,N,AT<:AbstractArray{T,N},AC<:AbstractArray{C,N}}
+        @assert size(values) == size(coordinates)
+        return new{T,C,N,AT,AC}(values, coordinates)
+    end
 end
-struct FitErr{T}
-    fit::LinearFit
-    err::T
+
+
+Base.BroadcastStyle(::Type{<:ValuedSpace}) = Broadcast.ArrayStyle{ValuedSpace}()
+
+Base.size(vs::ValuedSpace) = size(vs.values)
+Base.getindex(vs::ValuedSpace, inds::Vararg{Int,N}) where N = vs.values[inds...]#ValuedSpace(vs.values[I], vs.coordinates[I])
+getvalue(vs::ValuedSpace, idx::Union{CartesianIndex,Int}) = Value(vs.coordinates[idx], vs.values[idx])
+#Base.getindex(vs::ValuedSpace, idx::Union{CartesianIndex,Int}) = ValuedSpace([vs.values[idx]], [vs.coordinates[idx]])
+function Base.getindex(vs::ValuedSpace, fidx::AbstractFloat)
+    lidx = findlast(vs.coordinates .< fidx)
+    if lidx == length(vs)
+        return getvalue(vs,lidx)
+    end
+    val = linear_interpolate_val((getvalue(vs,lidx), getvalue(vs,lidx+1)), fidx)
+    return val
 end
-FitErr(y, lf::LinearFit, x, w::AbstractArray{T}) where T = FitErr{T}(lf, calc_err(y, lf, x, w))
-function Base.print(io::IO, fe::FitErr)
-    print(io, "$(fe.fit); error: $(fe.err)")
+function getslice(vs::ValuedSpace, (left,right)::Tuple{Value,Value})
+    return getslice(vs, (left.loc, right.loc))
 end
-struct TravelingWaveStats{T_LOC,T_VAL}
-    width::FitErr{T_LOC}
-    center::FitErr{T_LOC}
-    amplitude::FitErr{T_VAL}
-    score::T_VAL
+function getslice(vs::ValuedSpace, (left_loc,right_loc)::Tuple{AbstractFloat,AbstractFloat})
+    xs = vs.coordinates
+    maybe_left = findlast(xs .< left_loc)
+    left_idx = if maybe_left === nothing
+        findfirst(xs .>= left_loc)
+    else
+        maybe_left + 1
+    end
+    maybe_right = findfirst(xs .> right_loc)
+    right_idx = if maybe_right === nothing
+        findlast(xs .<= right_loc)
+    else
+        maybe_right - 1
+    end
+    return ValuedSpace(vs.values[left_idx:right_idx], vs.coordinates[left_idx:right_idx])
 end
-valid_metric(metric, score, min_score=0.0001) = !ismissing(metric) && (!ismissing(score) && (score > min_score))
-function TravelingWaveStats(stats_arr::AbstractArray{<:AbstractPeakStats{T_LOC,T_VAL}}, t) where {T_LOC,T_VAL}
-    widths = [st.width for st in stats_arr]
-    centers = [st.center for st in stats_arr]
-    amplitudes = [st.amplitude for st in stats_arr]
-    scores = [st.score for st in stats_arr]
-    
-    if sum(valid_metric.(widths, scores)) < 5 || sum(valid_metric.(centers, scores)) < 5 || sum(valid_metric.(amplitudes,scores)) < 5 #At least five wave frames
+Base.setindex!(vs::ValuedSpace, val, inds::Vararg{Int,N}) where N = vs.values[inds...] = val
+Base.showarg(io::IO, vs::ValuedSpace, toplevel) = print(io, typeof(vs), ":\n\tValues: $(vs.values)\n\tCoordinates: $(vs.coordinates)")
+
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{ValuedSpace}}, ::Type{ElType}) where {ElType}
+    # Scan the inputs for the ValuedSpace:
+    vs = find_valuedspace(bc)
+    # Use the char field of A to create the output
+    ValuedSpace(similar(Array{ElType}, axes(bc)), vs.coordinates)
+end
+
+"`A = find_valuedspace(bc)` returns the first ValuedSpace among the arguments."
+find_valuedspace(bc::Base.Broadcast.Broadcasted) = find_valuedspace(bc.args)
+find_valuedspace(args::Tuple) = find_valuedspace(find_valuedspace(args[1]), Base.tail(args))
+find_valuedspace(x) = x
+find_valuedspace(a::ValuedSpace, rest) = a
+find_valuedspace(::Any, rest) = find_valuedspace(rest)
+
+
+function zero_crossing(A::ValuedSpace, i, j, atol=1e-4)
+    if (A[i] <= 0 && A[j] >= 0) || (A[i] >= 0 && A[j] <= 0)
+        return linear_interpolate_loc((getvalue(A,i),getvalue(A,j)), 0.0)
+    elseif (A[i] < -atol && A[j] >= -atol) || (A[i] > atol && A[j] <= atol)
+        return getvalue(A,j)
+    else
         return nothing
     end
+end
 
-    if mean(scores) < 1e-2 || mean(amplitudes) < 1e-3 # roughly, less than 1% of the run contains TW
-        return nothing # can't try fitting; singular
-    end
-    width_linfit = linreg_dropmissing(widths, t, scores)
-    center_linfit = linreg_dropmissing(centers, t, scores)
-    amplitude_linfit = linreg_dropmissing(amplitudes, t, scores)
-    TravelingWaveStats(FitErr(widths, width_linfit, t, scores), 
-        FitErr(centers, center_linfit, t, scores),
-        FitErr(amplitudes, amplitude_linfit, t, scores),
-        norm(scores))
-end
-# TODO: don't rely on 1D traveling wave
-function TravelingWaveStats(exec::Execution)
-    u = exec.solution.u
-    t = exec.solution.t
-    x = [x[1] for x in exec.solution.x]
-    
-    static_stats = StaticWaveStats.(population.(u,1), Ref(x))
-    TravelingWaveStats(static_stats, t)
-end
-function Base.show(io::IO, ::MIME"text/plain", tws::TravelingWaveStats)
-    println(io, "$(typeof(tws)):")
-    for fname in fieldnames(TravelingWaveStats)
-        println(io, "    $fname = $(getfield(tws,fname))")
-    end
-end
-velocity(tws::TravelingWaveStats) = linear_coef(tws.center.fit)
+Base.diff(vs::ValuedSpace) = ValuedSpace(diff(vs.values) ./ diff(vs.coordinates), collect(all_but_last(vs.coordinates)) .+ (0.5 .* diff(vs.coordinates)))
 
-function linreg_dropmissing(b_with_missing::AbstractVector, A_with_missing::Union{AbstractVector,AbstractMatrix}, weights::AbstractVector)
-    # Ax = b
-    # Add constant row
-    A_with_missing = make_matrix(LinearFit, A_with_missing)
-    notmissing = valid_metric.(b_with_missing, weights)
-    A = A_with_missing[notmissing,:]
-    b = b_with_missing[notmissing]
-    W = diagm(weights[notmissing])
-    x = nothing
-    try
-        x = (A' * W * A) \ (A' * W * b)
-    catch e
-        @show e
-        @show b_with_missing
-        @show A_with_missing
-        @show A
-    end
-    return LinearFit(x)
+@noinline function translate(val::Value, vs::ValuedSpace)
+    vs[val.loc]
 end
-    
+translate(::Nothing, args...) = nothing
 
-# Peakiness
-drop_proportion(apex::Value, nadir::Value) = ((apex.val - nadir.val) / apex.val)
-drop_duration(apex::Value, nadir::Value) = abs(apex.loc - nadir.loc)
+struct Scored{OBJ,SCR}
+    obj::OBJ
+    score::SCR
+end
+Scored(obj::OBJ) where OBJ = Scored(obj, score(obj))
+
 sigmoid(x::Real) = one(x) / (one(x) + exp(-x))
-drop_score(apex::Value{T}, nadir::Value{T}, θ::T) where T = drop_proportion(apex, nadir) * sigmoid((drop_duration(apex, nadir) - θ))
-function peakiness(left::Value{T}, apex::Value{T}, right::Value{T}, duration_θ::T=10) where T
-    left_score = drop_score(apex, left, duration_θ)
-    right_score = drop_score(apex, right, duration_θ)
-    score = left_score * right_score
-    if isnan(score)
-        return 0
+drop_proportion(apex::Value, nadir::Value) = min(abs(apex.val - nadir.val) / abs(apex.val), 1.0)
+drop_duration(apex::Value, nadir::Value) = abs(apex.loc - nadir.loc)
+drop_score(apex::Value{T}, nadir::Value{T}, θ) where T = drop_proportion(apex, nadir) * sigmoid((drop_duration(apex, nadir) - θ))
+valid_score(score) = if isnan(score)
+        return 0.0
     elseif score < 0
-        @warn "negative score: left: $left, apex: $apex, right: $right"
-        return 0
+        # Confirm score range
+        @warn "negative score"
+        return 0.0
     else
         return score
-    end
+    end 
+# RIGHT WAVEFRONT FIXME
+struct Wavefront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
+    left::V
+    slope::V
+    right::V
 end
-function frontiness(left::Value{T}, apex::Value{T}, right::Value{T}, duration_θ::T=10) where T
-    left_score = drop_score(apex, left, duration_θ)
-    right_score = drop_score(apex, right, duration_θ)
-    score = max(left_score, right_score)
-    if isnan(score)
-        return 0
-    elseif score < 0
-        @warn "negative score: left: $left, apex: $apex, right: $right"
-        return 0
-    else
-        return score
-    end
+function translate(wf::Wavefront, args...)
+    Wavefront(
+        translate(wf.left, args...),
+        translate(wf.slope, args...),
+        translate(wf.right, args...)
+        )
 end
-choose_peakiest(::Nothing, peak::AbstractPeak) = peak
-choose_peakiest(peak1::AbstractPeak, peak2::StaticPeak) = (peak1.score >= peak2.score) ? peak1 : peak2
+function score(wf::Wavefront, width_θ::T=5) where T
+    apex = max(wf.left, wf.right)
+    left_score = drop_score(apex, wf.left, width_θ)
+    right_score = drop_score(apex, wf.right, width_θ)
+    score = max(right_score, left_score) # TODO account for slope
+    return valid_score(score)
+end
+struct WavefrontMetrics{T} <: AbstractWaveformMetrics{T}
+    left_height::T
+    right_height::T
+    slope::T
+    slope_loc::T
+    width::T
+end
+function metrics(wf::Wavefront)
+    WavefrontMetrics(
+        wf.left.val,
+        wf.right.val,
+        wf.slope.val,
+        wf.slope.loc,
+        wf.right.loc - wf.left.loc        
+    ) 
+end
+
+struct SolitaryWaveform{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_VAL}
+    left::V
+    left_slope::V
+    apex::V
+    right_slope::V
+    right::V
+end
+function SolitaryWaveform(left::WF, right::WF) where {T_LOC,T_VAL,V<:Value{T_LOC,T_VAL},WF<:Wavefront{T_LOC,T_VAL,V}}
+    SolitaryWaveform{T_LOC,T_VAL,V}(
+        left.left,
+        left.slope,
+        left.right, # == right.left
+        right.slope,
+        right.right
+    )
+end
+function score(sw::SolitaryWaveform, width_θ::T=10) where T
+    apex = sw.apex
+    left_score = drop_score(apex, sw.left, width_θ)
+    right_score = drop_score(apex, sw.right, width_θ)
+    score = right_score * left_score # TODO account for slope
+    return valid_score(score)
+end
+
+struct SolitaryWaveformMetrics{T} <: AbstractWaveformMetrics{T}
+    left_baseline_height::T
+    right_baseline_height::T
+    right_slope_loc::T
+    apex_height::T
+    apex_loc::T
+    between_slopes_width::T
+end
+function metrics(sw::SolitaryWaveform)
+    SolitaryWaveformMetrics(
+        sw.left.val,
+        sw.right.val,
+        sw.right_slope.loc,
+        sw.apex.val,
+        sw.apex.loc,
+        sw.right.loc - sw.left.loc
+    )
+end
     
-function peakiest_peak(frame::AbstractArray{T,1}, n_dxs_per_regime=10, peak_type::Type{<:AbstractPeak}=StaticPeak) where {T<:Number}
-    left = nothing
-    apex = nothing
-    right = nothing
-    peakiest = nothing
-    max_peak = nothing
-    
-    prev_val = frame[1]
-    left = Value(1, frame[1])
-    idx = 2
-    for val in frame[2:end]
-        change = val - prev_val
-        if apex === nothing
-            if change <= 0 # = so that plateaus ruin peak score.
-                apex = Value(idx-1,prev_val)
-            end
+choose_best(::Nothing, s::Scored) = s
+choose_best(s1::Sd, s2::Sd) where {OBJ,Sd <: Scored{OBJ}} = (s1.score >= s2.score) ? s1 : s2
+function choose_best(arr1::AbstractArray{<:Sd}, arr2::AbstractArray{<:Sd}) where {OBJ,Sd <: Scored{OBJ}}
+    sum((elt) -> elt.score, arr1) > sum((elt) -> elt.score, arr2) ? arr1 : arr2
+end
+
+
+
+
+# Divide between peaks of second derivative (inflection points)
+# Center on peaks of first derivative
+
+function detect_all_fronts(valued_space::ValuedSpace)
+    d_values = diff(valued_space)
+    dd_values = diff(d_values)
+    fronts = Wavefront{Float64,Float64}[]
+    left_boundary = getvalue(valued_space, 1)
+    steepest_slope = nothing
+    for idx=all_but_last(eachindex(d_values),2)
+        right_boundary = translate(zero_crossing(d_values, idx, idx+1, 1e-4), valued_space)
+        if right_boundary !== nothing
+            this_front = getslice(d_values, (left_boundary, right_boundary))
+            _, midx = findmax(abs.(this_front))
+            steepest_slope = getvalue(this_front, midx)
+            push!(fronts, Wavefront(left_boundary,
+                                    steepest_slope,
+                                    right_boundary)
+            )
+            steepest_slope = nothing
+            left_boundary = right_boundary
+            right_boundary = nothing
+        end
+    end
+    right_boundary = getvalue(valued_space, length(valued_space))
+    this_front = getslice(d_values, (left_boundary, right_boundary))
+    _, midx = findmax(abs.(this_front))
+    steepest_slope = getvalue(this_front, midx)
+    push!(fronts, Wavefront(left_boundary,
+                            steepest_slope,
+                            right_boundary)
+    )
+    return fronts
+end
+
+eat_left(left, right) = Wavefront(left.left, right.slope, right.right)
+eat_right(left, right) = Wavefront(left.left, left.slope, right.right)
+function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, vs::ValuedSpace, slope_min=1e-4)
+    if length(fronts) == 0
+        return fronts
+    end
+    new_fronts = Wavefront[]
+    first_suff_dx = 1
+    while abs(fronts[first_suff_dx].slope.val) < slope_min
+        if first_suff_dx < length(fronts)
+            first_suff_dx += 1
         else
-            if change >= 0
-                right = Value(idx-1,prev_val)
-                peak = peak_type(left, apex, right)
-                max_peak = choose_peakiest(max_peak, peak)
-                apex = nothing
-                left = right
+            break
+        end
+    end
+    
+    current_front = eat_left(fronts[1], fronts[first_suff_dx])
+    if length(fronts) > first_suff_dx
+        for i in first_suff_dx+1:length(fronts)
+            next_front = fronts[i]
+            if abs(next_front.slope.val) < slope_min
+                current_front = eat_right(current_front, next_front)
+            else
+                push!(new_fronts, current_front)
+                current_front = next_front
             end
         end
-        prev_val = val
-        idx +=1
     end
-    rightmost = Value(idx-1,prev_val)
-    apex = apex === nothing ? rightmost : apex
-    final_peak = peak_type(left,apex,rightmost)
-    max_peak = choose_peakiest(max_peak, final_peak)
-    return max_peak
+    push!(new_fronts, current_front)
+    return new_fronts
+end
+
+# TODO deal with multipop
+substantial_fronts(multipop::AbstractMatrix, xs::AbstractVector, slope_min=1e-4) = substantial_fronts(multipop[:,1], xs)
+function substantial_fronts(frame::AbstractVector, xs::AbstractVector, slope_min=1e-4)
+    vs = ValuedSpace(frame, xs)
+    all_fronts = detect_all_fronts(vs)
+    consolidated = consolidate_fronts(all_fronts, vs, slope_min)
+    return consolidated
+end
+
+function scored_rightmost(::Type{<:WavefrontMetrics}, fronts::AbstractArray{<:Wavefront})#::Scored{<:Wavefront{T,T},T} where T
+    if length(fronts) == 0
+        return fronts
+    else
+        return Scored(fronts[end])
+    end
+end
+function scored_rightmost(::Type{<:SolitaryWaveformMetrics}, fronts::AbstractArray{<:Wavefront})
+    for idx = length(fronts):-1:2
+        if fronts[idx].slope.val < 0 && fronts[idx-1].slope.val > 0
+            return Scored(SolitaryWaveform(fronts[idx-1], fronts[idx]))
+        end
+    end
+    return nothing
+end
+scored_rightmost_wavefront(multipop::AbstractArray{T,2}, xs) where T = scored_rightmost_wavefront(multipop[:,1], xs)
+
+function metrics_df(metrics_type::Type{<:AbstractWaveformMetrics}, scored_wave_arr::AbstractArray, t)
+    waveform_metrics = [metrics(s.obj) for s in scored_wave_arr if s !== nothing]
+    scores = [s.score for s in scored_wave_arr if s !== nothing]
+    if length(scores) < 3 || mean(scores) < 1e-2 # FIXME magic number
+        return nothing
+    end
+    wave_metric_syms = fieldnames(metrics_type)
+    wave_metrics_df = DataFrame(Dict(zip(wave_metric_syms, [[getproperty(wave, sym) for wave in waveform_metrics] for sym in wave_metric_syms])))
+    wave_metrics_df.score = scores
+    wave_metrics_df.t = t[scored_wave_arr .!== nothing]
+    return wave_metrics_df
+end
+
+# TODO: deal with non-traveling waves (return nothing)
+function traveling_wave_metrics_linear_regression(wave_metrics_df::DataFrame)
+    scores = wave_metrics_df.score
+    wave_metrics_syms = filter(name -> name ∉ [:score, :t], names(wave_metrics_df))
+    mostly_extant_cols = filter(wave_metrics_syms) do colname
+        (count(ismissing, wave_metrics_df[:,colname])/size(wave_metrics_df,1) < 0.01 && # FIXME magic numbers
+            sum(wave_metrics_df[:,colname]) > 5 &&
+            length(wave_metrics_df[:,colname]) > 4) # FIXME magic numbers
+    end
+    results = map(mostly_extant_cols) do metric_sym
+        fmla = Term(metric_sym) ~ Term(:t) + ConstantTerm(1)
+        glm_fit = try
+            glm(fmla, wave_metrics_df, Normal(), IdentityLink(); wts=scores)
+        catch e
+            @show metric_sym
+            @show wave_metrics_df[:,metric_sym]
+            nothing
+        end
+        return metric_sym => glm_fit
+    end |> Dict
+    return (results, scores, wave_metrics_df)
+end
+traveling_wave_metrics_linear_regression(::Nothing) = (nothing, nothing, nothing)
+
+function tw_metrics(metrics_type::Type{<:AbstractWaveformMetrics}, exec::Execution)
+    u = exec.solution.u
+    t = timepoints(exec)
+    x = [x[1] for x in space(exec).arr]
+    tw_metrics(metrics_type, u, t, x)
+end
+function tw_metrics(metrics_type::Type{<:AbstractWaveformMetrics}, frames, t, x)
+    fronts = substantial_fronts.(frames, Ref(x))
+    traveling_wave_metrics_linear_regression(metrics_df(metrics_type, scored_rightmost.(Ref(metrics_type), fronts), t))
+end
+
+
+@recipe function f(vs::ValuedSpace)
+    (vs.coordinates, vs.values)
+end
+
+@recipe function f(wf_arr::Array{<:Wavefront}, vs=nothing)
+    seriestype := :scatter
+    @series begin
+        color := :green
+        marker := :star
+        markersize := 10
+        [wf.left.loc for wf in wf_arr], [wf.left.val for wf in wf_arr]
+    end
+    @series begin
+        color := :red
+        [wf.right.loc for wf in wf_arr], [wf.right.val for wf in wf_arr]
+    end
+    @series begin
+        if vs !== nothing
+            color := :blue
+            [wf.slope.loc for wf in wf_arr], [vs[wf.slope.loc].val for wf in wf_arr]
+        else
+            color := :blue
+            [wf.slope.loc for wf in wf_arr], [wf.slope.val for wf in wf_arr]
+        end
+    end
 end
