@@ -46,7 +46,9 @@ struct ValuedSpace{T,C,N,AT<:AbstractArray{T,N},AC<:AbstractArray{C,N}} <: Abstr
     values::AT
     coordinates::AC
     function ValuedSpace(values::AT, coordinates::AC) where {T,C,N,AT<:AbstractArray{T,N},AC<:AbstractArray{C,N}}
-        @assert size(values) == size(coordinates)
+        if !(size(values) == size(coordinates))
+            error("Values and coordinates must match")
+        end
         return new{T,C,N,AT,AC}(values, coordinates)
     end
 end
@@ -296,7 +298,9 @@ function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, vs::Va
 end
 
 # TODO deal with multipop
-substantial_fronts(multipop::AbstractMatrix, xs::AbstractVector, slope_min=1e-4) = substantial_fronts(multipop[:,1], xs)
+function substantial_fronts(multipop::AbstractMatrix, xs::AbstractVector, slope_min=1e-4)
+    substantial_fronts(population(multipop,1), xs, slope_min)
+end
 function substantial_fronts(frame::AbstractVector, xs::AbstractVector, slope_min=1e-4)
     vs = ValuedSpace(frame, xs)
     all_fronts = detect_all_fronts(vs)
