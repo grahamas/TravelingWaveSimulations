@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -22,14 +23,12 @@ using Simulation73, NeuralModels, TravelingWaveSimulations, Plots,
     DifferentialEquations
 
 # %%
-dos_example = get_example("dos_normal_fft")
-dos_exec = execute(dos_example(;  n=256, x=700.0, See=25.0, Sii=25.0, Sie=27.0, Sei=27.0,
-                                Aee=250.0, Aei=75.0, Aie=50.0, Aii=10.0, strengthE=10.0, widthE=50.0,
-                                algorithm=Tsit5()));
+dos_example = get_example("dos_effectively_sigmoid")
+dos_exec = execute(dos_example(; blocking_θE=15.0, blocking_θI=10.0));
 
 # %%
 anim = custom_animate(dos_exec)
-mp4(anim, "dos_tmp/dos_normal_fft/no_mods/anim.mp4")
+mp4(anim, "dos_tmp/dos_effectively_sigmoid/E15_I10_anim.mp4")
 
 # %%
 data_root = joinpath(homedir(), "sim_data")
@@ -44,7 +43,7 @@ GC.gc()
 mods = TravelingWaveSimulations.get_mods(mdb)
 mod_names = keys(mods) |> collect
 mod_values = values(mods) |> collect
-A_tws = Array{Float64}(undef, length.(values(mods))...)
+A_is_traveling = Array{Bool}(undef, length.(values(mods))...)
 A_velocity= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 A_velocity_errors= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 for db in mdb
@@ -53,13 +52,14 @@ for db in mdb
         this_mod_val = values(this_mod)
         A_idx = TravelingWaveSimulations.mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
         (results, score, tw_df) = tw_metrics(SolitaryWaveformMetrics, exec);
-        if tws === nothing
+        if results === nothing || (:apex_loc ∉ keys(results))
             A_is_traveling[A_idx] = false
             A_velocity[A_idx] = missing
             A_velocity_errors[A_idx] = missing
         else
             A_is_traveling[A_idx] = true
-            A_velocity[A_idx], A_velocity_errors[A_idx] = velocity_results(results)
+            A_velocity[A_idx], sse = velocity_results(results)
+            A_velocity_errors[A_idx] = sse / length(score) #make sum into mean
         end
     end
 end

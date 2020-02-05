@@ -15,10 +15,10 @@
 #     name: julia-1.3
 # ---
 
-# %%
-using Revise
-using Simulation73, NeuralModels, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
-    IterTools, Combinatorics, DataFrames, GLM
+# %% [markdown]
+# ## using Revise
+# using Simulation73, NeuralModels, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
+#     IterTools, Combinatorics, DataFrames, GLM
 
 # %% jupyter={"source_hidden": true}
 multi_factor_name(name_combo) = join(name_combo, "_")
@@ -61,7 +61,7 @@ GC.gc()
 mods = TravelingWaveSimulations.get_mods(mdb)
 mod_names = keys(mods) |> collect
 mod_values = values(mods) |> collect
-A_tws = Array{Float64}(undef, length.(values(mods))...)
+A_is_traveling = Array{Bool}(undef, length.(values(mods))...)
 A_velocity= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 A_velocity_errors= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 for db in mdb
@@ -69,15 +69,15 @@ for db in mdb
         this_mod_key = keys(this_mod)
         this_mod_val = values(this_mod)
         A_idx = TravelingWaveSimulations.mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
-        tws = TravelingWaveStats(exec);
-        if tws === nothing
-            A_tws[A_idx] = 0.0
+        (results, score, tw_df) = tw_metrics(SolitaryWaveformMetrics, exec);
+        if results === nothing || (:apex_loc ∉ keys(results))
+            A_is_traveling[A_idx] = false
             A_velocity[A_idx] = missing
             A_velocity_errors[A_idx] = missing
         else
-            A_tws[A_idx] = tws.score
-            A_velocity[A_idx] = TravelingWaveSimulations.velocity(tws)
-            A_velocity_errors[A_idx] = tws.center.err
+            A_is_traveling[A_idx] = true
+            A_velocity[A_idx], sse = velocity_results(results)
+            A_velocity_errors[A_idx] = sse / length(score) #make sum into mean
         end
     end
 end
