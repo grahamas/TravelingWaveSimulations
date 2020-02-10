@@ -38,12 +38,12 @@ dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N
       callback=DiscreteCallback(if !(save_idxs === nothing)
         (u,t,integrator) -> begin
                     sub_u = u[integrator.opts.save_idxs];
-                    (all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end] > 0.01)) && t > 5
+                    t > 5 && ((all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end] > 0.005)))
                 end
     else
         (u,t,integrator) -> begin
                     pop = population(u,1)
-                    (all(isapprox.(u, 0.0, atol=1e-4)) || (sum(pop[:,end]) / size(pop,1) > 0.01)) && t > 5
+                    t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (sum(pop[:,end]) / size(pop,1) > 0.005)))
             end
     end, terminate!)
   )
