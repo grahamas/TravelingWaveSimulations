@@ -34,7 +34,7 @@ dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N
       save_idxs = RadialSlice(),
       tspan = (0.0,stop_time),
       dt = 1.0,
-      algorithm=Tsit5(),
+      algorithm=Euler(),
       callback=DiscreteCallback(if !(save_idxs === nothing)
         (u,t,integrator) -> begin
                     sub_u = u[integrator.opts.save_idxs];
