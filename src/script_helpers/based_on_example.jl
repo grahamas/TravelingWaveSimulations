@@ -74,12 +74,15 @@ function getkeys(d, keys)
     [d[key] for key in keys]
 end
 
-function extract_data_namedtuple(execution)
+function extract_data_namedtuple(execution::AbstractExecution)
     soln = execution.solution
     u = soln.u
     t = soln.t
     x = coordinates(space(execution)) |> collect
     return (u=u, t=t, x=x)
+end
+function extract_data_namedtuple(execution::Missing)
+    return (u=missing, t=missing, x=missing)
 end
 
 
@@ -94,9 +97,13 @@ function execute_single_modification(example, modification)
     end
     simulation = example(; modification...)
     execution = execute(simulation)
+    if execution isa FailedExecution
+        @warn "$mod_name failed!"
+        return (mod_name, missing)
+    end
     if execution.solution.retcode == :Unstable
         @warn "$mod_name unstable!"
-        return (mod_name, nothing)
+        return (mod_name, missing)
     end
     return (mod_name, execution)
 end
@@ -115,7 +122,7 @@ function execute_modifications_serial(example, modifications::Array{<:Dict}, ana
     for modification in modifications
         mod_name, execution = execute_single_modification(example, modification)
         these_params = extract_params_tuple(modification, pkeys)
-        if execution === nothing
+        if execution === missing
             push_namedtuple!(failures, these_params)
             continue
         end
