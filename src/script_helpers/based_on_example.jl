@@ -163,13 +163,24 @@ function catch_for_saving(results_channel, data_path, pkeys, n_batches, progress
     all_failures !== nothing && JuliaDB.save(table(all_failures), joinpath(data_path, "failures.jdb"))
 end
 
+function init_results_tuple(pkeys::Array{Symbol}, results::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
+    N = length(pkeys)
+    ALL_NAMES = Tuple([pkeys...,NAMES...])
+    ARR_TYPES = Tuple{[Array{Float64,1} for _ in 1:N]..., [Array{Union{Missing,TYPE},1} for TYPE in TYPES.parameters]...}
+    empty_arrs = [[Float64[] for _ in 1:N]..., [Union{Missing,TYPE}[] for TYPE in TYPES.parameters]...]
+    NamedTuple{ALL_NAMES,ARR_TYPES}(empty_arrs)
+end
+
+function init_failures_tuple(pkeys::Array{Symbol})
+    N = length(pkeys)
+    NamedTuple{Tuple(pkeys),NTuple{N,Array{Float64,1}}}([Float64[] for _ in 1:N])
+end
+
 Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
 function execute_modifications_parallel_saving(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, max_batch_size, max_sims_in_mem::Int, progress=false)
     parallel_batch_size = nprocs() == 1 ? max_batch_size : min(max_batch_size, ceil(Int, length(modifications) / (nprocs() - 1)))
     pkeys = mods_to_pkeys(modifications)
-    @show length(modifications)
-    @show parallel_batch_size
     max_held_batches = floor(Int, max_sims_in_mem / parallel_batch_size)
     @assert max_held_batches > 0
     @warn "max_held_batches = $max_held_batches"
@@ -178,15 +189,19 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
     @show n_batches
     results_channel = RemoteChannel(() -> Channel{Tuple}(max_held_batches))
     failures = @spawnat :any catch_for_saving(results_channel, data_path, pkeys, n_batches, progress)
+    sample_execution = execute(example())
+    sample_data = extract_data_namedtuple(sample_execution)
     task = @distributed for modifications_batch in collect(batches)
-        results = nothing
-        failures = nothing
+        results = init_results_tuple(pkeys, sample_data)
+        failures = init_failures_tuple(pkeys)
         GC.gc()
         for modification in modifications_batch
             mod_name, execution = execute_single_modification(example, modification)
+            @show mod_name
             these_params = extract_params_tuple(modification, pkeys)
             if execution !== nothing #is success
                 these_data = extract_data_namedtuple(execution)
+                @show typeof(results)
                 results = push_namedtuple!(results, merge(these_params, these_data))
                 analyse.(analyses, Ref(execution), analyses_path, mod_name)
             else
@@ -250,7 +265,6 @@ function push_namedtuple!(tup::NamedTuple, mods)
     for mod in pairs(mods)
         push!(tup[mod[1]], mod[2])
     end
-    return tup
 end
 push_namedtuple!(::Nothing, ::Nothing) = nothing
 push_namedtuple!(nt::NamedTuple, ::Nothing) = nt
