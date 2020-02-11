@@ -98,7 +98,7 @@ function execute_single_modification(example, modification)
     simulation = example(; modification...)
     execution = execute(simulation)
     if execution isa FailedExecution
-        @warn "$mod_name failed!"
+        #@warn "$mod_name failed!"
         return (mod_name, missing)
     end
     if execution.solution.retcode == :Unstable
