@@ -32,7 +32,8 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         batch=DEFAULT_SAVE_BATCH_SIZE,
         max_sims_in_mem=nothing,
         backup_paths=[],
-        progress=false)
+        progress=false,
+        force_parallel=false)
 
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
@@ -52,7 +53,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     end
 
     example = get_example(example_name)
-    if !(@isdefined nprocs) || nprocs() == 1
+    if !force_parallel && (!(@isdefined nprocs) || nprocs() == 1)
         @warn "Not parallelizing parameter sweep."
         failures = execute_modifications_serial(example, modifications, analyses, data_path, analyses_path, no_save_raw, progress)
         @show failures
@@ -165,12 +166,12 @@ end
 Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
 function execute_modifications_parallel_saving(example, modifications::Array{<:Dict}, analyses,
         data_path::String, analyses_path::String, max_batch_size, max_sims_in_mem::Int, progress=false)
-    parallel_batch_size = min(max_batch_size, ceil(Int, length(modifications) / (nprocs() - 1)))
+    parallel_batch_size = nprocs() == 1 ? max_batch_size : min(max_batch_size, ceil(Int, length(modifications) / (nprocs() - 1)))
     pkeys = mods_to_pkeys(modifications)
     @show length(modifications)
     @show parallel_batch_size
     max_held_batches = floor(Int, max_sims_in_mem / parallel_batch_size)
-    @assert max_held_batches > 1
+    @assert max_held_batches > 0
     @warn "max_held_batches = $max_held_batches"
     batches = Iterators.partition(modifications, parallel_batch_size)
     n_batches = length(batches)
@@ -189,7 +190,7 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
                 results = push_namedtuple!(results, merge(these_params, these_data))
                 analyse.(analyses, Ref(execution), analyses_path, mod_name)
             else
-                failures = push_namedtuple!(these_params, failures)
+                failures = push_namedtuple!(failures, these_params)
             end
         end
         put!(results_channel, (failures, results))
