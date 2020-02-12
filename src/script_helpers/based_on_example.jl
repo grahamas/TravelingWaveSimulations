@@ -37,7 +37,6 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
 
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     analyses, analyses_prefix = parse_analyses_argument(analyses)
-    @show analyses
 
     # Initialize saving paths
     if length(analyses) > 0
@@ -193,15 +192,14 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
     sample_data = extract_data_namedtuple(sample_execution)
     task = @distributed for modifications_batch in collect(batches)
         results = init_results_tuple(pkeys, sample_data)
+        @show typeof(results)
         failures = init_failures_tuple(pkeys)
         GC.gc()
         for modification in modifications_batch
             mod_name, execution = execute_single_modification(example, modification)
-            @show mod_name
             these_params = extract_params_tuple(modification, pkeys)
             if execution !== nothing #is success
                 these_data = extract_data_namedtuple(execution)
-                @show typeof(results)
                 results = push_namedtuple!(results, merge(these_params, these_data))
                 analyse.(analyses, Ref(execution), analyses_path, mod_name)
             else
