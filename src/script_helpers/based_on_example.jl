@@ -192,7 +192,6 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
     sample_data = extract_data_namedtuple(sample_execution)
     task = @distributed for modifications_batch in collect(batches)
         results = init_results_tuple(pkeys, sample_data)
-        @show typeof(results)
         failures = init_failures_tuple(pkeys)
         GC.gc()
         for modification in modifications_batch
@@ -200,7 +199,7 @@ function execute_modifications_parallel_saving(example, modifications::Array{<:D
             these_params = extract_params_tuple(modification, pkeys)
             if execution !== nothing #is success
                 these_data = extract_data_namedtuple(execution)
-                results = push_namedtuple!(results, merge(these_params, these_data))
+                push_namedtuple!(results, merge(these_params, these_data))
                 analyse.(analyses, Ref(execution), analyses_path, mod_name)
             else
                 failures = push_namedtuple!(failures, these_params)
@@ -255,10 +254,6 @@ function merge_ddb(ddb::JuliaDB.DIndexedTable, tbl::IndexedTable)
     return merge(ddb, tbl)
 end
 
-function push_namedtuple!(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
-    arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}
-    NamedTuple{NAMES, arrd_TYPES}([[val] for val in values(mods)])
-end
 function push_namedtuple!(tup::NamedTuple, mods)
     for mod in pairs(mods)
         push!(tup[mod[1]], mod[2])
