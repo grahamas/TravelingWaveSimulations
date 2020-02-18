@@ -239,7 +239,7 @@ function detect_all_fronts(valued_space::ValuedSpace)
     fronts = Wavefront{Float64,Float64}[]
     left_boundary = getvalue(valued_space, 1)
     steepest_slope = nothing
-    for idx=all_but_last(eachindex(d_values),2)
+    for idx=collect(eachindex(d_values))[2:end-2]
         right_boundary = translate(zero_crossing(d_values, idx, idx+1, 1e-4), valued_space)
         if right_boundary !== nothing
             this_front = getslice(d_values, (left_boundary, right_boundary))
