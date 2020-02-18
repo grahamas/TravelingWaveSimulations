@@ -107,7 +107,7 @@ function execute_single_modification(example, modification)
     end
     return (mod_name, execution)
 end
-function mods_to_pkeys(modifications)
+function mods_to_pkeys(modifications)::Array{Symbol,1}
     pkeys = keys(modifications[1]) |> collect
     disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent, :save_idxs]
     pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
