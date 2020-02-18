@@ -49,9 +49,42 @@ function find_first_satisfying_execution(mdb, example, dict_min=Dict(), dict_max
 end
 
 # %%
+function is_traveling(l_frame_fronts::Array{<:Array,1}, t, min_motion)
+    rightmost_locations = [frame_fronts[end].slope.loc for frame_fronts in l_frame_fronts]
+    rightward_motion = diff(rightmost_locations) ./ diff(t)
+    return all(rightward_motion[(length(rightward_motion) ÷ 2):end] .> min_motion)
+end
+
+function persistent_activation(l_frames, t, min_activation)
+    leftmost_value = [frame[1] for frame in l_frames[(length(t) ÷ 2):end]]
+    d_leftmost_value = diff(leftmost_value) ./ diff(t[(length(t) ÷ 2):end])
+    # test leftmost is not ONLY decreasing
+    too_low = leftmost_value[2:end] .< min_activation
+    decreasing = d_leftmost_value .< 0.0
+    return !all(too_low .| decreasing)
+end
+
+function is_epileptic_radial_slice(exec, min_motion=1e-2, min_activation=1e-2)
+    # We'll call it epileptic if:
+    #  1. There is a traveling front
+    #  2. There is persistently elevated activity following the front.
+    # How to deal with oscillatory activity? 
+    # Want persistent oscillation to be considered epileptic, even if sometimes zero
+    # In practice we'll ignore this for now --- FIXME
+    l_frames = exec.solution.u
+    t = timepoints(exec)
+    x = [x[1] for x in space(exec).arr]
+    l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(x))
+#     @show persistent_activation(l_frames, t, min_activation)
+#     @show mean(population(l_frames[end], 1)) > 0.2 
+#     @show is_traveling(l_frame_fronts, t, min_motion)
+    persistent_activation(l_frames, t, min_activation) && (mean(population(l_frames[end],1)) > 0.2 || is_traveling(l_frame_fronts, t, min_motion)) 
+end
+
+# %%
 # Load most recent simulation data
 data_root = joinpath(homedir(), "sim_data")
-(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft", 5);
+(example, mdb) = TravelingWaveSimulations.load_data(data_root, "dos_effectively_sigmoid");
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
@@ -62,30 +95,44 @@ GC.gc()
 mods = TravelingWaveSimulations.get_mods(mdb)
 mod_names = keys(mods) |> collect
 mod_values = values(mods) |> collect
-A_is_traveling = Array{Bool}(undef, length.(values(mods))...)
 A_velocity= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 A_velocity_errors= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
+A_mean_N_fronts = Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
+A_is_epileptic = Array{Union{Bool,Missing}}(undef, length.(values(mods))...)
+
 for db in mdb
     for (this_mod, exec) in DBExecIter(example, db, ())
         this_mod_key = keys(this_mod)
         this_mod_val = values(this_mod)
         A_idx = TravelingWaveSimulations.mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
-        (results, score, tw_df) = tw_metrics(SolitaryWaveformMetrics, exec);
-        if results === nothing || (:apex_loc ∉ keys(results))
-            A_is_traveling[A_idx] = false
+        if exec isa Execution{Missing}
             A_velocity[A_idx] = missing
             A_velocity_errors[A_idx] = missing
+            A_mean_N_fronts[A_idx] = missing
+            A_is_epileptic[A_idx] = missing
+            continue
+        end
+        fronts = TravelingWaveSimulations.substantial_fronts.(exec.solution.u, Ref([x[1] for x in space(exec).arr]))
+        (results, score, tw_df) = tw_metrics(SolitaryWaveformMetrics, exec);
+        if results === nothing || (:apex_loc ∉ keys(results))
+            A_velocity[A_idx] = missing
+            A_velocity_errors[A_idx] = missing
+            A_mean_N_fronts[A_idx] = missing
         else
-            A_is_traveling[A_idx] = true
             A_velocity[A_idx], sse = velocity_results(results)
             A_velocity_errors[A_idx] = sse / length(score) #make sum into mean
+            A_mean_N_fronts[A_idx] = mean(length.(fronts))
         end
+        A_is_epileptic[A_idx] = is_epileptic_radial_slice(exec)
     end
 end
-@show sum(ismissing.(A_velocity))
-@show prod(size(A_velocity))
+
 
 # %%
+@show sum(ismissing.(A_is_epileptic))
+@show prod(size(A_is_epileptic))
+
+# %% collapsed=true jupyter={"outputs_hidden": true}
 function mean_skip_missing(A; dims)
     missings = ismissing.(A)
     zeroed = copy(A)
@@ -97,15 +144,17 @@ end
 all_dims = 1:length(mod_names)
 for (x,y) in IterTools.subsets(all_dims, Val{2}())
     collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
-    is_traveling = dropdims(mean_skip_missing(A_is_traveling, dims=collapsed_dims), dims=collapsed_dims)
+    #mean_traveling = dropdims(mean_skip_missing(A_is_traveling, dims=collapsed_dims), dims=collapsed_dims)
     velocities = dropdims(mean_skip_missing(A_velocity, dims=collapsed_dims), dims=collapsed_dims)
     velocity_errors = dropdims(mean_skip_missing(A_velocity_errors, dims=collapsed_dims), dims=collapsed_dims)
-    prop_notmissing = dropdims(mean(.!ismissing.(A_velocity), dims=collapsed_dims), dims=collapsed_dims)
+    mean_is_epileptic = dropdims(mean_skip_missing(A_is_epileptic, dims=collapsed_dims), dims=collapsed_dims)
+    prop_notmissing = dropdims(mean(.!ismissing.(A_is_epileptic), dims=collapsed_dims), dims=collapsed_dims)
     plot(
-        #heatmap(mod_values[x], mod_values[y], is_traveling, xlab=mod_names[x], ylab=mod_names[y], title="\"peakiness\" avgd across other spreads"),
-        heatmap(mod_values[y], mod_values[x], velocities, xlab=mod_names[y], ylab=mod_names[x], title="velocity avgd"),
-        heatmap(mod_values[y], mod_values[x], velocity_errors, xlab=mod_names[y], ylab=mod_names[x], title="error"),
-        heatmap(mod_values[y], mod_values[x], prop_notmissing, xlab=mod_names[y], ylab=mod_names[x], title="prop not missing")
+        #heatmap(mod_values[x], mod_values[y], mean_traveling, xlab=mod_names[x], ylab=mod_names[y], title="\"peakiness\" avgd across other spreads"),
+#         heatmap(mod_values[y], mod_values[x], velocities, xlab=mod_names[y], ylab=mod_names[x], title="velocity avgd"),
+#         heatmap(mod_values[y], mod_values[x], velocity_errors, xlab=mod_names[y], ylab=mod_names[x], title="error"),
+        heatmap(mod_values[y], mod_values[x], prop_notmissing, xlab=mod_names[y], ylab=mod_names[x], title="prop not missing"),
+        heatmap(mod_values[y], mod_values[x], mean_is_epileptic, xlab=mod_names[y], ylab=mod_names[x], title="prop epileptic")
         ) |> display
     path = "wavefront_tmp/$(example_name)/$(sim_name)/$(mod_names[x])_$(mod_names[y])_centerfiterror.png"
     mkpath(dirname(path))
@@ -113,11 +162,15 @@ for (x,y) in IterTools.subsets(all_dims, Val{2}())
 end
 
 # %%
-dict_max = Dict()
-dict_min = Dict(:See => 40.0, :Sei => 100.0)
+dict_max = Dict(:blocking_aI => 1.0, :blocking_aE => 1.0)
+dict_min = Dict(:blocking_aI => 1.0, :blocking_aE => 1.0, :blocking_θE => 10.0, :blocking_θI => 10.0)
 mod_names = keys(TravelingWaveSimulations.get_mods(mdb))
 test_exec = find_first_satisfying_execution(mdb, example, dict_min, dict_max);
 
 # %%
+@show is_epileptic_radial_slice(test_exec)
 anim = custom_animate(test_exec)
 mp4(anim, "wavefront_tmp/$(example_name)/$(sim_name)/anim_$(mods_filename(mods)).mp4")
+
+# %%
+based_on_example(modifications=["blocking_θI=1.0:1.0:20.0"], example_name="dos_effectively_sigmoid", force_parallel=true, batch=1, max_sims_in_mem=10)
