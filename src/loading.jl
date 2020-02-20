@@ -95,8 +95,8 @@ function Base.iterate(it::MultiDBExecIter, (dbs_state, (db_iter, wrapped_db_stat
         db_iter = DBExecIter(it.example, db, it.constant_mods)
         exec_tuple = iterate(db_iter)
     end
-    exec, db_state = exec_tuple
-    return (exec, (dbs_state, (db_iter, (db_state,))))
+    mod_exec, db_state = exec_tuple
+    return (mod_exec, (dbs_state, (db_iter, (db_state,))))
 end
 function Base.iterate(it::MultiDBExecIter)
     (db, dbs_state) = @ifsomething iterate(it.dbs)
