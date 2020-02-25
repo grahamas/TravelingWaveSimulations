@@ -7,7 +7,7 @@ function parse_commandline(args)
     arg_settings = ArgParseSettings(
                                     autofix_names = false,
                                     )
-    @add_arg_table arg_settings begin
+    @add_arg_table! arg_settings begin
         "--ntasks"
             help = "Total number of tasks (cpus)"
             arg_type = Int
