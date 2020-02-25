@@ -45,7 +45,7 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
     else
         (u,t,integrator) -> begin
                     pop = population(u,1)
-                    t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (sum(pop[:,end]) / size(pop,1) > 0.005)))
+                    t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (pop[end] > 0.005)))
             end
     end, terminate!)
   )
