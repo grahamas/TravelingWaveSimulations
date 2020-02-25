@@ -254,6 +254,10 @@ function merge_ddb(ddb::JuliaDB.DIndexedTable, tbl::IndexedTable)
     return merge(ddb, tbl)
 end
 
+function push_namedtuple!(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
+    arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}
+    NamedTuple{NAMES, arrd_TYPES}([[val] for val in values(mods)])
+end
 function push_namedtuple!(tup::NamedTuple, mods)
     for mod in pairs(mods)
         push!(tup[mod[1]], mod[2])

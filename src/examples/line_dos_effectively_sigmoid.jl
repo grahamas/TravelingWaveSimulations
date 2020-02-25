@@ -7,7 +7,8 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
                                                      n=256, x=700.0, 
                                                      stim_strength=6.0,
                                                      stim_width=28.1,
-                                                     stim_duration=7.0)
+                                                     stim_duration=7.0,
+                                                     save_idxs_arg=nothing)
   simulation = Simulation(
     WCMSpatial(;
       pop_names = ("E", "I"),
@@ -35,7 +36,8 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
       tspan = (0.0,stop_time),
       dt = 0.1,
       algorithm=Tsit5(),
-      callback=DiscreteCallback(if !(save_idxs === nothing)
+      save_idxs = save_idxs_arg,
+      callback=DiscreteCallback(if !(save_idxs_arg === nothing)
         (u,t,integrator) -> begin
                     sub_u = u[integrator.opts.save_idxs];
                     t > 5 && ((all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end] > 0.005)))
