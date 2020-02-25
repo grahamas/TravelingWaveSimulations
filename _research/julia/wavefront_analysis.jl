@@ -104,7 +104,7 @@ end
 # %%
 # Load most recent simulation data
 data_root = joinpath(homedir(), "sim_data")
-(example, mdb) = TravelingWaveSimulations.load_data(data_root, "sigmoid_normal_fft", -1);
+(example, mdb) = TravelingWaveSimulations.load_data(data_root, "dos_effectively_sigmoid", -1);
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
@@ -113,19 +113,28 @@ sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 # mdb_execs = MultiDBExecIter(example, dbs, ())
 GC.gc()
 mods = TravelingWaveSimulations.get_mods(mdb)
-mod_names = keys(mods) |> collect
-mod_values = values(mods) |> collect
+
+all_mod_names = keys(mods) |> collect
+all_mod_values = values(mods) |> collect
+varied_mods = length.(all_mod_values) .> 1
+
+mod_names = all_mod_names[varied_mods]
+mod_values = all_mod_values[varied_mods]
+
 # A_velocity= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 # A_velocity_errors= Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
 # A_mean_N_fronts = Array{Union{Float64,Missing}}(undef, length.(values(mods))...)
-A_is_epileptic = Array{Union{Bool,Missing}}(undef, length.(values(mods))...)
-A_is_traveling_solitary = Array{Union{Bool,Missing}}(undef, length.(values(mods))...)
+A_is_epileptic = Array{Union{Bool,Missing}}(undef, length.(mod_values)...)
+A_is_traveling_solitary = Array{Union{Bool,Missing}}(undef, length.(mod_values)...)
 
 # for db in mdb
 #     for (this_mod, exec) in DBExecIter(example, db, ())
 for (this_mod, exec) in MultiDBExecIter(example, mdb, ())
-    this_mod_key = keys(this_mod)
-    this_mod_val = values(this_mod)
+    names_and_vals = map(mod_names) do name
+        val = this_mod[name]
+        return (name, val)
+    end
+    this_mod_key, this_mod_val = zip(names_and_vals...)
     A_idx = TravelingWaveSimulations.mod_idx(this_mod_key, this_mod_val, mod_names, mod_values)
     if exec isa Execution{Missing}
 #         A_velocity[A_idx] = missing
@@ -145,11 +154,6 @@ end
 @show prod(size(A_is_epileptic))
 @show sum(A_is_epileptic) / prod(size(A_is_epileptic))
 @show sum(A_is_traveling_solitary) / prod(size(A_is_traveling_solitary))
-
-# %% jupyter={"source_hidden": true}
-dict_max = Dict(:blocking_aI => 1.0, :blocking_aE => 1.0)
-dict_min = Dict(:blocking_aI => 1.0, :blocking_aE => 1.0)#, :blocking_θE => 10.0)#, :blocking_θI => 10.0)
-test_mods, test_exec = find_first_satisfying_execution(mdb, example, dict_min, dict_max);
 
 # %%
 
@@ -197,7 +201,7 @@ mp4(rerun_anim, "wavefront_tmp/$(example_name)/$(sim_name)/rerun_anim_$(mods_fil
 # %%
 function add_noise(sim, noise_coef, stochastic_algorithm=SRIW1())
     model = sim.model
-    noisy_model = WeinerNoisyModel(noise_coef, model)
+    noisy_model = NoisyInputModel(model, WeinerProcess(0.0, 0.5))
     Simulation(noisy_model; space=sim.space, tspan=sim.tspan, initial_value=sim.initial_value,
         dt=sim.dt, algorithm=stochastic_algorithm, sim.solver_options...)
 end
@@ -210,75 +214,7 @@ noisy_exec = execute(noisy_example);
 noisy_anim = custom_animate(noisy_exec)
 mp4(noisy_anim, "wavefront_tmp/$(example_name)/$(sim_name)/noisy_anim_$(mods_filename(mods)).mp4")
 
-# %%
-manual_exec = execute(manual_example());
-
-# %%
-@show is_epileptic_radial_slice(manual_exec)
-manual = custom_animate(manual_exec)
-mp4(manual, "wavefront_tmp/$(example_name)/$(sim_name)/manual_anim_$(mods_filename(mods)).mp4")
-
-# %%
-ABS_STOP=300.0
-manual_dos_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
-                                                     Aee=70.0, See=25.0,
-                                                     Aii=2.0, Sii=27.0,
-                                                     Aie=35.0, Sie=25.0,
-                                                     Aei=70.0, Sei=27.0,
-                                                     n=256, x=700.0, 
-                                                     stim_strength=6.0,
-                                                     stim_width=28.1,
-                                                     stim_duration=7.0)
-  simulation = Simulation(
-    WCMSpatial(;
-      pop_names = ("E", "I"),
-      α = (1.0, 1.0),
-      β = (1.0, 1.0),
-      τ = (3.0, 3.0),
-      nonlinearity = pops(DifferenceOfSigmoids;
-        firing_θ = [6.0, 11.4],
-        firing_a = [1.2, 1.0],
-        blocking_θ = [30.0, 30.0],
-        blocking_a = [1.2, 1.0]),
-      stimulus = pops(SharpBumpStimulusParameter;
-          strength = [stim_strength, stim_strength],
-          width = [stim_width, stim_width],
-          time_windows = [[(0.0, stim_duration)], [(0.0, stim_duration)]],
-          baseline=[0.0, 0.0]),
-      connectivity = FFTParameter(pops(GaussianConnectivityParameter;
-          amplitude = [Aee -Aei;
-                       Aie -Aii],
-          spread = [(See,See) (Sei,Sei);
-                    (Sie,Sie) (Sii,Sii)]
-         ))
-      );
-      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
-      save_idxs = RadialSlice(),
-      tspan = (0.0,stop_time),
-      dt = 0.1,
-      algorithm=Tsit5(),
-      callback=DiscreteCallback(if !(save_idxs === nothing)
-        (u,t,integrator) -> begin
-                    sub_u = u[integrator.opts.save_idxs];
-                    t > 5 && ((all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end] > 0.005)))
-                end
-    else
-        (u,t,integrator) -> begin
-                    pop = population(u,1)
-                    t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (sum(pop[:,end]) / size(pop,1) > 0.005)))
-            end
-    end, terminate!)
-  )
-end
-
-
-
-# %%
-manual_dos_exec = execute(manual_dos_example());
-
-# %%
-@show is_epileptic_radial_slice(manual_dos_exec)
-manual = custom_animate(manual_dos_exec)
-mp4(manual, "wavefront_tmp/$(example_name)/$(sim_name)/manual_dos_anim_$(mods_filename(mods)).mp4")
-
-# %%
+# %% jupyter={"source_hidden": true}
+dict_max = Dict(:blocking_aI => 1.0, :blocking_aE => 1.0)
+dict_min = Dict(:blocking_aI => 1.0, :blocking_aE => 1.0)#, :blocking_θE => 10.0)#, :blocking_θI => 10.0)
+test_mods, test_exec = find_first_satisfying_execution(mdb, example, dict_min, dict_max);
