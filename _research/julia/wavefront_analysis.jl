@@ -104,7 +104,7 @@ end
 # %%
 # Load most recent simulation data
 data_root = joinpath(homedir(), "sim_data")
-(example, mdb) = TravelingWaveSimulations.load_data(data_root, "dos_effectively_sigmoid", -1);
+(example, mdb) = TravelingWaveSimulations.load_data(data_root, "line_dos_effectively_sigmoid");
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
@@ -178,8 +178,8 @@ for (x,y) in IterTools.subsets(all_dims, Val{2}())
 end
 
 # %%
-dict_max = Dict(:Aee=>150.0, :Aie=>50.0, :Aei=>100.0)
-dict_min = Dict(:Aee=>100.0, :Aei=>75.0)#, :blocking_aE => 0.8, :blocking_θE => 10.0)#, :blocking_θI => 10.0)
+dict_max = Dict()#:blocking_θI => 14.0, :blocking_θE => 14.0)
+dict_min = Dict(:See => 34.)#, :blocking_θI => 10.0)
 mod_names = keys(TravelingWaveSimulations.get_mods(mdb))
 test_mods, test_exec = find_first_satisfying_execution(mdb, example, dict_min, dict_max);
 
@@ -190,8 +190,7 @@ anim = custom_animate(test_exec)
 mp4(anim, "wavefront_tmp/$(example_name)/$(sim_name)/anim_$(mods_filename(mods)).mp4")
 
 # %%
-test_example = example()
-test_exec = execute(test_example);
+test_exec.solution.u[end][end,1]
 
 # %%
 @show is_traveling_solitary_radial_slice(test_exec)

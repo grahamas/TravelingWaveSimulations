@@ -16,7 +16,7 @@
 # ---
 
 # %%
-# using Revise
+using Revise
 using Simulation73, NeuralModels, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
     IterTools, Combinatorics, DataFrames, GLM, JuliaDB, DifferentialEquations, WilsonCowanModel
 
@@ -101,7 +101,7 @@ end
 
 # %%
 ABS_STOP=300.0
-line_example = TravelingWaveSimulations.@EI_kw_example function line_example(N_ARR=1,N_CDT=1,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
+line_example = TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
                                                      Aee=70.0, See=25.0,
                                                      Aii=2.0, Sii=27.0,
                                                      Aie=35.0, Sie=25.0,
@@ -110,7 +110,7 @@ line_example = TravelingWaveSimulations.@EI_kw_example function line_example(N_A
                                                      stim_strength=6.0,
                                                      stim_width=28.1,
                                                      stim_duration=7.0,
-                                                     save_idxs=nothing)
+                                                     save_idxs_arg=[IndexSubsampler((5,)), Simulation73.RightCutFrom((0.0,))])
   simulation = Simulation(
     WCMSpatial(;
       pop_names = ("E", "I"),
@@ -138,8 +138,8 @@ line_example = TravelingWaveSimulations.@EI_kw_example function line_example(N_A
       tspan = (0.0,stop_time),
       dt = 0.1,
       algorithm=Tsit5(),
-      save_idxs = save_idxs,
-      callback=DiscreteCallback(if !(save_idxs === nothing)
+      save_idxs = save_idxs_arg,
+      callback=DiscreteCallback(if !(save_idxs_arg === nothing)
         (u,t,integrator) -> begin
                     sub_u = u[integrator.opts.save_idxs];
                     t > 5 && ((all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end] > 0.005)))
@@ -147,7 +147,7 @@ line_example = TravelingWaveSimulations.@EI_kw_example function line_example(N_A
     else
         (u,t,integrator) -> begin
                     pop = population(u,1)
-                    t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (sum(pop[:,end]) / size(pop,1) > 0.005)))
+                    t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (pop[end] > 0.005)))
             end
     end, terminate!)
   )
