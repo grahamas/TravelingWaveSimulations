@@ -1,4 +1,5 @@
 
+
 struct Persistent{WAVE<:TravelingWaveSimulations.AbstractWaveform,T,ARR_WAVE<:AbstractArray{WAVE,1},ARR_TIME<:AbstractArray{T,1}}
     waveforms::ARR_WAVE
     t::ARR_TIME
@@ -8,8 +9,15 @@ function Base.push!(persistent::Persistent{WAVE,T}, (wf, t)::Tuple{WAVE,T}) wher
     push!(persistent.t, t)
 end
 function is_traveling(persistent::Persistent{<:TravelingWaveSimulations.Wavefront}, min_vel=1e-3, min_traveling_frames=5)
-    # FIXME doesn't ensure traveling duration is contiguous
-    return length(persistent.waveforms) > min_traveling_frames && (sum(diff(TravelingWaveSimulations.slope_loc.(persistent.waveforms)) ./ diff(persistent.t) .> min_vel) .> min_traveling_frames)
+    if length(persistent.waveforms) > min_traveling_frames
+        dx = diff(TravelingWaveSimulations.slope_loc.(persistent.waveforms))
+        dt = diff(persistent.t)
+        vel = dx ./ dt
+        num_traveling_frames = sum(vel .> min_vel)
+        return num_traveling_frames .> min_traveling_frames
+    else
+        return false
+    end
 end
 
 function has_traveling_front(frame_fronts::AbstractArray{<:AbstractArray{<:TravelingWaveSimulations.Wavefront}}, ts::AbstractArray{<:Number}, max_vel=20, min_vel=1e-3, min_traveling_frames=5)
@@ -42,12 +50,12 @@ function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{<:Traveli
         while i_matches <= min(length(fronts), length(active_travelers))
             dist, idx = findmin(slope_dists)
             if (dist / dt) > max_vel
-                @info "I broke!"
+                #@info "I broke!"
                 break
             end
             front_idx, traveler_idx = Tuple(idx)
             if (front_idx in matched_fronts) || (traveler_idx in matched_travelers)
-                @warn "Ambiguous traveling waves."
+                #@warn "Ambiguous traveling waves."
                 slope_dists[idx] .= Inf
                 continue
             end
@@ -106,7 +114,9 @@ function persistent_activation(l_frames, t, min_activation)
     # test leftmost is not ONLY decreasing
     low_enough = leftmost_value[2:end] .< min_activation
     decreasing = d_leftmost_value .< 0.0
-    return !all(low_enough .| decreasing)
+    not_activated = low_enough .| decreasing
+    not_activated[ismissing.(not_activated)] .= false
+    return !all(not_activated)
 end
 
 function is_epileptic_radial_slice(exec, max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, min_activation=5e-2)
@@ -120,11 +130,15 @@ function is_epileptic_radial_slice(exec, max_vel=50.0, min_vel=1e-2, min_traveli
     t = timepoints(exec)
     x = [x[1] for x in space(exec).arr]
     l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(x))
-    persistent_activation(l_frames, t, min_activation) && (mean(population(l_frames[end],1)) > 0.2 || has_traveling_front(l_frame_fronts, t, max_vel, min_vel, min_traveling_frames))
-#     persistent_activation(l_frames, t, min_activation) && (mean(population(l_frames[end],1)) > 0.2 || is_traveling(l_frame_fronts, t, min_motion)) 
+    (persistent_activation(l_frames, t, min_activation) 
+        && (
+            mean(population(l_frames[end],1)) > 0.2 
+            || has_traveling_front(l_frame_fronts, t, max_vel, min_vel, min_traveling_frames)
+        )
+    )
 end
 
-function is_traveling_solitary_radial_slice(exec, min_motion=1e-2, max_activation=5e-2)
+function is_traveling_solitary_radial_slice(exec, max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, max_activation=5e-2)
     # We'll call it traveling solitary if:
     #  1. There is a traveling front
     #  2. No elevated activity trails the front
@@ -132,5 +146,5 @@ function is_traveling_solitary_radial_slice(exec, min_motion=1e-2, max_activatio
     t = timepoints(exec)
     x = [x[1] for x in space(exec).arr]
     l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(x))
-    !persistent_activation(l_frames, t, max_activation) && is_traveling(l_frame_fronts, t, min_motion)
+    !persistent_activation(l_frames, t, max_activation) && has_traveling_front(l_frame_fronts, t, max_vel, min_vel, min_traveling_frames)
 end
