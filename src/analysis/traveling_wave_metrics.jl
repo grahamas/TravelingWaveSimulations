@@ -147,6 +147,7 @@ struct Wavefront{T_LOC,T_VAL,V<:Value{T_LOC,T_VAL}} <: AbstractWaveform{T_LOC,T_
     slope::V
     right::V
 end
+slope_loc(wv::Wavefront) = wv.slope.loc
 function translate(wf::Wavefront, args...)
     Wavefront(
         translate(wf.left, args...),
@@ -234,6 +235,7 @@ end
 # Center on peaks of first derivative
 
 function detect_all_fronts(valued_space::ValuedSpace)
+    "Partition space at extrema"
     d_values = diff(valued_space)
     dd_values = diff(d_values)
     fronts = Wavefront{Float64,Float64}[]
@@ -267,17 +269,18 @@ end
 
 eat_left(left, right) = Wavefront(left.left, right.slope, right.right)
 eat_right(left, right) = Wavefront(left.left, left.slope, right.right)
-function consolidate_fronts(fronts::AbstractVector{<:Wavefront{Float64}}, vs::ValuedSpace, slope_min=1e-4)
+function consolidate_fronts(fronts::AbstractVector{WF}, vs::ValuedSpace, slope_min=1e-4) where {WF <: Wavefront{Float64}}
+    "Insist that all fronts have a minimum slope, otherwise consolidate"
     if length(fronts) == 0
         return fronts
     end
-    new_fronts = Wavefront[]
+    new_fronts = WF[]
     first_suff_dx = 1
     while abs(fronts[first_suff_dx].slope.val) < slope_min
         if first_suff_dx < length(fronts)
             first_suff_dx += 1
         else
-            break
+            return WF[]
         end
     end
     
@@ -307,6 +310,31 @@ function substantial_fronts(frame::AbstractVector, xs::AbstractVector, slope_min
     consolidated = consolidate_fronts(all_fronts, vs, slope_min)
     return consolidated
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function scored_rightmost(::Type{<:WavefrontMetrics}, fronts::AbstractArray{<:Wavefront})#::Scored{<:Wavefront{T,T},T} where T
     if length(fronts) == 0
@@ -400,3 +428,27 @@ end
         end
     end
 end
+
+# function custom_animate(execution::Execution{T,<:Simulation{T}}, fronts::AbstractArray{<:AbstractArray{<:AbstractWaveform}}, vs=nothing; kwargs...) where T
+#     solution = execution.solution
+#     pop_names = execution.simulation.model.pop_names
+#     x = space(execution)
+#     t = timepoints(execution)
+#     max_val = maximum(solution)
+# 	min_val = minimum(solution)
+#     i_pop = 1
+#     @animate for time_dx in 1:length(t) # TODO @views
+#         plot(
+#             x, population_timepoint(solution, i_pop, time_dx); label=pop_names[i_pop],
+#             val_lim=(min_val,max_val), title="t = $(round(t[time_dx], digits=4))",
+#             xlab = "Space (a.u. approx. um)",kwargs...
+#             )
+#         wf_arr = fronts[time_dx]
+#         if vs !== nothing
+#             plot!([wf.slope.loc for wf in wf_arr], [vs[wf.slope.loc].val for wf in wf_arr])
+#         else
+#             scatter!([wf.slope.loc for wf in wf_arr], [wf.slope.val for wf in wf_arr])
+#         end
+        
+#     end
+# end
