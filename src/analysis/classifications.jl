@@ -114,17 +114,6 @@ function TravelingWaveSimulations.custom_animate(execution::Execution{T,<:Simula
     end
 end
 
-function persistent_activation(l_frames, t, min_activation)
-    # Test if the left-most value is ever high and non-decreasing
-    leftmost_value = [frame[1] for frame in l_frames[(length(t) ÷ 2):end]]
-    d_leftmost_value = diff(leftmost_value) ./ diff(t[(length(t) ÷ 2):end])
-    # test leftmost is not ONLY decreasing
-    low_enough = leftmost_value[2:end] .< min_activation
-    decreasing = d_leftmost_value .< 0.0
-    not_activated = low_enough .| decreasing
-    not_activated[ismissing.(not_activated)] .= false
-    return !all(not_activated)
-end
 
 function is_activating_front(pf::Persistent)
     # Either the vel and slope have opposing signs
@@ -205,7 +194,6 @@ function will_be_deactivated(persistent_front::Persistent, contemporary_fronts::
     # Neither decaying nor will be overtaken
     return false
 end
-   
 
 function persistent_activation(l_frames, t, min_activation)
     # Test if the left-most value is ever high and non-decreasing
