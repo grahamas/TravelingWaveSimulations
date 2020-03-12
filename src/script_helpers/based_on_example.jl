@@ -80,7 +80,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     data_path = joinpath(data_root, example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
     if !no_save_raw
         raw_path = joinpath(data_path, "raw")
-        run(`mkpath -p raw_path`)
+        run(`mkdir -p $raw_path`)
     else
         raw_path = nothing
     end
