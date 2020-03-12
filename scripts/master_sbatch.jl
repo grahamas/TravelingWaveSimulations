@@ -46,7 +46,7 @@ function parse_commandline(args)
         "--no-save-raw"
             help = "Don't save the raw simulation"
             action = :store_true
-        "--batch"
+        "--max-batch-size"
             help = "Parallel batch size"
             arg_type = Int
         "--nodes", "-N"
@@ -100,7 +100,7 @@ function sbatch_script(ARGS)
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
     sbatch_args["job-name"] = base_example
 
-    script_arg_names = ["mod", "analyses", "data-root", "batch", "max-sims-in-mem", "backup-paths"]
+    script_arg_names = ["mod", "analyses", "data-root", "max-batch-size", "max-sims-in-mem", "backup-paths"]
     script_args = pop_args!(args, script_arg_names)
     remaining_args = args
     @show remaining_args
