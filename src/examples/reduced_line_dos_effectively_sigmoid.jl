@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 ABS_STOP=300.0
 TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
                                                      Aee=70.0, See=25.0,
@@ -8,7 +9,7 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
                                                      stim_strength=6.0,
                                                      stim_width=28.1,
                                                      stim_duration=7.0,
-                                                     save_idxs_arg=[IndexSubsampler((2,)), RightCutFromValue((0.0,))])
+                                                     save_idxs_arg=[IndexSubsampler((2,)), RightCutFromValue((0.0,))], other_opts=Dict(:saveat=>[0.0],:save_start=>false))
   simulation = Simulation(
     WCMSpatial(;
       pop_names = ("E", "I"),
@@ -37,6 +38,14 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
       dt = 0.1,
       algorithm=Tsit5(),
       save_idxs = save_idxs_arg,
+      reduction = ((u, t, integrator) -> begin
+        # Need to get x from integrator (or simulation)
+        sub_idx = integrator.opts.save_idxs
+        sub_u = u[sub_idx]
+        sub_x = [x[1] for x in space.arr[population(sub_idx,1)]]
+        fronts = TravelingWaveSimulations.substantial_fronts(sub_u, sub_x)
+        return fronts
+                end, Array{Wavefront{Float64,Float64,Value{Float64,Float64}},1}),
       callback=DiscreteCallback(if !(save_idxs_arg === nothing)
         (u,t,integrator) -> begin
                     sub_u = u[integrator.opts.save_idxs];
@@ -47,8 +56,7 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
                     pop = population(u,1)
                     t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (pop[end] > 0.005)))
             end
-                    end, terminate!)
-            
+                end, terminate!), other_opts...
   )
 end
 

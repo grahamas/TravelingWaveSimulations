@@ -33,7 +33,7 @@ arg_settings = ArgParseSettings(; autofix_names = true)
     "--no-save-raw"
         help = "Don't save raw simulation"
         action = :store_true
-    "--batch"
+    "--max-batch-size"
         default = 1000
         arg_type = Int
     "--max-sims-in-mem"
