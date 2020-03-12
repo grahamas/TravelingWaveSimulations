@@ -3,6 +3,7 @@ export based_on_example
 
 DEFAULT_SAVE_BATCH_SIZE = 10000
 
+
 function catch_for_saving(results_channel, data_path, pkeys, n_batches, progress=false)
     @show data_path
     mkpath(data_path)
@@ -13,7 +14,6 @@ function catch_for_saving(results_channel, data_path, pkeys, n_batches, progress
         (these_failures, these_data) = take!(results_channel)
         @show counter
         all_failures = push_namedtuple!(all_failures, these_failures)
-        save_data(these_data, pkeys, data_path)
         JuliaDB.save(table(these_data, pkey=pkeys), joinpath(data_path,"$(counter).jdb"))
         these_data = nothing; these_failures = nothing
         GC.gc()
