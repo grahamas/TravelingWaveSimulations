@@ -37,9 +37,6 @@ function parse_commandline(args)
         "--script-name", "-s"
             help = "Name of script to run (path in script dir)"
             default = "based_on_example.jl"
-        "--analyses"
-            nargs = '*'
-            help = "Case specifying analyses"
         "--mod"
             nargs = '*'
             help = "Case specifying base model modifications"
@@ -100,7 +97,7 @@ function sbatch_script(ARGS)
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
     sbatch_args["job-name"] = base_example
 
-    script_arg_names = ["mod", "analyses", "data-root", "max-batch-size", "max-sims-in-mem", "backup-paths"]
+    script_arg_names = ["mod", "data-root", "max-batch-size", "max-sims-in-mem", "backup-paths"]
     script_args = pop_args!(args, script_arg_names)
     remaining_args = args
     @show remaining_args
