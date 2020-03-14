@@ -120,7 +120,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
             mod_name, execution = execute_single_modification(example, modification)
             these_params = extract_params_tuple(modification, pkeys)
             if execution !== nothing #is success
-                these_data = execution.simulation.global_reduction(extract_data_namedtuple(execution))
+                these_data = extract_data_namedtuple(execution)
                 push_namedtuple!(my_results, merge(these_params, these_data))
             else
                 my_failures = push_namedtuple!(my_failures, these_params)

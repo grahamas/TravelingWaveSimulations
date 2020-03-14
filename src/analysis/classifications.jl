@@ -286,7 +286,7 @@ function get_wave_properties(exec::Union{AugmentedExecution,ReducedExecution{<:W
     get_wave_properties(exec.saved_values.savedvals, exec.saved_values.t; params...)
 end
 
-function get_wave_properties(nt::NamedTuple; params...)
+function get_wave_properties(nt::NamedTuple; params...)S
     get_wave_properties(nt.wavefronts, nt.wavefronts_t; params...)
 end
 
