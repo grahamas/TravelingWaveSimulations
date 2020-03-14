@@ -11,6 +11,7 @@ function get_velocities(p::Persistent)
     dts = diff(p.t)
     return dxs ./ dts
 end
+estimate_velocity(::Nothing) = (missing, missing)
 function estimate_velocity(p::Persistent)
     vels = get_velocities(p)
     est = mean(vels)
@@ -295,7 +296,7 @@ struct WaveProperties
     epileptic::Bool
     traveling_solitary::Bool
     decaying::Bool
-    velocity::Float64
-    velocity_error::Float64
+    velocity::Union{Float64,Missing}
+    velocity_error::Union{ Float64,Missing}
 end
 WaveProperties(; epileptic, traveling_solitary, decaying, velocity, velocity_error) = WaveProperties(epileptic, traveling_solitary, decaying, velocity, velocity_error)

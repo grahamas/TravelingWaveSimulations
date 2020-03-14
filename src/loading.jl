@@ -43,6 +43,10 @@ end
 function get_mods(fn::String)
     sim_name = get_sim_name(fn)
     @warn "Working on $sim_name..."
+    if sim_name[1:4] ∈ ["2019", "2020"] 
+        # No mods
+        return []
+    end
     mods_str = split(sim_name, "_20")[1]
     mods_str_arr = split(mods_str, ";")
     mod_tuples = map(parse_mod, mods_str_arr)
@@ -57,7 +61,24 @@ end
 
 # Data loading functions
 
-export DBExecIter, MultiDBExecIter, MultiDB, load_data
+export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, load_data
+
+struct DBRowIter
+    db
+end
+Base.length(it::DBRowIter) = length(it.db)
+function Base.iterate(it::DBRowIter, ((keydb, valdb), (keydb_state, valdb_state)))
+    key, keydb_state = @ifsomething iterate(keydb, (keydb_state...,))
+    val, valdb_state = iterate(valdb, (valdb_state...,))
+    return ((key, val), ((keydb, valdb), (keydb_state, valdb_state)))
+end
+function Base.iterate(it::DBRowIter)
+    keydb = JuliaDB.select(it.db, Keys())
+    valdb = JuliaDB.select(it.db, JuliaDB.Not(Keys()))
+    key, keydb_state = @ifsomething iterate(keydb)
+    val, valdb_state = iterate(valdb)
+    return ((key, val), ((keydb, valdb), (keydb_state, valdb_state)))
+end
 
 struct DBExecIter
     example
@@ -65,23 +86,38 @@ struct DBExecIter
     constant_mods
 end
 Base.length(it::DBExecIter) = length(it.db)
-function Base.iterate(it::DBExecIter, ((keydb, valdb), (keydb_state, valdb_state)))
-    key, keydb_state = @ifsomething iterate(keydb, (keydb_state...,))
-    val, valdb_state = iterate(valdb, (valdb_state...,))
+function Base.iterate(it::DBExecIter, (db_iter, db_state))
+    (key, val), db_state = @ifsomething iterate(db_iter, db_state)
     model = it.example(; key..., it.constant_mods...)
     exec = Execution(model, BareSolution(; val...))
-    return ((key, exec), ((keydb, valdb), (keydb_state, valdb_state)))
+    return ((key, exec), (db_iter, db_state))
 end
 function Base.iterate(it::DBExecIter)
-    keydb = JuliaDB.select(it.db, Keys())
-    valdb = JuliaDB.select(it.db, JuliaDB.Not(Keys()))
-    key, keydb_state = @ifsomething iterate(keydb)
-    val, valdb_state = iterate(valdb)
+    db_iter = DBRowIter(it.db)
+    (key, val), db_state = @ifsomething iterate(db_iter)
     model = it.example(; key..., it.constant_mods...)
     exec = Execution(model, BareSolution(; val...))
-    return ((key, exec), ((keydb, valdb), (keydb_state, valdb_state)))
+    return ((key, exec), (db_iter, db_state))
 end
-    
+
+struct MultiDBRowIter
+    mdb
+end
+function Base.iterate(it::MultiDBRowIter)
+    db, mdb_state = @ifsomething iterate(it.mdb)
+    db_exec_iter = DBRowIter(db)
+    return iterate(db, (mdb_state, (db_exec_iter, ())))
+end
+function Base.iterate(it::MultiDBRowIter, (mdb_state, (db_exec_iter, wrapped_db_state)))
+    row_tuple = iterate(db_exec_iter, wrapped_db_state...)
+    while row_tuple === nothing
+        db, mdb_state = @ifsomething iterate(it.mdb, mdb_state)
+        db_exec_iter = DBRowIter(db)
+        row_tuple = iterate(db_iter)
+    end
+    row, db_state = row_tuple
+    return (row, (mdb_state, (db_exec_iter, (db_state,))))
+end
 
 struct MultiDBExecIter
     example
