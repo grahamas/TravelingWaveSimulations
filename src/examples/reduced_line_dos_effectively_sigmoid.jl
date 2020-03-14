@@ -46,7 +46,7 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
         fronts = TravelingWaveSimulations.substantial_fronts(sub_u, sub_x)
         return fronts
       end, Array{Wavefront{Float64,Float64,Value{Float64,Float64}},1}),
-      global_reduction = (data_named_tuple) -> (wave_properties=get_wave_properties,),
+      global_reduction = (data_named_tuple) -> (wave_properties=get_wave_properties(data_named_tuple),),
       callback=DiscreteCallback(if !(save_idxs_arg === nothing)
         (u,t,integrator) -> begin
                     sub_u = u[integrator.opts.save_idxs];

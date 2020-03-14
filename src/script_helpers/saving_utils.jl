@@ -15,12 +15,12 @@ function extract_data_namedtuple(execution::Execution)
     u = soln.u
     t = soln.t
     x = coordinates(space(execution)) |> collect
-    return (u=u, t=t, x=x)
+    return execution.simulation.global_reduction((u=u, t=t, x=x))
 end
 
 
 function extract_data_namedtuple(execution::ReducedExecution)
-    extract_data_namedtuple(execution.saved_values)
+    execution.simulation.global_reduction(extract_data_namedtuple(execution.saved_values))
 end
 
 function extract_data_namedtuple(execution::AugmentedExecution)
@@ -28,7 +28,7 @@ function extract_data_namedtuple(execution::AugmentedExecution)
     u = soln.u
     t = soln.t
     x = coordinates(space(execution))
-    (u=u, t=t, x=x, extract_data_namedtuple(execution.saved_values)...)
+    execution.simulation.global_reduction((u=u, t=t, x=x, extract_data_namedtuple(execution.saved_values)...))
 end
 
 function extract_data_namedtuple(sv::SavedValues{T,<:Array{<:Wavefront,1}}) where T
@@ -36,7 +36,7 @@ function extract_data_namedtuple(sv::SavedValues{T,<:Array{<:Wavefront,1}}) wher
 end
 
 function extract_data_namedtuple(execution::Missing)
-    return (u=missing, t=missing, x=missing)
+    return execution.simulation.global_reduction((u=missing, t=missing, x=missing))
 end
 
 function extract_params_tuple(modification, pkeys)
