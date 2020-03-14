@@ -178,6 +178,7 @@ function has_solitary_traveling_wave(l_activating_fronts, l_final_fronts)
     )
 end
 
+is_decaying(::Nothing) = false
 function is_decaying(persistent_front::Persistent)
     maxes = map(persistent_front.waveforms) do wf
         max(wf.left.val, wf.right.val)
