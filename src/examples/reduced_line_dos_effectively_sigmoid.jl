@@ -38,14 +38,15 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
       dt = 0.1,
       algorithm=Tsit5(),
       save_idxs = save_idxs_arg,
-      reduction = ((u, t, integrator) -> begin
+      step_reduction = ((u, t, integrator) -> begin
         # Need to get x from integrator (or simulation)
         sub_idx = integrator.opts.save_idxs
         sub_u = u[sub_idx]
         sub_x = [x[1] for x in space.arr[population(sub_idx,1)]]
         fronts = TravelingWaveSimulations.substantial_fronts(sub_u, sub_x)
         return fronts
-                end, Array{Wavefront{Float64,Float64,Value{Float64,Float64}},1}),
+      end, Array{Wavefront{Float64,Float64,Value{Float64,Float64}},1}),
+      global_reduction = (data_named_tuple) -> (wave_properties=get_wave_properties,),
       callback=DiscreteCallback(if !(save_idxs_arg === nothing)
         (u,t,integrator) -> begin
                     sub_u = u[integrator.opts.save_idxs];

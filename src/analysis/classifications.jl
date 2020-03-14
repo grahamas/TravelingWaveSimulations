@@ -11,21 +11,27 @@ function get_velocities(p::Persistent)
     dts = diff(p.t)
     return dxs ./ dts
 end
+function estimate_velocity(p::Persistent)
+    vels = get_velocities(p)
+    est = mean(vels)
+    err = mean(abs.(vels .- est))
+    return (est, err)
+end
 function Base.push!(persistent::Persistent{WAVE,T}, (wf, t)::Tuple{WAVE,T}) where {WAVE,T}
     push!(persistent.waveforms, wf) 
     push!(persistent.t, t)
 end
+
 function is_traveling(persistent::Persistent{<:TravelingWaveSimulations.Wavefront}, min_vel=1e-3, min_traveling_frames=5)
     if length(persistent.waveforms) > min_traveling_frames
-        dx = diff(TravelingWaveSimulations.slope_loc.(persistent.waveforms))
-        dt = diff(persistent.t)
-        vel = dx ./ dt
+        get_velocities(persistent)
         num_traveling_frames = sum(vel .> min_vel)
         return num_traveling_frames .> min_traveling_frames
     else
         return false
     end
 end
+
 
 function has_traveling_front(frame_fronts::AbstractArray{<:AbstractArray{<:TravelingWaveSimulations.Wavefront}}, ts::AbstractArray{<:Number}, max_vel=20, min_vel=1e-3, min_traveling_frames=5)
     p_fronts = persistent_fronts(frame_fronts, ts, max_vel)
@@ -115,9 +121,10 @@ function TravelingWaveSimulations.custom_animate(execution::Execution{T,<:Simula
 end
 
 
-function is_activating_front(pf::Persistent)
+function is_activating_front(pf::Persistent, max_background_amp)
     # Either the vel and slope have opposing signs
     # or it's a static front
+    # FIXME make sure big enough activation
     vel_sgn = approx_sign(mean(get_velocities(pf)))
     slope_sgn = get_slope_sign(pf)
     if vel_sgn * slope_sgn <= 0
@@ -127,29 +134,38 @@ function is_activating_front(pf::Persistent)
     end
 end
 
-function will_be_overtaken(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent})
-    pf_velocity = mean(get_velocities(persistent_front))
+function will_be_overtaken(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp)
+    pf_velocity, vel_err = estimate_velocity(persistent_front)
     pf_velocity_sign = approx_sign(pf_velocity)
     pf_stop_place = get_stop_place(persistent_front)
     for front in contemporary_fronts
         front_velocity = mean(get_velocities(front))
         if ((abs(front_velocity) > abs(pf_velocity)) # front is moving faster
                 && (sign(pf_stop_place - get_stop_place(front)) == approx_sign(front_velocity))) # front velocity dir matches relative displacement
-            return true # the persistent_front will be deactivated by front overtaking
+            if pf_velocity_sign == 1 && front.waveforms[end].left.val < max_background_amp
+                return true
+            elseif pf_velocity_sign == -1 && front.waveforms[end].right.val < max_background_amp
+                return true # the persistent_front will be deactivated by front overtaking
+            end
         end
     end
     return false
 end
 
-function will_be_cancelled(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent})
-    pf_velocity = mean(get_velocities(persistent_front))
+is_solitary(::Nothing, ::Any) = false
+function is_solitary(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp=2e-2)
+    pf_velocity, vel_err = estimate_velocity(persistent_front)
     pf_velocity_sign = approx_sign(pf_velocity)
     pf_stop_place = get_stop_place(persistent_front)
     for front in contemporary_fronts
         front_velocity = mean(get_velocities(front))
         if (isapprox(abs(front_velocity), abs(pf_velocity), atol=1e-5) # front is moving faster
                 && (sign(pf_stop_place - get_stop_place(front)) == approx_sign(front_velocity))) # front velocity dir matches relative displacement
-            return true # the persistent_front will be deactivated by front overtaking
+            if pf_velocity_sign == 1 && front.left.val < max_background_amp
+                return true
+            elseif pf_velocity_sign == -1 && front.right.val < max_background_amp
+                return true # the persistent_front will be deactivated by front overtaking
+            end
         end
     end
     return false
@@ -180,14 +196,14 @@ function is_decaying(persistent_front::Persistent)
     return false
 end
 
-function will_be_deactivated(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent})
+function will_be_deactivated(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp)
     # Check if it's decaying
     if is_decaying(persistent_front)
         return true
     end
     
     # Find a deactivate-to-zero that will overtake it
-    if will_be_overtaken(persistent_front, contemporary_fronts)
+    if will_be_overtaken(persistent_front, contemporary_fronts, max_background_amp)
         return true
     end
     
@@ -207,50 +223,78 @@ function persistent_activation(l_frames, t, min_activation)
     return !all(not_activated)
 end
 
- 
-function is_epileptic_radial_slice(exec, max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, min_activation=5e-2, end_snip_idxs=3)
+function get_farthest_traveling_front(arr_pfronts::Array{<:Persistent,1}, min_dist)
+    arr_lengths = map(arr_pfronts) do pfront
+        abs(pfront.waveforms[1].slope.loc - pfront.waveforms[end].slope.loc)
+    end
+    farthest_length, idx = findmax(arr_lengths)
+    if farthest_length < min_dist
+        return nothing
+    end
+    return arr_pfronts[idx]
+end
+
+function get_wave_properties(l_frame_fronts::Array{<:Array{<:Wavefront}}, ts::Array{Float64,1}; max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, max_background_amp=5e-2, end_snip_idxs=3)
+    min_dist = min_vel * min_traveling_frames
+    
+    l_persistent_fronts = persistent_fronts(l_frame_fronts, ts, max_vel)
+    l_final_fronts = filter(l_persistent_fronts) do pf
+        get_stop_time(pf) >= ts[end-end_snip_idxs]
+    end
+    l_final_activating_fronts = filter(l_final_fronts) do pf
+        is_activating_front(pf,max_background_amp)#, min_vel, min_traveling_frames)
+    end
+    
+    maybe_farthest_traveling_front = get_farthest_traveling_front(l_persistent_fronts, min_dist)
+    all_final_fronts_will_die = all(will_be_deactivated.(l_final_activating_fronts, Ref(l_final_fronts), max_background_amp))
+    
+    # We'll call it traveling solitary if:
+    #  1. There is a traveling front
+    #  2. No elevated activity trails *that* front
+    b_traveling_solitary = is_solitary(maybe_farthest_traveling_front, l_persistent_fronts)
+    
     # We'll call it epileptic if:
     #  1. There is a traveling front
     #  2. There is persistently elevated activity following the front.
     # How to deal with oscillatory activity? 
     # Want persistent oscillation to be considered epileptic, even if sometimes zero
     # In practice we'll ignore this for now --- FIXME
-    l_frames = exec.solution.u
-    ts = timepoints(exec)
-    xs = [x[1] for x in space(exec).arr]
-    l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(xs))
-    l_persistent_fronts = persistent_fronts(l_frame_fronts, ts, max_vel)
-    l_final_fronts = filter(l_persistent_fronts) do pf
-        get_stop_time(pf) >= ts[end-end_snip_idxs]
-    end
-    E = population.(l_frames, 1)
-    if (length(l_final_fronts) == 0) && all(E[end] .- E[end-1] .>= -1e-3) && all(E[end] .>= 0.05)
-        # FIXME should use this to account for non-traveling case
-        return true
-    end
-    l_activating_fronts = filter(l_final_fronts) do pf
-        is_activating_front(pf)#, min_vel, min_traveling_frames)
-    end
-    # At least one front is not deactivated implies epilepsy
-    return !all(will_be_deactivated.(l_activating_fronts, Ref(l_final_fronts)))
+    # FIXME Needs is_traveling
+    b_epileptic = (maybe_farthest_traveling_front !== nothing) && !all_final_fronts_will_die
+    
+    b_decaying = is_decaying(maybe_farthest_traveling_front)
+    velocity, velocity_error = estimate_velocity(maybe_farthest_traveling_front)
+    
+    WaveProperties(; 
+        epileptic=b_epileptic, 
+        traveling_solitary=b_traveling_solitary, 
+        decaying=b_decaying,
+        velocity=velocity,
+        velocity_error=velocity_error
+    )
 end
 
-function is_traveling_solitary_radial_slice(exec, max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, max_activation=5e-2, end_snip_idxs=3)
-    # We'll call it traveling solitary if:
-    #  1. There is a traveling front
-    #  2. No elevated activity trails the front
+function get_wave_properties(exec::Execution; params...)
     l_frames = exec.solution.u
     ts = timepoints(exec)
     xs = [x[1] for x in space(exec).arr]
     l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(xs))
-    l_persistent_fronts = persistent_fronts(l_frame_fronts, ts, max_vel)
-    l_final_fronts = filter(l_persistent_fronts) do pf
-        get_stop_time(pf) >= ts[end-end_snip_idxs]
-    end
-    l_activating_fronts = filter(l_final_fronts) do pf
-        is_activating_front(pf)#, min_vel, min_traveling_frames)
-    end
-    all(will_be_deactivated.(l_activating_fronts, Ref(l_final_fronts))) && has_solitary_traveling_wave(l_activating_fronts, l_final_fronts)
-end 
+    get_wave_properties(l_frame_fronts, ts; params...)
+end
 
-export is_epileptic_radial_slice, is_traveling_solitary_radial_slice
+function get_wave_properties(exec::Union{AugmentedExecution,ReducedExecution{<:Wavefront}}; params...)
+    get_wave_properties(exec.saved_values.savedvals, exec.saved_values.t; params...)
+end
+
+function get_wave_properties(nt::NamedTuple; params...)
+    get_wave_properties(nt.wavefronts, nt.wavefronts_t; params...)
+end
+
+struct WaveProperties
+    epileptic::Bool
+    traveling_solitary::Bool
+    decaying::Bool
+    velocity::Float64
+    velocity_error::Float64
+end
+WaveProperties(; epileptic, traveling_solitary, decaying, velocity, velocity_error) = WaveProperties(epileptic, traveling_solitary, decaying, velocity, velocity_error)
