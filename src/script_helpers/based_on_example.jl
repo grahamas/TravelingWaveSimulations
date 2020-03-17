@@ -102,6 +102,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     batches = Iterators.partition(modifications, parallel_batch_size)
     n_batches = length(batches)
     @show n_batches
+    @show length(modifications)
     
     # Initialize results channel to receive and process output
     results_channel = RemoteChannel(() -> Channel{Tuple}(max_held_batches))

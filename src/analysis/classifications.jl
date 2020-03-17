@@ -34,7 +34,7 @@ function is_traveling(persistent::Persistent{<:TravelingWaveSimulations.Wavefron
 end
 
 
-function has_traveling_front(frame_fronts::AbstractArray{<:AbstractArray{<:TravelingWaveSimulations.Wavefront}}, ts::AbstractArray{<:Number}, max_vel=20, min_vel=1e-3, min_traveling_frames=5)
+function has_traveling_front(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{<:Number}, max_vel=20, min_vel=1e-3, min_traveling_frames=5) where {WF <:TravelingWaveSimulations.Wavefront}
     p_fronts = persistent_fronts(frame_fronts, ts, max_vel)
     any(is_traveling.(p_fronts, min_vel, min_traveling_frames)) 
 end
@@ -47,11 +47,12 @@ function waveform_identity_distance(front1::WF, front2::WF) where {WF <: Traveli
 end
 
 # How to handle when new front appears near old front?
-function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{<:TravelingWaveSimulations.Wavefront}}, ts::AbstractArray{<:Number}, max_vel=20)
+function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{T}, max_vel=20) where {T<:Number, WF<:TravelingWaveSimulations.Wavefront{T,T,Value{T,T}}}
+    PARRTYPE = Persistent{WF,T,Array{WF,1},Array{T,1}}
     prev_fronts = frame_fronts[1]
     prev_t = ts[1]
-    inactive_travelers = []
-    active_travelers = [Persistent([front], [t]) for (front, t) in zip(prev_fronts, prev_t)]
+    inactive_travelers = PARRTYPE[]
+    active_travelers = PARRTYPE[PARRTYPE([front], [t]) for (front, t) in zip(prev_fronts, prev_t)]
     for (fronts, t) in zip(frame_fronts[2:end], ts[2:end])
         dt = t - prev_t
         first_possible_dx = 1
@@ -82,10 +83,11 @@ function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{<:Traveli
         unmatched_fronts = setdiff(BitSet(1:length(fronts)), matched_fronts)
         unmatched_travelers = setdiff(BitSet(1:length(active_travelers)), matched_travelers)
         append!(inactive_travelers, active_travelers[unmatched_travelers |> collect])
-        active_travelers = active_travelers[matched_travelers |> collect]
-        append!(active_travelers, [Persistent([front], [t]) for front in fronts[unmatched_fronts |> collect]])
+        active_travelers::Array{PARRTYPE,1} = active_travelers[matched_travelers |> collect]
+        new_active = PARRTYPE[Persistent([front], [t]) for front in fronts[unmatched_fronts |> collect]]
+        append!(active_travelers, new_active)
     end
-    return [inactive_travelers..., active_travelers...]
+    return PARRTYPE[inactive_travelers..., active_travelers...]
 end
 
 function fronts(exec::AbstractExecution, slope_min=1e-2)
@@ -229,6 +231,9 @@ function get_farthest_traveling_front(arr_pfronts::Array{<:Persistent,1}, min_di
     arr_lengths = map(arr_pfronts) do pfront
         abs(pfront.waveforms[1].slope.loc - pfront.waveforms[end].slope.loc)
     end
+    if length(arr_lengths) == 0
+        return nothing
+    end
     farthest_length, idx = findmax(arr_lengths)
     if farthest_length < min_dist
         return nothing
@@ -236,7 +241,7 @@ function get_farthest_traveling_front(arr_pfronts::Array{<:Persistent,1}, min_di
     return arr_pfronts[idx]
 end
 
-function get_wave_properties(l_frame_fronts::Array{<:Array{<:Wavefront}}, ts::Array{Float64,1}; max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, max_background_amp=5e-2, end_snip_idxs=3)
+function get_wave_properties(l_frame_fronts::Array{<:Array{<:Wavefront{T,T,Value{T,T}}}}, ts::Array{T,1}; max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, max_background_amp=5e-2, end_snip_idxs=3) where T
     min_dist = min_vel * min_traveling_frames
     
     l_persistent_fronts = persistent_fronts(l_frame_fronts, ts, max_vel)
@@ -285,7 +290,8 @@ function get_wave_properties(exec::Execution; params...)
 end
 
 function get_wave_properties(exec::Union{AugmentedExecution,ReducedExecution{<:Wavefront}}; params...)
-    get_wave_properties(exec.saved_values.savedvals, exec.saved_values.t; params...)
+    @show fieldnames(typeof(exec.saved_values))
+    get_wave_properties(exec.saved_values.saveval, exec.saved_values.t; params...)
 end
 
 function get_wave_properties(nt::NamedTuple; params...)

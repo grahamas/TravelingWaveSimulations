@@ -238,7 +238,7 @@ function detect_all_fronts(valued_space::ValuedSpace)
     "Partition space at extrema"
     d_values = diff(valued_space)
     dd_values = diff(d_values)
-    fronts = Wavefront{Float64,Float64}[]
+    fronts = Wavefront{Float64,Float64,Value{Float64,Float64}}[]
     left_boundary = getvalue(valued_space, 1)
     steepest_slope = nothing
     for idx=collect(eachindex(d_values))[2:end-2]

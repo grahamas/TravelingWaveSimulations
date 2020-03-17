@@ -12,7 +12,7 @@ function analyse(plot_spec::Animate, execution::Execution, output_dir::AbstractS
     anim = custom_animate(execution; plot_spec.kwargs...)
     @show mp4(anim, path; fps=plot_spec.fps)
 end
-function custom_animate(execution::Execution{T,<:Simulation{T}}; kwargs...) where T
+function custom_animate(execution::AbstractFullExecution{T,<:Simulation{T}}; kwargs...) where T
     solution = execution.solution
     pop_names = execution.simulation.model.pop_names
     x = space(execution)

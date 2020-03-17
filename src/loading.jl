@@ -16,9 +16,26 @@ struct MultiDB
 end
 Base.length(mdb::MultiDB) = length(mdb.fns)
 
+is_valid_fn(::Nothing) = false
+function is_valid_fn(fn)
+    splitted = splitext(fn)
+    if length(splitted) == 1
+        return false
+    elseif splitted[2] != ".jdb"
+        return false
+    elseif basename(splitted[1]) == "failures"
+        return false
+    else
+        return true
+    end
+end
+
 function Base.iterate(mdb::MultiDB, fns_state...)
-    (next_fn, new_state) = @ifsomething iterate(mdb.fns, fns_state...)
-    (_load_data(next_fn), new_state)
+    next_fn = nothing
+    while !is_valid_fn(next_fn)
+        (next_fn, fns_state) = @ifsomething iterate(mdb.fns, fns_state...)
+    end
+    (_load_data(next_fn), fns_state)
 end
 
 function parse_mod_val(val)
@@ -106,14 +123,14 @@ end
 function Base.iterate(it::MultiDBRowIter)
     db, mdb_state = @ifsomething iterate(it.mdb)
     db_exec_iter = DBRowIter(db)
-    return iterate(db, (mdb_state, (db_exec_iter, ())))
+    return iterate(it, (mdb_state, (db_exec_iter, ())))
 end
 function Base.iterate(it::MultiDBRowIter, (mdb_state, (db_exec_iter, wrapped_db_state)))
     row_tuple = iterate(db_exec_iter, wrapped_db_state...)
     while row_tuple === nothing
         db, mdb_state = @ifsomething iterate(it.mdb, mdb_state)
         db_exec_iter = DBRowIter(db)
-        row_tuple = iterate(db_iter)
+        row_tuple = iterate(db_exec_iter)
     end
     row, db_state = row_tuple
     return (row, (mdb_state, (db_exec_iter, (db_state,))))
