@@ -24,6 +24,7 @@ export load_directory
 #include("saving.jl")
 
 include("connectivity.jl")
+include("callbacks.jl")
 include("examples.jl")
 include("analysis.jl")
 

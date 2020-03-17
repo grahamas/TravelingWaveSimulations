@@ -48,16 +48,11 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
       end, Array{Wavefront{Float64,Float64,Value{Float64,Float64}},1}),
       global_reduction = (data_named_tuple) -> (wave_properties=get_wave_properties(data_named_tuple),),
       callback=DiscreteCallback(if !(save_idxs_arg === nothing)
-        (u,t,integrator) -> begin
-                    sub_u = u[integrator.opts.save_idxs];
-                    t > 5 && ((all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end] > 0.005)))
-                end
-    else
-        (u,t,integrator) -> begin
-                    pop = population(u,1)
-                    t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (pop[end] > 0.005)))
-            end
-                end, terminate!), other_opts...
+            cb_E_is_fully_propagated_with_save_idxs
+        else
+            cb_E_is_fully_propagated
+        end, terminate!), 
+      other_opts...
   )
 end
 
