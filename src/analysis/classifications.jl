@@ -23,9 +23,9 @@ function Base.push!(persistent::Persistent{WAVE,T}, (wf, t)::Tuple{WAVE,T}) wher
     push!(persistent.t, t)
 end
 
-function is_traveling(persistent::Persistent{<:TravelingWaveSimulations.Wavefront}, min_vel=1e-3, min_traveling_frames=5)
+function is_traveling(persistent::Persistent{<:TravelingWaveSimulations.Wavefront}, min_vel, min_traveling_frames)
     if length(persistent.waveforms) > min_traveling_frames
-        get_velocities(persistent)
+        vel = estimate_velocity(persistent)
         num_traveling_frames = sum(vel .> min_vel)
         return num_traveling_frames .> min_traveling_frames
     else
@@ -156,7 +156,7 @@ function will_be_overtaken(persistent_front::Persistent, contemporary_fronts::Ab
 end
 
 is_solitary(::Nothing, ::Any) = false
-function is_solitary(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp=2e-2)
+function is_solitary(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp)
     pf_velocity, vel_err = estimate_velocity(persistent_front)
     pf_velocity_sign = approx_sign(pf_velocity)
     pf_stop_place = get_stop_place(persistent_front)
@@ -227,7 +227,7 @@ function persistent_activation(l_frames, t, min_activation)
     return !all(not_activated)
 end
 
-function get_farthest_traveling_front(arr_pfronts::Array{<:Persistent,1}, min_dist)
+function get_farthest_front(arr_pfronts::Array{<:Persistent,1}, min_dist)
     arr_lengths = map(arr_pfronts) do pfront
         abs(pfront.waveforms[1].slope.loc - pfront.waveforms[end].slope.loc)
     end
@@ -252,13 +252,16 @@ function get_wave_properties(l_frame_fronts::Array{<:Array{<:Wavefront{T,T,Value
         is_activating_front(pf,max_background_amp)#, min_vel, min_traveling_frames)
     end
     
-    maybe_farthest_traveling_front = get_farthest_traveling_front(l_persistent_fronts, min_dist)
     all_final_fronts_will_die = all(will_be_deactivated.(l_final_activating_fronts, Ref(l_final_fronts), max_background_amp))
     
     # We'll call it traveling solitary if:
     #  1. There is a traveling front
     #  2. No elevated activity trails *that* front
-    b_traveling_solitary = is_solitary(maybe_farthest_traveling_front, l_persistent_fronts)
+    maybe_farthest_traveling_front = get_farthest_front(l_persistent_fronts, min_dist)
+    #b_traveling_solitary = is_solitary(maybe_farthest_front, l_persistent_fronts)
+    b_traveling_solitary = any(map(l_persistent_fronts) do front
+        is_traveling(front,min_vel, min_traveling_frames) && is_solitary(front, l_persistent_fronts, max_background_amp)
+    end)
     
     # We'll call it epileptic if:
     #  1. There is a traveling front
@@ -290,7 +293,6 @@ function get_wave_properties(exec::Execution; params...)
 end
 
 function get_wave_properties(exec::Union{AugmentedExecution,ReducedExecution{<:Wavefront}}; params...)
-    @show fieldnames(typeof(exec.saved_values))
     get_wave_properties(exec.saved_values.saveval, exec.saved_values.t; params...)
 end
 
