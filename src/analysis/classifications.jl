@@ -4,11 +4,14 @@ struct Persistent{WAVE<:TravelingWaveSimulations.AbstractWaveform,T,ARR_WAVE<:Ab
 end
 approx_sign(x, eps=1e-5) = abs(x) > eps ? sign(x) : 0
 get_stop_place(p::Persistent) = p.waveforms[end].slope.loc
+get_start_time(p::Persistent) = p.t[1]
 get_stop_time(p::Persistent) = p.t[end]
 get_slope_sign(p::Persistent) = approx_sign(p.waveforms[1].slope.val)
+Base.length(p::Persistent) = length(p.waveforms)
 function get_velocities(p::Persistent)
-    dxs = diff([wf.slope.loc for wf in p.waveforms])
-    dts = diff(p.t)
+    # Discard the last frame because it's a repeat
+    dxs = diff([wf.slope.loc for wf in p.waveforms])[1:end-1]
+    dts = diff(p.t)[1:end-1]
     return dxs ./ dts
 end
 estimate_velocity(::Nothing) = (missing, missing)
@@ -25,12 +28,13 @@ end
 
 function is_traveling(persistent::Persistent{<:TravelingWaveSimulations.Wavefront}, min_vel, min_traveling_frames)
     if length(persistent.waveforms) > min_traveling_frames
-        vel = estimate_velocity(persistent)
-        num_traveling_frames = sum(vel .> min_vel)
+        vels = get_velocities(persistent)
+        num_traveling_frames = sum(vels .> min_vel)
         return num_traveling_frames .> min_traveling_frames
     else
         return false
     end
+    return false
 end
 
 
@@ -47,7 +51,7 @@ function waveform_identity_distance(front1::WF, front2::WF) where {WF <: Traveli
 end
 
 # How to handle when new front appears near old front?
-function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{T}, max_vel=20) where {T<:Number, WF<:TravelingWaveSimulations.Wavefront{T,T,Value{T,T}}}
+function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{T}, max_vel=200) where {T<:Number, WF<:TravelingWaveSimulations.Wavefront{T,T,Value{T,T}}}
     PARRTYPE = Persistent{WF,T,Array{WF,1},Array{T,1}}
     prev_fronts = frame_fronts[1]
     prev_t = ts[1]
@@ -90,15 +94,8 @@ function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts:
     return PARRTYPE[inactive_travelers..., active_travelers...]
 end
 
-function fronts(exec::AbstractExecution, slope_min=1e-2)
-    l_frames = exec.solution.u
-    t = timepoints(exec)
-    x = [x[1] for x in space(exec).arr]
-    # A list of lists
-    # For each frame, a list of fronts
-    # Plateaus can be absorbed into fronts, but as long as the whole plateau is moving, then that's fine. 
-    l_frames_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(x), slope_min)
-    
+function all_fronts(exec::AbstractFullExecution)
+    TravelingWaveSimulations.substantial_fronts.(exec.solution.u, Ref([x[1] for x in space(exec).arr])) 
 end
 
 function TravelingWaveSimulations.custom_animate(execution::Execution{T,<:Simulation{T}}, fronts::AbstractArray{<:AbstractArray{<:TravelingWaveSimulations.AbstractWaveform}}; kwargs...) where T
@@ -121,6 +118,51 @@ function TravelingWaveSimulations.custom_animate(execution::Execution{T,<:Simula
         wf_arr = fronts[time_dx]
         scatter!([wf.slope.loc for wf in wf_arr], [vs[wf.slope.loc].val for wf in wf_arr])
     end
+end
+
+struct ID{OBJ}
+    obj::OBJ
+    id::Int
+end
+get_id(id_obj::ID) = id_obj.id
+
+using Colors, AxisIndices
+function TravelingWaveSimulations.custom_animate(execution::Execution{T,<:Simulation{T}}, p_fronts::AbstractArray{<:Persistent{WF}}; kwargs...) where {T,WF}
+    ts = timepoints(execution)
+    if ts[end-1] == ts[end]
+        ts = ts[1:end-1]
+    end
+    n_p_fronts = length(p_fronts)
+    cmap = distinguishable_colors(n_p_fronts+1, RGB(1,1,1), dropseed=true)
+    fronts_by_time = AxisIndicesArray(Array{ID{WF},1}[ID{WF}[] for _ in ts], (ts,))
+    for (i_p_front, p_front) in enumerate(p_fronts)
+         for (wf, t) in zip(p_front.waveforms, p_front.t)
+            push!(fronts_by_time[t], ID{WF}(wf, i_p_front))
+        end
+    end
+    solution = execution.solution
+    pop_names = execution.simulation.model.pop_names
+    xs = space(execution)
+    x1 = [xcoord[1] for xcoord in xs.arr]
+    max_val = maximum(solution)
+	min_val = minimum(solution)
+    i_pop = 1
+    
+    @animate for time_dx in 1:length(ts) # TODO @views
+        frame = population_timepoint(solution, i_pop, time_dx)
+        vs = ValuedSpace(frame, x1)
+        plot(
+            xs, frame; label=pop_names[i_pop],
+            val_lim=(min_val,max_val), title="t = $(round(ts[time_dx], digits=4))",
+            xlab = "Space (a.u. approx. um)",kwargs...
+            )
+        wf_arr = fronts_by_time[time_dx]
+        if length(wf_arr) > 0
+            @show get_id.(wf_arr)
+            scatter!([wf.obj.slope.loc for wf in wf_arr], [vs[wf.obj.slope.loc].val for wf in wf_arr], color=[cmap[get_id(wf)] for wf in wf_arr])
+        end
+    end
+
 end
 
 
@@ -156,20 +198,54 @@ function will_be_overtaken(persistent_front::Persistent, contemporary_fronts::Ab
 end
 
 is_solitary(::Nothing, ::Any) = false
-function is_solitary(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp)
-    pf_velocity, vel_err = estimate_velocity(persistent_front)
-    pf_velocity_sign = approx_sign(pf_velocity)
-    pf_stop_place = get_stop_place(persistent_front)
-    for front in contemporary_fronts
-        front_velocity = mean(get_velocities(front))
-        if (isapprox(abs(front_velocity), abs(pf_velocity), atol=1e-5) # front is moving faster
-                && (sign(pf_stop_place - get_stop_place(front)) == approx_sign(front_velocity))) # front velocity dir matches relative displacement
-            if pf_velocity_sign == 1 && front.left.val < max_background_amp
-                return true
-            elseif pf_velocity_sign == -1 && front.right.val < max_background_amp
-                return true # the persistent_front will be deactivated by front overtaking
+function is_solitary(subject::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp, middle_portion_to_compare=0.3, noise_tol=1e-3)
+    if length(subject) * middle_portion_to_compare < 4 
+        return false # not enough points to compare
+        # We want the *shorter-duration* front to have the minimum number of points
+    end
+    cut_portions = (1.0 - middle_portion_to_compare) / 2
+    subject_middle_idx = floor(Int, length(subject) * cut_portions):ceil(Int, length(subject) * (cut_portions+middle_portion_to_compare))
+    middle_ts = subject.t[subject_middle_idx]
+    # So now we only compare other fronts that began before this front
+    candidate_fronts = filter(contemporary_fronts) do front
+        (get_start_time(front) <= get_start_time(subject) 
+            && get_stop_time(front) >= middle_ts[end])            
+    end
+    subject_middle_pf = Persistent(subject.waveforms[subject_middle_idx], middle_ts)
+    subject_middle_velocities = get_velocities(subject_middle_pf)
+    subject_velocity_sign = approx_sign(subject_middle_velocities[1])
+    if !all(subject_velocity_sign .== approx_sign.(subject_middle_velocities))
+        return false
+    end
+    for candidate in candidate_fronts
+        candidate_compare_idx = middle_ts[1] .<= candidate.t .<= middle_ts[end]
+        candidate_compare_pf = Persistent(candidate.waveforms[candidate_compare_idx], middle_ts)
+        candidate_compare_velocities = get_velocities(candidate_compare_pf)
+        if all(isapprox.(candidate_compare_velocities, subject_middle_velocities, atol=noise_tol))
+            # matching velocity
+            if subject_velocity_sign == 1 # moving right
+                if subject.waveforms[end].slope.loc > candidate.waveforms[end].slope.loc # subject leading
+                    if candidate.waveforms[end].left.val < max_background_amp
+                        return true
+                    end
+                else
+                    if subject.waveforms[end].left.val < max_background_amp
+                        return true
+                    end
+                end
+            else # moving left
+                if subject.waveforms[end].slope.loc < candidate.waveforms[end].slope.loc # subject leading
+                    if candidate.waveforms[end].right.val < max_background_amp
+                        return true
+                    end
+                else
+                    if subject.waveforms[end].right.val < max_background_amp
+                        return true
+                    end
+                end
             end
-        end
+        end     
+        # FIXME: should account for decreasing trailing front
     end
     return false
 end
@@ -227,8 +303,9 @@ function persistent_activation(l_frames, t, min_activation)
     return !all(not_activated)
 end
 
-function get_farthest_front(arr_pfronts::Array{<:Persistent,1}, min_dist)
-    arr_lengths = map(arr_pfronts) do pfront
+function get_farthest_traveling_front(arr_pfronts::Array{<:Persistent,1}, min_dist, min_vel, min_traveling_frames)
+    arr_traveling_pfronts = filter(x -> is_traveling(x, min_vel, min_traveling_frames), arr_pfronts)
+    arr_lengths = map(arr_traveling_pfronts) do pfront
         abs(pfront.waveforms[1].slope.loc - pfront.waveforms[end].slope.loc)
     end
     if length(arr_lengths) == 0
@@ -257,7 +334,7 @@ function get_wave_properties(l_frame_fronts::Array{<:Array{<:Wavefront{T,T,Value
     # We'll call it traveling solitary if:
     #  1. There is a traveling front
     #  2. No elevated activity trails *that* front
-    maybe_farthest_traveling_front = get_farthest_front(l_persistent_fronts, min_dist)
+    maybe_farthest_traveling_front = get_farthest_traveling_front(l_persistent_fronts, min_dist, min_vel, min_traveling_frames)
     #b_traveling_solitary = is_solitary(maybe_farthest_front, l_persistent_fronts)
     b_traveling_solitary = any(map(l_persistent_fronts) do front
         is_traveling(front,min_vel, min_traveling_frames) && is_solitary(front, l_persistent_fronts, max_background_amp)
