@@ -13,9 +13,8 @@ function parse_commandline(args)
             arg_type = Int
             default = 1
         "--mem-per-cpu"
-            help = "RAM per CPU (MB)"
-            arg_type = Int
-            default = 1000
+            help = "RAM per CPU"
+            default = "1G"
         "--time"
             help = "Job duration (seconds)"
             default = "30:00"
