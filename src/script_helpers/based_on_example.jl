@@ -139,3 +139,60 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         run(`rm -rf $data_path`)
     end
 end
+
+function based_on_example_NO_PARALLEL(; data_root::AbstractString=datadir(),
+        no_save_raw::Bool=false,
+        example_name::AbstractString=nothing,
+        modifications::AbstractArray=[],
+        backup_paths=[],
+        progress=false,
+        delete_original=false)
+
+    modifications, modifications_prefix = parse_modifications_argument(modifications)
+
+    # Initialize saving paths
+    data_path = joinpath(data_root, example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
+    @show data_path
+    if !no_save_raw
+        raw_path = joinpath(data_path, "raw")
+        run(`mkdir -p $raw_path`)
+    else
+        raw_path = nothing
+    end
+
+    # Initialize example
+    example = get_example(example_name)
+    
+    pkeys = mods_to_pkeys(modifications)
+    @show length(modifications)
+
+    # Sample data to initialize results
+    sample_execution = execute(example())
+    sample_data = extract_data_namedtuple(sample_execution)
+    
+    results = init_results_tuple(pkeys, sample_data)
+    failures = init_failures_tuple(pkeys)
+    for modification in modifications
+        mod_name, execution = execute_single_modification(example, modification)
+        these_params = extract_params_tuple(modification, pkeys)
+        if execution !== nothing #is success
+            these_data = extract_data_namedtuple(execution)
+            push_namedtuple!(results, merge(these_params, these_data))
+        else
+            failures = push_namedtuple!(failures, these_params)
+        end
+    end
+    
+    JuliaDB.save(table(results, pkey=pkeys), joinpath(data_path, "results.jdb"))
+    if progress
+        println("batches completed: $(counter) / $(n_batches)")
+    end
+    failures !== nothing && JuliaDB.save(table(failures), joinpath(data_path, "failures.jdb"))
+        
+    for backup_path in backup_paths
+        run(`scp -r $data_path $backup_path`)
+    end
+    if length(backup_paths) > 0 && delete_original
+        run(`rm -rf $data_path`)
+    end
+end
