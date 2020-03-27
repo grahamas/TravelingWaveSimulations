@@ -33,8 +33,7 @@ function execute_single_modification(example, modification)
         #@warn "$mod_name failed!"
         return (mod_name, missing)
     end
-    if execution.solution.retcode != :Success
-        @warn "$mod_name unsuccessful!"
+    if execution.solution.retcode != :Success && execution.solution.retcode != :Default
         return (mod_name, missing)
     end
     return (mod_name, execution)
