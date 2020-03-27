@@ -171,23 +171,22 @@ function based_on_example_NO_PARALLEL(; data_root::AbstractString=datadir(),
     sample_data = extract_data_namedtuple(sample_execution)
     
     results = init_results_tuple(pkeys, sample_data)
-    failures = init_failures_tuple(pkeys)
+    missing_data = init_missing_data(sample_data)
     for modification in modifications
         mod_name, execution = execute_single_modification(example, modification)
         these_params = extract_params_tuple(modification, pkeys)
-        if execution !== nothing #is success
+        if execution !== missing #is success
             these_data = extract_data_namedtuple(execution)
-            push_namedtuple!(results, merge(these_params, these_data))
         else
-            failures = push_namedtuple!(failures, these_params)
+            these_data = missing_data
         end
+        push_namedtuple!(results, merge(these_params, these_data))
     end
     
     JuliaDB.save(table(results, pkey=pkeys), joinpath(data_path, "results.jdb"))
     if progress
         println("batches completed: $(counter) / $(n_batches)")
     end
-    failures !== nothing && JuliaDB.save(table(failures), joinpath(data_path, "failures.jdb"))
         
     for backup_path in backup_paths
         run(`scp -r $data_path $backup_path`)

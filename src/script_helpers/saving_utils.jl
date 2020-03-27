@@ -35,10 +35,6 @@ function extract_data_namedtuple(sv::SavedValues{T,<:Array{<:Wavefront,1}}) wher
     return (wavefronts=sv.saveval, wavefronts_t=sv.t)
 end
 
-function extract_data_namedtuple(execution::Missing)
-    return execution.simulation.global_reduction((u=missing, t=missing, x=missing))
-end
-
 function extract_params_tuple(modification, pkeys)
     return NamedTuple{Tuple(pkeys)}(getkeys(modification, pkeys))
 end
@@ -49,11 +45,6 @@ function init_results_tuple(pkeys::Array{Symbol}, results::NamedTuple{NAMES,TYPE
     ARR_TYPES = Tuple{[Array{Float64,1} for _ in 1:N]..., [Array{Union{Missing,TYPE},1} for TYPE in TYPES.parameters]...}
     empty_arrs = [[Float64[] for _ in 1:N]..., [Union{Missing,TYPE}[] for TYPE in TYPES.parameters]...]
     NamedTuple{ALL_NAMES,ARR_TYPES}(empty_arrs)
-end
-
-function init_failures_tuple(pkeys::Array{Symbol})
-    N = length(pkeys)
-    NamedTuple{Tuple(pkeys),NTuple{N,Array{Float64,1}}}([Float64[] for _ in 1:N])
 end
 
 Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
@@ -80,3 +71,7 @@ function push_namedtuple!(tup::NamedTuple, mods)
 end
 push_namedtuple!(::Nothing, ::Nothing) = nothing
 push_namedtuple!(nt::NamedTuple, ::Nothing) = nt
+
+function init_missing_data(sample_data::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
+     NamedTuple{NAMES}([missing for _ in NAMES])
+end
