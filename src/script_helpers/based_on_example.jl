@@ -1,5 +1,5 @@
 
-export based_on_example
+export based_on_example, based_on_example_serial
 
 DEFAULT_SAVE_BATCH_SIZE = 10000
 
@@ -33,7 +33,7 @@ function execute_single_modification(example, modification)
         #@warn "$mod_name failed!"
         return (mod_name, missing)
     end
-    if execution.solution.retcode != :Success && execution.solution.retcode != :Default
+    if execution.solution.retcode != :Success && execution.solution.retcode != :Default && execution.solution.retcode != :Terminated
         return (mod_name, missing)
     end
     return (mod_name, execution)
@@ -136,7 +136,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     end
 end
 
-function based_on_example_NO_PARALLEL(; data_root::AbstractString=datadir(),
+function based_on_example_serial(; data_root::AbstractString=datadir(),
         no_save_raw::Bool=false,
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],

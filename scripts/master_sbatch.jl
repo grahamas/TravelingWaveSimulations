@@ -35,7 +35,6 @@ function parse_commandline(args)
             help = "Name of predefined example to use as base"
         "--script-name", "-s"
             help = "Name of script to run (path in script dir)"
-            default = "based_on_example.jl"
         "--mod"
             nargs = '*'
             help = "Case specifying base model modifications"
