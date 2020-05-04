@@ -26,10 +26,10 @@ function plot_and_save(plot_spec::AbstractPlotSpecification, execution::Executio
 end
 
 analysis_path = joinpath(@__DIR__, "analysis")
-include(joinpath(analysis_path,"animate.jl"))
+#include(joinpath(analysis_path,"animate.jl"))
 include(joinpath(analysis_path,"spacetime.jl"))
 include(joinpath(analysis_path,"nonlinearity.jl"))
-include(joinpath(analysis_path,"connectivity.jl"))
+#include(joinpath(analysis_path,"connectivity.jl"))
 include(joinpath(analysis_path,"peak_tracking.jl"))
 include(joinpath(analysis_path,"subsampled_plot.jl"))
 include(joinpath(analysis_path,"radial_symmetry.jl"))

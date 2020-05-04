@@ -1,3 +1,0 @@
-analyses = [
-  ConnectivityPlot()
-]

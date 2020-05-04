@@ -9,7 +9,7 @@ TravelingWaveSimulations.@EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SN
                                                      stim_strength=6.0,
                                                      stim_width=28.1,
                                                      stim_duration=7.0,
-                                                     save_idxs_arg=[IndexSubsampler((2,)), RightCutFromValue((0.0,))], other_opts=Dict(:saveat=>[0.0],:save_start=>false))
+                                                     save_idxs_arg=[IndexSubsampler((2,)), RightCutFromValue((0.0,))], other_opts=Dict(:saveat=>[0.0]))
   simulation = Simulation(
     WCMSpatial(;
       pop_names = ("E", "I"),
