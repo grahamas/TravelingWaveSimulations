@@ -14,11 +14,19 @@
 #     name: julia-1.4
 # ---
 
-# +
-using DrWatson
+]up
 
-using TravelingWaveSimulations, NeuralModels, Simulation73, Makie, AbstractPlotting
-using MakieLayout, Colors
+# +
+using DrWatson, Revise
+
+using TravelingWaveSimulations, NeuralModels, Simulation73
+using Makie, AbstractPlotting, MakieLayout, Colors
+
+function autoscale!(sc::Scene)
+    raw_scales = 1 ./ scene_limits(sc).widths
+    scaling = raw_scales ./ minimum(raw_scales)
+    scale!(sc, scaling)
+end
 
 AbstractPlotting.inline!(true)
 # -
@@ -81,46 +89,41 @@ function AbstractPlotting.convert_arguments(P::Type{<:AbstractPlot}, pops::Simul
 end
 
 # +
-example_name = "reduced_line_dos_effectively_sigmoid"
-line_example = get_example(example_name)
-exec_sig = execute(line_example(; blocking_θ=[25.0,25.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
+scene_sig = let line_example = get_example("reduced_line_dos_effectively_sigmoid")
+    exec_sig = execute(line_example(; blocking_θ=[25.0,25.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
+    
+    pop_names = exec_sig.simulation.model.pop_names
+    nonl_xs, nonl_ys = _auto_range(exec_sig.simulation.model.nonlinearity |> Simulation73.array)
+    sc, layout = layoutscene()
+    ax = layout[1,1] = LAxis(sc, xlabel="input (a.u.)", ylabel="pop. activity (proportion)", title="Population activation functions")
+    @show parse(Colorant, ax.attributes[:backgroundcolor][])
+    colors = distinguishable_colors(length(pop_names), parse(Colorant, ax.attributes[:backgroundcolor][]), dropseed=true)
+    plots = [plot!(ax, xs, ys, linestyle=:dash, linewidth=3, color=color) 
+        for (xs, ys, color) in zip(nonl_xs, nonl_ys, colors)]
+    legend_names = ["$(pop), eSig" for pop in pop_names]
+    leg = LLegend(sc, plots, legend_names)
+    layout[1,2] = leg
 
-pop_names = this_exec.simulation.model.pop_names
-this_exec = exec_sig
-nonl_xs, nonl_ys = _auto_range(this_exec.simulation.model.nonlinearity |> Simulation73.array)
-sc, layout = layoutscene()
-ax = layout[1,1] = LAxis(sc, xlabel="input (a.u.)", ylabel="pop. activity (proportion)", title="Population activation functions")
-@show parse(Colorant, ax.attributes[:backgroundcolor][])
-colors = distinguishable_colors(length(pop_names), parse(Colorant, ax.attributes[:backgroundcolor][]), dropseed=true)
-plots = [plot!(ax, xs, ys, linestyle=:dash, linewidth=3, color=color) 
-    for (xs, ys, color) in zip(nonl_xs, nonl_ys, colors)]
-legend_names = ["$(pop), eSig" for pop in pop_names]
-leg = LLegend(sc, plots, legend_names)
-layout[1,2] = leg
+    exec_dos = execute(line_example(; blocking_θ=[25.0,10.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
 
-example_name = "reduced_line_dos_effectively_sigmoid"
-line_example = get_example(example_name)
-exec_dos = execute(line_example(; blocking_θ=[25.0,10.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
+    nonl_xs, nonl_ys = _auto_range(exec_dos.simulation.model.nonlinearity |> Simulation73.array)
+    append!(plots, [plot!(ax, xs, ys, color=color) for (xs, ys, color) in zip(nonl_xs, nonl_ys, colors)])
+    append!(legend_names, ["$(pop), eDoS" for pop in pop_names])
+    leg = LLegend(sc, plots, legend_names)
+    layout[1,2] = leg
+    
+    sc
+end
 
-nonl_xs, nonl_ys = _auto_range(exec_dos.simulation.model.nonlinearity |> Simulation73.array)
-append!(plots, [plot!(ax, xs, ys, color=color) for (xs, ys, color) in zip(nonl_xs, nonl_ys, colors)])
-append!(legend_names, ["$(pop), eDoS" for pop in pop_names])
-leg = LLegend(sc, plots, legend_names)
-layout[1,2] = leg
 
-sc
 # -
 
-Makie.save(plotsdir("sig_and_dos_nonlinearities.png"), sc)
+Makie.save(plotsdir("sig_and_dos_nonlinearities.png"), scene_sig)
 
 # # Connectivity plot
 
 # +
 using LaTeXStrings
-
-example_name = "reduced_line_dos_effectively_sigmoid"
-line_example = get_example(example_name)
-exec = execute(line_example(; blocking_θ=[25.0,25.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
 
 function plot_connectivity(simulation::Simulation73.Simulation)
     scene, layout = layoutscene()
@@ -150,53 +153,154 @@ function plot_connectivity(simulation::Simulation73.Simulation)
     
     scene
 end
-
-
-conn_scene = plot_connectivity(exec.simulation)
 # -
 
-Makie.save(plotsdir("gaussian_connectivity_example.png"), conn_scene)
+scene_conn = let example_name = "reduced_line_dos_effectively_sigmoid"
+    line_example = get_example(example_name)
+    exec = execute(line_example(; blocking_θ=[25.0,25.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
+
+    plot_connectivity(exec.simulation)
+end
+
+Makie.save(plotsdir("gaussian_connectivity_example.png"), scene_conn)
+
+# # Animation
+
+function exec_animate(exec::AbstractExecution, output_file="test_anim.mp4"; framerate=25)
+    @show size(exec.solution)
+    scene = Scene()
+    time_idx = Node(1)
+    solution = exec.solution
+    @show Simulation73.reduced_space(exec) |> size
+    x = Simulation73.reduced_space(exec) |> coordinate_axes |> x -> x[1]
+    @show size(x)
+    @warn "only plotting one pop"
+    activity = lift(tdx -> population(solution[tdx], 1), time_idx)
+    time = lift(tdx -> solution.t[tdx], time_idx)
+    scene = plot!(scene, x, activity)
+    title(scene, "time: $time")
+    xlabel!(scene, "space (μm)")
+    ylabel!(scene, "activity (a.u.)")
+    record(scene, output_file, 1:length(solution.t); framerate=framerate) do tdx
+        time_idx[] = tdx
+    end
+end
+
+scene_anim = let line_example = get_example("reduced_line_dos_effectively_sigmoid")
+    exec_dos = execute(line_example(; blocking_θ=[25.0,10.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
+    sc = exec_animate(exec_dos)
+end
+
+# # Heatmap plot
+
+# +
+function exec_heatmap(exec::AbstractExecution)
+    scene, layout = layoutscene()
+    soln = exec.solution
+    t = soln.t
+    xs = coordinate_axes(Simulation73.reduced_space(exec))[1] |> collect
+    pop_names = exec.simulation.model.pop_names
+
+    hm_axes = layout[1,1:length(pop_names)] = [LAxis(scene, title = "$pop_name activity") for pop_name in pop_names]
+    heatmaps = map(1:length(pop_names)) do idx_pop
+        ax = hm_axes[idx_pop]
+        pop_activity = cat(population.(soln.u, idx_pop)..., dims=2)
+        heatmap!(ax, t, xs, pop_activity')
+    end
+    tightlimits!.(hm_axes)
+    linkaxes!(hm_axes...)
+    hideydecorations!.(hm_axes[2:end])
+    cbar = layout[:, length(pop_names) + 1] = LColorbar(scene, heatmaps[1], label = "Activity Level")
+    cbar.width = 25
+    
+    ylabel = layout[:,0] = LText(scene, "space (μm)", rotation=pi/2, tellheight=false)
+    xlabel = layout[end+1,2:3] = LText(scene, "time (ms)")
+    return (scene, layout)
+end 
+
+function exec_heatmap_slices(exec::AbstractExecution, n_slices=5)
+    scene, layout = layoutscene(resolution=(4800, 1200))
+    
+    # adding timepoint slices
+    soln = exec.solution
+    t = soln.t
+    xs = coordinate_axes(Simulation73.reduced_space(exec))[1] |> collect
+    pop_names = exec.simulation.model.pop_names
+    
+    n_x, n_p, n_t = size(soln)
+    step = (length(soln.t)) ÷ n_slices
+    t_idxs = 2:step:length(soln.t)
+    
+    hm_axes = [LAxis(scene, title = "$pop_name activity") for pop_name in pop_names]
+    heatmaps = map(1:length(pop_names)) do idx_pop
+        ax = hm_axes[idx_pop]
+        pop_activity = cat(population.(soln.u, idx_pop)..., dims=2)
+        heatmap!(ax, t, xs, pop_activity')
+    end
+    tightlimits!.(hm_axes)
+    linkaxes!(hm_axes...)
+    hideydecorations!.(hm_axes[2:end])
+    
+    layout[:h] = map(1:length(pop_names)) do pop_idx
+        pop_layout = GridLayout()
+        pop_layout[:h] = map(t_idxs) do t_idx
+            ax = LAxis(scene)
+            lines!(ax, xs, soln[:,pop_idx,t_idx])
+            hideydecorations!(ax)
+            hidexdecorations!(ax)
+            ax
+        end
+        pop_layout[:,0] = hm_axes[pop_idx]
+        pop_layout
+    end
+#     cbar = layout[1, end+1] = LColorbar(scene, heatmaps[1], label = "Activity Level")
+#     cbar.width = 25
+
+#     ylabel = layout[:,0] = LText(scene, "space (μm)", rotation=pi/2, tellheight=false)
+#     xlabel = layout[end+1,2:3] = LText(scene, "time (ms)")
+    return (scene, layout)
+end
+
+# -
+
+scene_heatmap = let line_example = get_example("reduced_line_dos_effectively_sigmoid")
+    exec_dos = execute(line_example(; blocking_θ=[25.0,10.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
+    (sc, layout) = exec_heatmap_slices(exec_dos)
+    sc
+end
+scene_heatmap
 
 # # Waterfall plot
 
 # +
-function default_theme(scene::SceneLike, ::Type{<: AbstractPlotting.Plot(AbstractExecution)})
-    Theme(
-        n_excerpts = 5
-    )
-end
+# function default_theme(scene::SceneLike, ::Type{<: AbstractPlotting.Plot(AbstractExecution)})
+#     Theme(
+#         n_excerpts = 5
+#     )
+# end
 
-function AbstractPlotting.plot!(p::AbstractPlotting.Plot(AbstractExecution), n_excerpts=5)    @warn "Only plotting one pop"
-    exec = to_value(p[1])
-    n_excerpts = to_value(p[:n_excerpts])
-    soln = exec.solution
-    n_x, n_p, n_t = size(soln)
-    step = (length(soln.t) + 1) ÷ n_excerpts
-    ts = Array{Float64,1}(undef, n_x)
+# function AbstractPlotting.plot!(p::AbstractPlotting.Plot(AbstractExecution), n_excerpts=5)    @warn "Only plotting one pop"
+#     exec = to_value(p[1])
+#     n_excerpts = to_value(p[:n_excerpts])
+#     soln = exec.solution
+#     n_x, n_p, n_t = size(soln)
+#     step = (length(soln.t) + 1) ÷ n_excerpts
+#     ts = Array{Float64,1}(undef, n_x)
     
-    xs = coordinate_axes(space(exec))[1] |> collect
-    for idx in 1:step:length(soln.t)
-        ts .= soln.t[idx] |> collect
-        single_pop = soln[:,1,idx]
-        lines!(p, xs, ts, single_pop)
-    end
-end
+#     xs = coordinate_axes(space(exec))[1] |> collect
+#     for idx in 1:step:length(soln.t)
+#         ts .= soln.t[idx] |> collect
+#         single_pop = soln[:,1,idx]
+#         lines!(p, xs, ts, single_pop)
+#     end
+# end
 # -
 
-sc = plot(exec_dos; n_excerpts=6)
-xlabel!(sc, "hello")
-auto_scale!(sc)
-Makie.save("hello.png", sc)
-sc
-
-function auto_scale!(sc::Scene)
-    raw_scales = 1 ./ scene_limits(sc).widths
-    scaling = raw_scales ./ minimum(raw_scales)
-    scale!(sc, scaling)
+scene_hello = let line_example = get_example("reduced_line_dos_effectively_sigmoid")
+    exec_dos = execute(line_example(; blocking_θ=[25.0,10.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
+    plot(exec_dos; n_excerpts=6)
+    xlabel!(sc, "hello")
+    autoscale!(sc)
+    Makie.save("hello.png", sc)
+    sc
 end
-auto_scale!(sc)
-sc
-
-sc = surface(1.0:0.01:2.0, 100.0:200.0, rand(10,10))
-auto_scale!(sc)
-sc
