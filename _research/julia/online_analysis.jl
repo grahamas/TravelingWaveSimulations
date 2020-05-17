@@ -14,8 +14,6 @@
 #     name: julia-1.4
 # ---
 
-using AxisIndices
-
 ]update
 
 # +
@@ -24,7 +22,8 @@ using Revise, DrWatson
  
 using Simulation73, NeuralModels, TravelingWaveSimulations, LinearAlgebra, Distances, Statistics, AxisIndices,
     IterTools, Combinatorics, DataFrames, GLM, JuliaDB, DifferentialEquations
-using Makie, MakieLayout
+using Makie, MakieLayout, AbstractPlotting
+AbstractPlotting.inline!(true)
 # using Plots, PlotThemes
 # theme(:ggplot2)
 
@@ -64,8 +63,8 @@ function find_first_satisfying_execution(mdb, example, dict_min=Dict(), dict_max
     end
     return nothing    
 end
-# -
 
+# + jupyter={"source_hidden": true}
 using Distributed
 using Revise
 using IterTools, Statistics, Plots, JuliaDB
@@ -78,6 +77,7 @@ addprocs(5)
 @everywhere using TravelingWaveSimulations
 
 
+# + jupyter={"source_hidden": true}
 function find_and_reconstruct_first_satisfying_execution(mdb, example, dict_bounds=Dict(); exec_opts...)
     @show pairs(dict_bounds)
     function filter_fn(row)
@@ -98,6 +98,7 @@ function find_and_reconstruct_first_satisfying_execution(mdb, example, dict_boun
     return nothing    
 end
 
+# + jupyter={"source_hidden": true}
 function solve_as_fronts(simulation::Simulation; solver_opts...)
     sv = SavedValues(Float64,Array{TravelingWaveSimulations.Wavefront{Float64,Float64,TravelingWaveSimulations.Value{Float64,Float64}},1})
     function save_func(u, t, integrator)
@@ -112,6 +113,7 @@ function solve_as_fronts(simulation::Simulation; solver_opts...)
     sol = solve(simulation; callback=cb, solver_opts...)
     return (sv, sol)
 end
+# -
 
 example = get_example("line_dos_effectively_sigmoid")
 
@@ -176,14 +178,17 @@ plot_color = :magma
 all_dims = 1:length(mod_names)
 let mod_names = string.(mod_names)
     for (x,y) in IterTools.subsets(all_dims, Val{2}())
+        @show (x,y)
         scene, layout = layoutscene(resolution=(1200, 600))
         collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
         mean_is_traveling_solitary = dropdims(mean_skip_missing(A_is_traveling_solitary, dims=collapsed_dims), dims=collapsed_dims) |> collect
         mean_is_epileptic = dropdims(mean_skip_missing(A_is_epileptic, dims=collapsed_dims), dims=collapsed_dims) |> collect
         
+        @assert size(mean_is_epileptic) == length.((mod_values[x], mod_values[y]))
+        
         ep_layout = GridLayout()
         ep_layout[1,2] = epileptic_ax = LAxis(scene); 
-        ep_heatmap = Makie.heatmap!(epileptic_ax, mod_values[x], mod_values[y], mean_is_epileptic')#, ylabel=mod_names[y], xlabel=mod_names[x])#, title="prop epileptic"),
+        ep_heatmap = Makie.heatmap!(epileptic_ax, mod_values[x], mod_values[y], mean_is_epileptic)#, ylabel=mod_names[y], xlabel=mod_names[x])#, title="prop epileptic"),
         ep_layout[1,3] = ep_cbar = LColorbar(scene, ep_heatmap)
         ep_layout[1,1] = LText(scene, mod_names[y], tellheight=false, rotation=pi/2)
         ep_layout[2,2] = LText(scene, mod_names[x], tellwidth=false)
@@ -194,7 +199,7 @@ let mod_names = string.(mod_names)
         tw_layout[1,1] = LText(scene, mod_names[y], tellheight=false, rotation=pi/2)
         tw_layout[1,2] = tw_ax = LAxis(scene); 
         tw_layout[2,2] = LText(scene, mod_names[x], tellwidth=false)
-        tw_heatmap = Makie.heatmap!(tw_ax, mod_values[x], mod_values[y], mean_is_traveling_solitary')#, ylabel=mod_names[y], xlabel=mod_names[x])#, title="prop epileptic"),
+        tw_heatmap = Makie.heatmap!(tw_ax, mod_values[x], mod_values[y], mean_is_traveling_solitary)#, ylabel=mod_names[y], xlabel=mod_names[x])#, title="prop epileptic"),
         tw_layout[1,3] = tw_cbar = LColorbar(scene, tw_heatmap)
         tw_cbar.width = 25
         tw_layout[0,:] = LText(scene, "solitary waves")
@@ -231,6 +236,9 @@ let mod_names = string.(mod_names)
         mean_is_epileptic = dropdims(mean_skip_missing(A_is_epileptic, dims=collapsed_dims), dims=collapsed_dims) |> collect
         my = mod_values[y] |> collect
         mx = mod_values[x] |> collect
+        
+        @assert size(mean_is_epileptic) == length.((mod_values[x], mod_values[y]))
+        
         epileptic_layout[x,y] = epileptic_ax = LAxis(epileptic_scene); 
         tw_layout[x,y] = tw_ax = LAxis(tw_scene)
         tightlimits!.([epileptic_ax, tw_ax])
@@ -259,6 +267,9 @@ let mod_names = string.(mod_names)
     Makie.save(tw_path, tw_scene)
 end
 @show mod_names
+# -
+
+# ## Search for modification 
 
 # +
 # %%
@@ -276,18 +287,42 @@ anim = custom_animate(test_exec)
 mp4(anim, "wavefront_tmp/$(example_name)/$(sim_name)/anim_$(mods_filename(mods)).mp4")
 # -
 
+# ## Run specific modification
+
+function animate_execution(filename, execution::AbstractFullExecution{T,<:Simulation{T}}; kwargs...) where T
+    solution = execution.solution
+    pop_names = execution.simulation.model.pop_names
+    x = coordinate_axes(Simulation73.reduced_space(execution))[1]
+    t = timepoints(execution)
+    max_val = maximum(solution)
+	min_val = minimum(solution)
+    
+    scene = Scene();
+    time_idx_node = Node(1)
+    single_pop = lift(idx -> population_timepoint(solution, 1, idx), time_idx_node)
+    lines!(scene, x, single_pop)
+    ylims!(scene, (min_val, max_val))
+    
+    @show t
+    record(scene, filename, 1:length(t); framerate=20) do time_idx # TODO @views
+        time_idx_node[] = time_idx
+    end
+end
+
 example_name = "reduced_line_dos_effectively_sigmoid"
 line_example = get_example(example_name)
-mods = (Aee=200.0,Aei=200.0, Aie=200.0, blocking_θE=25.0,blocking_θI=10.0,firing_θE=6.0,firing_θI=7.0)
+mods = (Aee=40.0,Aei=200.0, Aie=73.0, blocking_θE=25.0,blocking_θI=25.0,firing_θE=6.0,firing_θI=7.0, other_opts=Dict())
 (mod_name, exec) = TravelingWaveSimulations.execute_single_modification(line_example, mods)
 #exec = execute(line_example(;mods..., other_opts=Dict()))
 wp = TravelingWaveSimulations.get_wave_properties(exec)
 @show wp.epileptic
 @show wp.traveling_solitary
-anim = custom_animate(exec)
-mp4(anim, "wavefront_tmp/$(example_name)/line_anim_$(mods_filename(mods)).mp4")
+path = plotsdir("$(example_name)/line_anim_$(mods_filename(mods)).mp4")
+animate_execution(path, exec);
 
+# + jupyter={"outputs_hidden": true}
 these_data = TravelingWaveSimulations.extract_data_namedtuple(exec)
+# -
 
 pfronts = TravelingWaveSimulations.persistent_fronts(TravelingWaveSimulations.all_fronts(exec), exec.solution.t)
 anim = custom_animate(exec, pfronts)
@@ -306,4 +341,4 @@ based_on_example(; example_name="reduced_line_dos_effectively_sigmoid", modifica
 
 using FindPDE
 
-
+example = get_example("reduced_line_dos_effectively_sigmoid")
