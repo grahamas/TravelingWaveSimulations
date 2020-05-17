@@ -14,20 +14,19 @@
 #     name: julia-1.4
 # ---
 
-]status
+using AxisIndices
 
 ]update
 
-using DifferentialEquations
-
 # +
 # %%
-using Revise
-using AxisIndices
-using Simulation73, NeuralModels, TravelingWaveSimulations, Plots, Optim, LinearAlgebra, Distances, Statistics,
+using Revise, DrWatson
+ 
+using Simulation73, NeuralModels, TravelingWaveSimulations, LinearAlgebra, Distances, Statistics, AxisIndices,
     IterTools, Combinatorics, DataFrames, GLM, JuliaDB, DifferentialEquations
-using PlotThemes
-theme(:ggplot2)
+using Makie, MakieLayout
+# using Plots, PlotThemes
+# theme(:ggplot2)
 
 equals_str(key,val) = "$key=$val"
 equals_strs(mods) = [equals_str(p...) for p in pairs(mods)]
@@ -65,8 +64,8 @@ function find_first_satisfying_execution(mdb, example, dict_min=Dict(), dict_max
     end
     return nothing    
 end
+# -
 
-# + jupyter={"source_hidden": true}
 using Distributed
 using Revise
 using IterTools, Statistics, Plots, JuliaDB
@@ -79,7 +78,6 @@ addprocs(5)
 @everywhere using TravelingWaveSimulations
 
 
-# + jupyter={"source_hidden": true}
 function find_and_reconstruct_first_satisfying_execution(mdb, example, dict_bounds=Dict(); exec_opts...)
     @show pairs(dict_bounds)
     function filter_fn(row)
@@ -100,7 +98,6 @@ function find_and_reconstruct_first_satisfying_execution(mdb, example, dict_boun
     return nothing    
 end
 
-# + jupyter={"source_hidden": true}
 function solve_as_fronts(simulation::Simulation; solver_opts...)
     sv = SavedValues(Float64,Array{TravelingWaveSimulations.Wavefront{Float64,Float64,TravelingWaveSimulations.Value{Float64,Float64}},1})
     function save_func(u, t, integrator)
@@ -116,14 +113,12 @@ function solve_as_fronts(simulation::Simulation; solver_opts...)
     return (sv, sol)
 end
 
-# + jupyter={"source_hidden": true}
 example = get_example("line_dos_effectively_sigmoid")
-# -
 
 # Load most recent simulation data
 data_root = joinpath(homedir(), "data")#datadir())
 (example, mdb) = TravelingWaveSimulations.load_data(data_root, 
-    "reduced_line_dos_effectively_sigmoid");
+    "reduced_line_dos_effectively_sigmoid", -6);
 example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
 sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
@@ -137,8 +132,8 @@ all_mod_names = keys(mods) |> collect
 all_mod_values = values(mods) |> collect
 varied_mods = length.(all_mod_values) .> 1
 
-mod_names = all_mod_names[varied_mods]
-mod_values = all_mod_values[varied_mods]
+mod_names = all_mod_names[varied_mods] |> sort
+mod_values = [mods[name] for name in mod_names]
 mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
 
 mod_array(T) = AxisIndicesArray(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
@@ -168,30 +163,24 @@ end
 
 # -
 
+mods
+
 @show sum(ismissing.(A_is_epileptic))
 @show prod(size(A_is_epileptic))
 @show sum(skipmissing(A_is_epileptic)) 
 @show sum(skipmissing(A_is_traveling_solitary)) 
 
-# +
-
-
-function mean_skip_missing(A; dims)
-    missings = ismissing.(A)
-    zeroed = copy(A)
-    zeroed[missings] .= 0
-    nonmissingsum = sum(zeroed; dims=dims)
-    nonmissingmean = nonmissingsum ./ sum(.!missings; dims=dims)
-    return nonmissingmean
-end
+# + jupyter={"outputs_hidden": true}
+# Separate plots
 plot_size = (600,300)
 plot_color = :magma
 all_dims = 1:length(mod_names)
+scene, layout = GridLay
 for (x,y) in IterTools.subsets(all_dims, Val{2}())
     collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
     mean_is_traveling_solitary = dropdims(mean_skip_missing(A_is_traveling_solitary, dims=collapsed_dims), dims=collapsed_dims)
     mean_is_epileptic = dropdims(mean_skip_missing(A_is_epileptic, dims=collapsed_dims), dims=collapsed_dims)
-    prop_notmissing = dropdims(mean(.!ismissing.(A_is_epileptic), dims=collapsed_dims), dims=collapsed_dims)
+    #prop_notmissing = dropdims(mean(.!ismissing.(A_is_epileptic), dims=collapsed_dims), dims=collapsed_dims)
     plot(
         #heatmap(mod_values[x], mod_values[y], mean_traveling, xlab=mod_names[x], ylab=mod_names[y], title="\"peakiness\" avgd across other spreads"),
 #         heatmap(mod_values[y], mod_values[x], velocities, xlab=mod_names[y], ylab=mod_names[x], title="velocity avgd"),
@@ -201,12 +190,60 @@ for (x,y) in IterTools.subsets(all_dims, Val{2}())
         heatmap(mod_values[y], mod_values[x], mean_is_traveling_solitary, xlab=mod_names[y], ylab=mod_names[x], size=plot_size, color=plot_color, title="prop traveling solitary")
         #layout = (1,3)
         ) |> display
-    path = "wavefront_tmp/$(example_name)/$(sim_name)/$(mod_names[x])_$(mod_names[y])_centerfiterror.png"
+    path = "wavefront_tmp/$(example_name)/$(sim_name)/$(mod_names[x])_$(mod_names[y])_slice.png"
     mkpath(dirname(path))
     png(path)
 end
+# -
 
-# + jupyter={"source_hidden": true}
+typeof(string.(mod_names))
+
+# +
+# One plot
+using Makie, MakieLayout, DrWatson
+
+let mod_names = string.(mod_names)
+    plot_color = :magma
+    all_dims = 1:length(mod_names)
+    slices_2d = IterTools.subsets(all_dims, Val{2}())
+    plot_side_size = 300 * (length(all_dims) - 1)
+    plot_size = (plot_side_size, plot_side_size)
+    epileptic_scene, epileptic_layout = layoutscene(resolution=plot_size)
+    tw_scene, tw_layout = layoutscene(resolution=plot_size, title="Traveling Solitary Waves")
+
+    heatmap_pairs = map(slices_2d) do (x,y)
+        (x,y) = x < y ? (x,y) : (y,x)
+        collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
+        mean_is_traveling_solitary = dropdims(mean_skip_missing(A_is_traveling_solitary, dims=collapsed_dims), dims=collapsed_dims) |> collect
+        mean_is_epileptic = dropdims(mean_skip_missing(A_is_epileptic, dims=collapsed_dims), dims=collapsed_dims) |> collect
+        my = mod_values[y] |> collect
+        mx = mod_values[x] |> collect
+        epileptic_layout[x,y] = epileptic_ax = LAxis(epileptic_scene); 
+        tw_layout[x,y] = tw_ax = LAxis(tw_scene)
+        (Makie.heatmap!(epileptic_ax, mx, my, mean_is_epileptic, colorrange=(01,1)),
+            #xlab=mod_names[y], ylab=mod_names[x], color=plot_color, title="prop epileptic"),
+        Makie.heatmap!(tw_ax, mx, my, mean_is_traveling_solitary))
+            #xlab=mod_names[y], ylab=mod_names[x], color=plot_color, title="prop traveling solitary")
+    end
+    epileptic_layout[:,1] = LText.(epileptic_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
+    epileptic_layout[end+1,2:end] = LText.(epileptic_scene, mod_names[2:end], tellwidth=false)
+    epileptic_layout[0, :] = LText(epileptic_scene, "Traveling fronts", textsize = 30)
+    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(scene, heatmap_pairs[1][1], label = "Activity Level")
+    ep_cbar.width = 25
+    ep_path = plotsdir("$(example_name)/$(sim_name)/epileptic_slices.png")
+    mkpath(ep_path |> dirname)
+    Makie.save(ep_path, epileptic_scene)
+    
+    tw_layout[:,1] = LText.(tw_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
+    tw_layout[end+1,2:end] = LText.(tw_scene, mod_names[2:end], tellwidth=false)
+    tw_layout[0, :] = LText(tw_scene, "Traveling waves", textsize = 30)
+    tw_path = plotsdir("$(example_name)/$(sim_name)/tw_slices.png")
+    mkpath(tw_path |> dirname)
+    Makie.save(tw_path, tw_scene)
+end
+@show mod_names
+
+# +
 # %%
 dict_bounds = Dict(:firing_θI => (8.0, 8.), :blocking_θI => (10.0, 11.0), 
                    :firing_θE => (-Inf, 7.9), :blocking_θE => (17.0, 22.0))
