@@ -125,7 +125,7 @@ Makie.save(plotsdir("sig_and_dos_nonlinearities.png"), scene_sig)
 # +
 using LaTeXStrings
 
-function plot_connectivity(simulation::Simulation73.Simulation)
+function plot_connectivity_lims(simulation::Simulation73.Simulation, xlimits=nothing)
     scene, layout = layoutscene()
     ax = layout[1,1] = LAxis(scene, xlabel="distance (μm)", ylabel="connectivity strength (a.u.)",
         title="Connectivity kernels")
@@ -140,11 +140,17 @@ function plot_connectivity(simulation::Simulation73.Simulation)
     midpoint = coordinates(raw_space)[midpoint_idx]
     dists = differences(raw_space, midpoint) .|> x -> x[1]
     dists[CartesianIndex(1):midpoint_idx] .*= -1
+    
+    x_plot_idxs = if xlimits !== nothing
+        findfirst(dists .>= xlimits[1]):findlast(dists .<= xlimits[2])
+    else
+        Colon()
+    end
     onto_idx_idx = 1
     connectivity_array = Simulation73.array(simulation.model.connectivity)
     plots = map(pairs(IndexCartesian(), connectivity_array) |> collect) do (idx, conn)
         kern = NeuralModels.kernel(conn, raw_space)
-        plot!(ax, dists, kern, color=colors[Tuple(idx)[onto_idx_idx]])
+        plot!(ax, dists[x_plot_idxs], kern[x_plot_idxs], color=colors[Tuple(idx)[onto_idx_idx]])
     end
     ontos = [Tuple(idx)[onto_idx_idx] for idx in CartesianIndices(connectivity_array)]
     legend_names = ["onto $pop" for pop in pop_names]
@@ -159,7 +165,7 @@ scene_conn = let example_name = "reduced_line_dos_effectively_sigmoid"
     line_example = get_example(example_name)
     exec = execute(line_example(; blocking_θ=[25.0,25.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
 
-    plot_connectivity(exec.simulation)
+    sc = plot_connectivity_lims(exec.simulation, (-100., 100.))
 end
 
 Makie.save(plotsdir("gaussian_connectivity_example.png"), scene_conn)
@@ -194,44 +200,45 @@ end
 # # Heatmap plot
 
 # +
-function exec_heatmap(exec::AbstractExecution)
-    scene, layout = layoutscene()
-    soln = exec.solution
-    t = soln.t
-    xs = coordinate_axes(Simulation73.reduced_space(exec))[1] |> collect
-    pop_names = exec.simulation.model.pop_names
+# function exec_heatmap(exec::AbstractExecution)
+#     scene, layout = layoutscene(resolution=(1200, 1200))
+#     soln = exec.solution
+#     t = soln.t
+#     xs = coordinate_axes(Simulation73.reduced_space(exec))[1] |> collect
+#     pop_names = exec.simulation.model.pop_names
 
-    hm_axes = layout[1,1:length(pop_names)] = [LAxis(scene, title = "$pop_name activity") for pop_name in pop_names]
-    heatmaps = map(1:length(pop_names)) do idx_pop
-        ax = hm_axes[idx_pop]
-        pop_activity = cat(population.(soln.u, idx_pop)..., dims=2)
-        heatmap!(ax, t, xs, pop_activity')
-    end
-    tightlimits!.(hm_axes)
-    linkaxes!(hm_axes...)
-    hideydecorations!.(hm_axes[2:end])
-    cbar = layout[:, length(pop_names) + 1] = LColorbar(scene, heatmaps[1], label = "Activity Level")
-    cbar.width = 25
+#     hm_axes = layout[1,1:length(pop_names)] = [LAxis(scene, title = "$pop_name activity") for pop_name in pop_names]
+#     heatmaps = map(1:length(pop_names)) do idx_pop
+#         ax = hm_axes[idx_pop]
+#         pop_activity = cat(population.(soln.u, idx_pop)..., dims=2)
+#         heatmap!(ax, t, xs, pop_activity')
+#     end
+#     tightlimits!.(hm_axes)
+#     linkaxes!(hm_axes...)
+#     hideydecorations!.(hm_axes[2:end])
+#     cbar = layout[:, length(pop_names) + 1] = LColorbar(scene, heatmaps[1], label = "Activity Level")
+#     cbar.width = 25
     
-    ylabel = layout[:,0] = LText(scene, "space (μm)", rotation=pi/2, tellheight=false)
-    xlabel = layout[end+1,2:3] = LText(scene, "time (ms)")
-    return (scene, layout)
-end 
+#     ylabel = layout[:,0] = LText(scene, "space (μm)", rotation=pi/2, tellheight=false)
+#     xlabel = layout[end+1,2:3] = LText(scene, "time (ms)")
+#     return (scene, layout)
+# end 
 
-function exec_heatmap_slices(exec::AbstractExecution, n_slices=5)
-    scene, layout = layoutscene(resolution=(4800, 1200))
+function exec_heatmap_slices(exec::AbstractExecution, n_slices=5, resolution=(1600,1200))
+    scene, layout = layoutscene(resolution=resolution)
     
     # adding timepoint slices
     soln = exec.solution
     t = soln.t
     xs = coordinate_axes(Simulation73.reduced_space(exec))[1] |> collect
     pop_names = exec.simulation.model.pop_names
+    pop_idxs = 1:length(pop_names)
     
     n_x, n_p, n_t = size(soln)
     step = (length(soln.t)) ÷ n_slices
     t_idxs = 2:step:length(soln.t)
     
-    hm_axes = [LAxis(scene, title = "$pop_name activity") for pop_name in pop_names]
+    hm_axes = [LAxis(scene, title = "$pop_name activity", aspect=1.0) for pop_name in pop_names]
     heatmaps = map(1:length(pop_names)) do idx_pop
         ax = hm_axes[idx_pop]
         pop_activity = cat(population.(soln.u, idx_pop)..., dims=2)
@@ -241,34 +248,40 @@ function exec_heatmap_slices(exec::AbstractExecution, n_slices=5)
     linkaxes!(hm_axes...)
     hideydecorations!.(hm_axes[2:end])
     
-    layout[:h] = map(1:length(pop_names)) do pop_idx
-        pop_layout = GridLayout()
-        pop_layout[:h] = map(t_idxs) do t_idx
-            ax = LAxis(scene)
+    layout[2,pop_idxs] = map(pop_idxs) do pop_idx
+        slices_layout = GridLayout(rowsizes=[Auto()], alignmode=Outside(10), tellheight=true)
+        slice_axes = slices_layout[:h] = map(t_idxs) do t_idx
+            ax = LAxis(scene, aspect=1.0, tellheight=true)
             lines!(ax, xs, soln[:,pop_idx,t_idx])
+            tightlimits!(ax)
             hideydecorations!(ax)
             hidexdecorations!(ax)
             ax
         end
-        pop_layout[:,0] = hm_axes[pop_idx]
-        pop_layout
+        linkaxes!(slice_axes...)
+        slices_layout[2,1:length(t_idxs)] = [LText(scene, "t=$(round(time, digits=1))", textsize=14, tellwidth=false) for time in t[t_idxs]]
+        trim!(slices_layout)
+        slices_layout        
     end
-#     cbar = layout[1, end+1] = LColorbar(scene, heatmaps[1], label = "Activity Level")
-#     cbar.width = 25
+    layout[1,pop_idxs] = hm_axes
+    cbar = layout[1, end+1] = LColorbar(scene, heatmaps[1], label = "Activity Level")
+    cbar.width = 25
 
-#     ylabel = layout[:,0] = LText(scene, "space (μm)", rotation=pi/2, tellheight=false)
-#     xlabel = layout[end+1,2:3] = LText(scene, "time (ms)")
+    ylabel = layout[:,0] = LText(scene, "space (μm)", rotation=pi/2, tellheight=false)
+    xlabel = layout[end+1,2:3] = LText(scene, "time (ms)")
     return (scene, layout)
 end
 
 # -
 
 scene_heatmap = let line_example = get_example("reduced_line_dos_effectively_sigmoid")
-    exec_dos = execute(line_example(; blocking_θ=[25.0,10.0], firing_θ = [6.0, 7.0], other_opts=Dict()));
+    exec_dos = execute(line_example(; blocking_θ=[25.0,10.0], firing_θ = [6.0, 7.0],save_idxs=nothing, other_opts=Dict()));
     (sc, layout) = exec_heatmap_slices(exec_dos)
     sc
 end
 scene_heatmap
+
+save(plotsdir("heatmap_test.png"), scene_heatmap)
 
 # # Waterfall plot
 
