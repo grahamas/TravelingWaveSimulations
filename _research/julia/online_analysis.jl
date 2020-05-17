@@ -170,33 +170,46 @@ mods
 @show sum(skipmissing(A_is_epileptic)) 
 @show sum(skipmissing(A_is_traveling_solitary)) 
 
-# + jupyter={"outputs_hidden": true}
 # Separate plots
 plot_size = (600,300)
 plot_color = :magma
 all_dims = 1:length(mod_names)
-scene, layout = GridLay
-for (x,y) in IterTools.subsets(all_dims, Val{2}())
-    collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
-    mean_is_traveling_solitary = dropdims(mean_skip_missing(A_is_traveling_solitary, dims=collapsed_dims), dims=collapsed_dims)
-    mean_is_epileptic = dropdims(mean_skip_missing(A_is_epileptic, dims=collapsed_dims), dims=collapsed_dims)
-    #prop_notmissing = dropdims(mean(.!ismissing.(A_is_epileptic), dims=collapsed_dims), dims=collapsed_dims)
-    plot(
-        #heatmap(mod_values[x], mod_values[y], mean_traveling, xlab=mod_names[x], ylab=mod_names[y], title="\"peakiness\" avgd across other spreads"),
-#         heatmap(mod_values[y], mod_values[x], velocities, xlab=mod_names[y], ylab=mod_names[x], title="velocity avgd"),
-#         heatmap(mod_values[y], mod_values[x], velocity_errors, xlab=mod_names[y], ylab=mod_names[x], title="error"),
-        #heatmap(mod_values[y], mod_values[x], prop_notmissing, xlab=mod_names[y], ylab=mod_names[x], title="prop not missing"),
-        heatmap(mod_values[y], mod_values[x], mean_is_epileptic, xlab=mod_names[y], ylab=mod_names[x], size=plot_size, color=plot_color, title="prop epileptic"),
-        heatmap(mod_values[y], mod_values[x], mean_is_traveling_solitary, xlab=mod_names[y], ylab=mod_names[x], size=plot_size, color=plot_color, title="prop traveling solitary")
-        #layout = (1,3)
-        ) |> display
-    path = "wavefront_tmp/$(example_name)/$(sim_name)/$(mod_names[x])_$(mod_names[y])_slice.png"
-    mkpath(dirname(path))
-    png(path)
+let mod_names = string.(mod_names)
+    for (x,y) in IterTools.subsets(all_dims, Val{2}())
+        scene, layout = layoutscene(resolution=(1200, 600))
+        collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
+        mean_is_traveling_solitary = dropdims(mean_skip_missing(A_is_traveling_solitary, dims=collapsed_dims), dims=collapsed_dims) |> collect
+        mean_is_epileptic = dropdims(mean_skip_missing(A_is_epileptic, dims=collapsed_dims), dims=collapsed_dims) |> collect
+        
+        ep_layout = GridLayout()
+        ep_layout[1,2] = epileptic_ax = LAxis(scene); 
+        ep_heatmap = Makie.heatmap!(epileptic_ax, mod_values[x], mod_values[y], mean_is_epileptic')#, ylabel=mod_names[y], xlabel=mod_names[x])#, title="prop epileptic"),
+        ep_layout[1,3] = ep_cbar = LColorbar(scene, ep_heatmap)
+        ep_layout[1,1] = LText(scene, mod_names[y], tellheight=false, rotation=pi/2)
+        ep_layout[2,2] = LText(scene, mod_names[x], tellwidth=false)
+        ep_cbar.width = 25
+        ep_layout[0,:] = LText(scene, "fronts")
+        
+        tw_layout = GridLayout()
+        tw_layout[1,1] = LText(scene, mod_names[y], tellheight=false, rotation=pi/2)
+        tw_layout[1,2] = tw_ax = LAxis(scene); 
+        tw_layout[2,2] = LText(scene, mod_names[x], tellwidth=false)
+        tw_heatmap = Makie.heatmap!(tw_ax, mod_values[x], mod_values[y], mean_is_traveling_solitary')#, ylabel=mod_names[y], xlabel=mod_names[x])#, title="prop epileptic"),
+        tw_layout[1,3] = tw_cbar = LColorbar(scene, tw_heatmap)
+        tw_cbar.width = 25
+        tw_layout[0,:] = LText(scene, "solitary waves")
+        
+        tightlimits!.([epileptic_ax, tw_ax])
+        
+        layout[1,1:2] = [ep_layout, tw_layout]
+        
+        layout[0,:] = LText(scene, "Proportion of simulations exhibiting type of traveling wave")
+        
+        path = plotsdir("$(example_name)/$(sim_name)/single_slices/$(mod_names[x])_$(mod_names[y])_slice.png")
+        mkpath(dirname(path))
+        Makie.save(path, scene)
+    end
 end
-# -
-
-typeof(string.(mod_names))
 
 # +
 # One plot
@@ -206,7 +219,7 @@ let mod_names = string.(mod_names)
     plot_color = :magma
     all_dims = 1:length(mod_names)
     slices_2d = IterTools.subsets(all_dims, Val{2}())
-    plot_side_size = 300 * (length(all_dims) - 1)
+    plot_side_size = 600 * (length(all_dims) - 1)
     plot_size = (plot_side_size, plot_side_size)
     epileptic_scene, epileptic_layout = layoutscene(resolution=plot_size)
     tw_scene, tw_layout = layoutscene(resolution=plot_size, title="Traveling Solitary Waves")
@@ -220,15 +233,17 @@ let mod_names = string.(mod_names)
         mx = mod_values[x] |> collect
         epileptic_layout[x,y] = epileptic_ax = LAxis(epileptic_scene); 
         tw_layout[x,y] = tw_ax = LAxis(tw_scene)
-        (Makie.heatmap!(epileptic_ax, mx, my, mean_is_epileptic, colorrange=(01,1)),
+        tightlimits!.([epileptic_ax, tw_ax])
+        (Makie.heatmap!(epileptic_ax, mx, my, mean_is_epileptic', colorrange=(0,1)),
             #xlab=mod_names[y], ylab=mod_names[x], color=plot_color, title="prop epileptic"),
-        Makie.heatmap!(tw_ax, mx, my, mean_is_traveling_solitary))
+        Makie.heatmap!(tw_ax, mx, my, mean_is_traveling_solitary', colorrange=(0,0.100001)))
             #xlab=mod_names[y], ylab=mod_names[x], color=plot_color, title="prop traveling solitary")
     end
+    ep_heatmaps, tw_heatmaps = zip(heatmap_pairs...)
     epileptic_layout[:,1] = LText.(epileptic_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
     epileptic_layout[end+1,2:end] = LText.(epileptic_scene, mod_names[2:end], tellwidth=false)
     epileptic_layout[0, :] = LText(epileptic_scene, "Traveling fronts", textsize = 30)
-    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(scene, heatmap_pairs[1][1], label = "Activity Level")
+    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion traveling fronts")
     ep_cbar.width = 25
     ep_path = plotsdir("$(example_name)/$(sim_name)/epileptic_slices.png")
     mkpath(ep_path |> dirname)
@@ -237,6 +252,8 @@ let mod_names = string.(mod_names)
     tw_layout[:,1] = LText.(tw_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
     tw_layout[end+1,2:end] = LText.(tw_scene, mod_names[2:end], tellwidth=false)
     tw_layout[0, :] = LText(tw_scene, "Traveling waves", textsize = 30)
+    tw_cbar = tw_layout[2:end-1, end+1] = LColorbar(tw_scene, tw_heatmaps[1], label = "Proportion traveling waves")
+    tw_cbar.width = 25
     tw_path = plotsdir("$(example_name)/$(sim_name)/tw_slices.png")
     mkpath(tw_path |> dirname)
     Makie.save(tw_path, tw_scene)
