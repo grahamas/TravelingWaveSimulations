@@ -116,7 +116,30 @@ function exec_heatmap_slices(exec::AbstractExecution, n_slices=5, resolution=(16
     return (scene, layout)
 end
 
-# + jupyter={"source_hidden": true}
+function exec_heatmap(exec::AbstractExecution, resolution=(800,800))
+    scene, layout = layoutscene(resolution=resolution)
+    
+    # adding timepoint slices
+    soln = exec.solution
+    t = soln.t
+    xs = coordinate_axes(Simulation73.reduced_space(exec))[1] |> collect
+    pop_name = exec.simulation.model.pop_names[1]
+    
+    ax = LAxis(scene, title = "$pop_name activity", aspect=1.0)
+    pop_activity = cat(population.(soln.u, 1)..., dims=2)
+    heatmap = heatmap!(ax, t, xs, pop_activity')
+    tightlimits!(ax)
+    
+    layout[1,1] = ax
+    cbar = layout[1, end+1] = LColorbar(scene, heatmap, label = "Activity Level")
+    cbar.width = 25
+
+    ylabel = layout[1,0] = LText(scene, "space (μm)", rotation=pi/2, tellheight=false)
+    xlabel = layout[end+1,2] = LText(scene, "time (ms)", tellwidth=false)
+    return (scene, layout)
+end
+# -
+
 using Distributed
 using Revise
 using IterTools, Statistics, Plots, JuliaDB
@@ -129,7 +152,6 @@ addprocs(5)
 @everywhere using TravelingWaveSimulations
 
 
-# + jupyter={"source_hidden": true}
 function find_and_reconstruct_first_satisfying_execution(mdb, example, dict_bounds=Dict(); exec_opts...)
     @show pairs(dict_bounds)
     function filter_fn(row)
@@ -150,7 +172,6 @@ function find_and_reconstruct_first_satisfying_execution(mdb, example, dict_boun
     return nothing    
 end
 
-# + jupyter={"source_hidden": true}
 function solve_as_fronts(simulation::Simulation; solver_opts...)
     sv = SavedValues(Float64,Array{TravelingWaveSimulations.Wavefront{Float64,Float64,TravelingWaveSimulations.Value{Float64,Float64}},1})
     function save_func(u, t, integrator)
@@ -165,9 +186,6 @@ function solve_as_fronts(simulation::Simulation; solver_opts...)
     sol = solve(simulation; callback=cb, solver_opts...)
     return (sv, sol)
 end
-# -
-
-example = get_example("line_dos_effectively_sigmoid")
 
 # Load most recent simulation data
 data_root = joinpath(homedir(), "data")#datadir())
@@ -303,7 +321,7 @@ let mod_names = string.(mod_names)
     ep_heatmaps, tw_heatmaps = zip(heatmap_pairs...)
     epileptic_layout[:,1] = LText.(epileptic_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
     epileptic_layout[end+1,2:end] = LText.(epileptic_scene, mod_names[2:end], tellwidth=false)
-    epileptic_layout[0, :] = LText(epileptic_scene, "Traveling fronts", textsize = 30)
+    epileptic_layout[0, :] = LText(epileptic_scene, "Parameter sweep:\n Prop. simulations with traveling front", textsize = 30)
     ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion traveling fronts")
     ep_cbar.width = 25
     ep_path = plotsdir("$(example_name)/$(sim_name)/epileptic_slices.png")
@@ -312,7 +330,7 @@ let mod_names = string.(mod_names)
     
     tw_layout[:,1] = LText.(tw_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
     tw_layout[end+1,2:end] = LText.(tw_scene, mod_names[2:end], tellwidth=false)
-    tw_layout[0, :] = LText(tw_scene, "Traveling waves", textsize = 30)
+    tw_layout[0, :] = LText(tw_scene, "Parameter sweep:\n Prop. simulations with traveling wave", textsize = 30)
     tw_cbar = tw_layout[2:end-1, end+1] = LColorbar(tw_scene, tw_heatmaps[1], label = "Proportion traveling waves")
     tw_cbar.width = 25
     tw_path = plotsdir("$(example_name)/$(sim_name)/tw_slices.png")
@@ -324,7 +342,7 @@ end
 
 # ## Search for modification 
 
-# + jupyter={"source_hidden": true}
+# +
 # %%
 dict_bounds = Dict(:firing_θI => (8.0, 8.), :blocking_θI => (10.0, 11.0), 
                    :firing_θE => (-Inf, 7.9), :blocking_θE => (17.0, 22.0))
@@ -342,7 +360,6 @@ mp4(anim, "wavefront_tmp/$(example_name)/$(sim_name)/anim_$(mods_filename(mods))
 
 # ## Run specific modification
 
-# + jupyter={"outputs_hidden": true, "source_hidden": true}
 function animate_execution(filename, execution::AbstractFullExecution{T,<:Simulation{T}}; kwargs...) where T
     solution = execution.solution
     pop_names = execution.simulation.model.pop_names
@@ -363,7 +380,6 @@ function animate_execution(filename, execution::AbstractFullExecution{T,<:Simula
     end
 end
 
-# + jupyter={"source_hidden": true}
 example_name = "reduced_line_dos_effectively_sigmoid"
 line_example = get_example(example_name)
 these_mods = (Aee=40.0,Aei=200.0, Aie=73.0, blocking_θE=25.0,blocking_θI=25.0,firing_θE=6.0,firing_θI=7.0, other_opts=Dict())
@@ -385,7 +401,7 @@ let target_mods_nt = (Aee=137.0,Aei=115.0, Aie=132.0, Aii=30.0),
     plot_color = :magma
     all_dims = 1:length(mod_names)
     slices_2d = IterTools.subsets(all_dims, Val{2}())
-    plot_side_size = 300 * (length(all_dims) - 1)
+    plot_side_size = 350 * (length(all_dims) - 1)
     plot_size = (plot_side_size, plot_side_size)
     epileptic_scene, epileptic_layout = layoutscene(resolution=plot_size)
     tw_scene, tw_layout = layoutscene(resolution=plot_size, title="Traveling Solitary Waves")
@@ -420,8 +436,8 @@ let target_mods_nt = (Aee=137.0,Aei=115.0, Aie=132.0, Aii=30.0),
     ep_heatmaps, tw_heatmaps = zip(heatmap_pairs...)
     epileptic_layout[:,1] = LText.(epileptic_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
     epileptic_layout[end+1,2:end] = LText.(epileptic_scene, mod_names[2:end], tellwidth=false)
-    epileptic_layout[0, :] = LText(epileptic_scene, "Traveling fronts", textsize = 30)
-    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion traveling fronts")
+    epileptic_layout[0, :] = LText(epileptic_scene, "Parameter sweep:\n Prop. simulations with traveling front", textsize = 30)
+    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion with traveling fronts")
     ep_cbar.width = 25
     ep_path = savedir("epileptic_slices.png")
     mkpath(ep_path |> dirname)
@@ -447,86 +463,17 @@ let target_mods_nt = (Aee=137.0,Aei=115.0, Aie=132.0, Aii=30.0),
     animate_execution(anim_path, exec);
     
     scene, layout = exec_heatmap_slices(exec, 5, (1400,1000))
-    layout[0,:] = LText(scene, "Simulation: $(target_mods_nt)")#"\n Inhibition blocking threshold: $(these_mods[:blocking_θI])") 
+    layout[0,:] = LText(scene, "Simulation: $(target_mods_nt)\n Inhibition blocking threshold: $(these_mods[:blocking_θI])") 
     sim_heatmap_path = savedir("sim_heatmap.png")
     Makie.save( sim_heatmap_path, scene)
     
-end
-
-# +
-# One plot with targets (traveling front)
-
-let target_mods_nt = (Aee=200.0,Aei=75.0, Aie=65.0, Aii=4.0), 
-        mod_names = string.(mod_names),
-        line_example = get_example("reduced_line_dos_effectively_sigmoid")
-    target_mods = [target_mods_nt[Symbol(name)] for name in mod_names]
-    plot_color = :magma
-    all_dims = 1:length(mod_names)
-    slices_2d = IterTools.subsets(all_dims, Val{2}())
-    plot_side_size = 600 * (length(all_dims) - 1)
-    plot_size = (plot_side_size, plot_side_size)
-    epileptic_scene, epileptic_layout = layoutscene(resolution=plot_size)
-    tw_scene, tw_layout = layoutscene(resolution=plot_size, title="Traveling Solitary Waves")
-
-    heatmap_pairs = map(slices_2d) do (x,y)
-        (x,y) = x < y ? (x,y) : (y,x)
-        collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
-        mean_is_traveling_solitary = dropdims(mean_skip_missing(A_is_traveling_solitary, dims=collapsed_dims), dims=collapsed_dims) |> collect
-        mean_is_epileptic = dropdims(mean_skip_missing(A_is_epileptic, dims=collapsed_dims), dims=collapsed_dims) |> collect
-        my = mod_values[y] |> collect
-        mx = mod_values[x] |> collect
-        
-        @assert size(mean_is_epileptic) == length.((mod_values[x], mod_values[y]))
-        
-        epileptic_layout[x,y] = epileptic_ax = LAxis(epileptic_scene); 
-        tw_layout[x,y] = tw_ax = LAxis(tw_scene)
-        tightlimits!.([epileptic_ax, tw_ax])
-        
-        heatmaps = (Makie.heatmap!(epileptic_ax, my, mx, mean_is_epileptic', colorrange=(0,1)),
-            #xlab=mod_names[y], ylab=mod_names[x], color=plot_color, title="prop epileptic"),
-        Makie.heatmap!(tw_ax, my, mx, mean_is_traveling_solitary', colorrange=(0,0.100001)))
-            #xlab=mod_names[y], ylab=mod_names[x], color=plot_color, title="prop traveling solitary")
-        
-        Makie.scatter!(epileptic_ax, [target_mods[y]], [target_mods[x]], color=:red, markersize=5)
-        Makie.scatter!(tw_ax, [target_mods[y]], [target_mods[x]], color=:red, markersize=5)
-        
-        heatmaps
-    end
-    
-    savedir(bn) = plotsdir("$(example_name)/$(sim_name)/$(mods_filename(target_mods_nt))", bn)
-    
-    ep_heatmaps, tw_heatmaps = zip(heatmap_pairs...)
-    epileptic_layout[:,1] = LText.(epileptic_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
-    epileptic_layout[end+1,2:end] = LText.(epileptic_scene, mod_names[2:end], tellwidth=false)
-    epileptic_layout[0, :] = LText(epileptic_scene, "Traveling fronts", textsize = 30)
-    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion traveling fronts")
-    ep_cbar.width = 25
-    ep_path = savedir("epileptic_slices.png")
-    mkpath(ep_path |> dirname)
-    Makie.save(ep_path, epileptic_scene)
-    
-    tw_layout[:,1] = LText.(tw_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
-    tw_layout[end+1,2:end] = LText.(tw_scene, mod_names[2:end], tellwidth=false)
-    tw_layout[0, :] = LText(tw_scene, "Traveling waves", textsize = 30)
-    tw_cbar = tw_layout[2:end-1, end+1] = LColorbar(tw_scene, tw_heatmaps[1], label = "Proportion traveling waves")
-    tw_cbar.width = 25
-    tw_path = savedir("tw_slices.png")
-    mkpath(tw_path |> dirname)
-    Makie.save(tw_path, tw_scene)
-    
-    these_mods =  (fixed_mods_dict..., target_mods_nt..., save_idxs=nothing, other_opts=Dict())
-    @show these_mods
-    (mod_name, exec) = TravelingWaveSimulations.execute_single_modification(line_example, these_mods)
-    #exec = execute(line_example(;mods..., other_opts=Dict()))
-    wp = TravelingWaveSimulations.get_wave_properties(exec)
-    @show wp.epileptic
-    @show wp.traveling_solitary
-    anim_path = savedir("sim_animation.mp4")
-    animate_execution(anim_path, exec);
-    
-    scene, layout = exec_heatmap_slices(exec)
-    sim_heatmap_path = savedir("sim_heatmap.png")
+    scene, layout = exec_heatmap(exec)
+    layout[0,:] = LText(scene, "Simulation: $(target_mods_nt)\n Inhibition blocking threshold: $(these_mods[:blocking_θI])") 
+    sim_heatmap_path = savedir("sim_E_heatmap.png")
     Makie.save( sim_heatmap_path, scene)
+
+
+    
     
 end
 
@@ -540,7 +487,7 @@ let target_mods_nt = (Aee=167.0,Aei=95.0, Aie=132.0, Aii=30.0),
     plot_color = :magma
     all_dims = 1:length(mod_names)
     slices_2d = IterTools.subsets(all_dims, Val{2}())
-    plot_side_size = 300 * (length(all_dims) - 1)
+    plot_side_size = 350 * (length(all_dims) - 1)
     plot_size = (plot_side_size, plot_side_size)
     epileptic_scene, epileptic_layout = layoutscene(resolution=plot_size)
     tw_scene, tw_layout = layoutscene(resolution=plot_size, title="Traveling Solitary Waves")
@@ -575,8 +522,8 @@ let target_mods_nt = (Aee=167.0,Aei=95.0, Aie=132.0, Aii=30.0),
     ep_heatmaps, tw_heatmaps = zip(heatmap_pairs...)
     epileptic_layout[:,1] = LText.(epileptic_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
     epileptic_layout[end+1,2:end] = LText.(epileptic_scene, mod_names[2:end], tellwidth=false)
-    epileptic_layout[0, :] = LText(epileptic_scene, "Traveling fronts", textsize = 30)
-    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion traveling fronts")
+    epileptic_layout[0, :] = LText(epileptic_scene, "Parameter sweep:\n Prop. simulations with traveling front", textsize = 30)
+    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion with traveling fronts")
     ep_cbar.width = 25
     ep_path = savedir("epileptic_slices.png")
     mkpath(ep_path |> dirname)
@@ -602,24 +549,29 @@ let target_mods_nt = (Aee=167.0,Aei=95.0, Aie=132.0, Aii=30.0),
     animate_execution(anim_path, exec);
     
     scene, layout = exec_heatmap_slices(exec, 5, (1400,1000))
-    layout[0,:] = LText(scene, "Simulation: $(target_mods_nt)") 
+    layout[0,:] = LText(scene, "Simulation: $(target_mods_nt)\n Inhibition failure threshold: $(these_mods[:blocking_θI])") 
     sim_heatmap_path = savedir("sim_heatmap.png")
     Makie.save( sim_heatmap_path, scene)
+        
+    scene, layout = exec_heatmap(exec)
+    layout[0,:] = LText(scene, "Simulation: $(target_mods_nt)\n Inhibition failure threshold: $(these_mods[:blocking_θI])") 
+    sim_heatmap_path = savedir("sim_E_heatmap.png")
+    Makie.save( sim_heatmap_path, scene)
+
     
 end
 
 # +
-# One plot with targets (S)
-using Makie, MakieLayout, DrWatson
+# One plot with targets (no traveling wave -- Blocking case)
 
-let target_mods_nt = (See=60.0,Sei=110.0, Sie=90.0, Sii=100.0), 
+let target_mods_nt = (Aee=90.0,Aei=160.0, Aie=132.0, Aii=30.0), 
         mod_names = string.(mod_names),
         line_example = get_example("reduced_line_dos_effectively_sigmoid")
     target_mods = [target_mods_nt[Symbol(name)] for name in mod_names]
     plot_color = :magma
     all_dims = 1:length(mod_names)
     slices_2d = IterTools.subsets(all_dims, Val{2}())
-    plot_side_size = 600 * (length(all_dims) - 1)
+    plot_side_size = 350 * (length(all_dims) - 1)
     plot_size = (plot_side_size, plot_side_size)
     epileptic_scene, epileptic_layout = layoutscene(resolution=plot_size)
     tw_scene, tw_layout = layoutscene(resolution=plot_size, title="Traveling Solitary Waves")
@@ -654,8 +606,8 @@ let target_mods_nt = (See=60.0,Sei=110.0, Sie=90.0, Sii=100.0),
     ep_heatmaps, tw_heatmaps = zip(heatmap_pairs...)
     epileptic_layout[:,1] = LText.(epileptic_scene, mod_names[1:end-1], tellheight=false, rotation=pi/2)
     epileptic_layout[end+1,2:end] = LText.(epileptic_scene, mod_names[2:end], tellwidth=false)
-    epileptic_layout[0, :] = LText(epileptic_scene, "Traveling fronts", textsize = 30)
-    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion traveling fronts")
+    epileptic_layout[0, :] = LText(epileptic_scene, "Parameter sweep:\n Prop. simulations with traveling front", textsize = 30)
+    ep_cbar = epileptic_layout[2:end-1, end+1] = LColorbar(epileptic_scene, ep_heatmaps[1], label = "Proportion with traveling fronts")
     ep_cbar.width = 25
     ep_path = savedir("epileptic_slices.png")
     mkpath(ep_path |> dirname)
@@ -680,32 +632,17 @@ let target_mods_nt = (See=60.0,Sei=110.0, Sie=90.0, Sii=100.0),
     anim_path = savedir("sim_animation.mp4")
     animate_execution(anim_path, exec);
     
-    scene, layout = exec_heatmap_slices(exec)
+    scene, layout = exec_heatmap_slices(exec, 5, (1400,1000))
+    layout[0,:] = LText(scene, "Simulation: $(target_mods_nt)\n Inhibition failure threshold: $(these_mods[:blocking_θI])") 
     sim_heatmap_path = savedir("sim_heatmap.png")
     Makie.save( sim_heatmap_path, scene)
     
+    scene, layout = exec_heatmap(exec)
+    layout[0,:] = LText(scene, "Simulation: $(target_mods_nt)\n Inhibition failure threshold: $(these_mods[:blocking_θI])") 
+    sim_heatmap_path = savedir("sim_E_heatmap.png")
+    Makie.save( sim_heatmap_path, scene)
+
+
+    
+    
 end
-
-
-# + jupyter={"outputs_hidden": true}
-these_data = TravelingWaveSimulations.extract_data_namedtuple(exec)
-# -
-
-pfronts = TravelingWaveSimulations.persistent_fronts(TravelingWaveSimulations.all_fronts(exec), exec.solution.t)
-anim = custom_animate(exec, pfronts)
-mp4(anim, "wavefront_tmp/$(example_name)/fronts_line_anim_$(mods_filename(mods)).mp4")
-
-TravelingWaveSimulations.get_velocities(pfronts[5])
-
-TravelingWaveSimulations.based_on_example_NO_PARALLEL(; example_name="reduced_line_dos_effectively_sigmoid", 
-    modifications=["blocking_θI=6.0:30.0", "blocking_θE=6.0:30.0"], 
-    data_root=projectdir("tmp"))
-
-based_on_example(; example_name="reduced_line_dos_effectively_sigmoid", modifications=["stim_strength=0.4:0.1:2.0", "stim_width=20.0:5.0:50.0", "Aee=22.0", "Aei=20.2"], max_batch_size=5000, data_root=projectdir("tmp"), max_sims_in_mem=30001, progress=true)
-
-
-
-
-using FindPDE
-
-example = get_example("reduced_line_dos_effectively_sigmoid")
