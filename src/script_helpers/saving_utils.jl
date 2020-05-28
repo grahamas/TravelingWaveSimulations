@@ -14,7 +14,7 @@ function extract_data_namedtuple(execution::Execution)
     soln = execution.solution
     u = soln.u
     t = soln.t
-    x = coordinates(space(execution)) |> collect
+    x = coordinates(reduced_space(execution)) |> collect
     return execution.simulation.global_reduction((u=u, t=t, x=x))
 end
 
@@ -27,7 +27,7 @@ function extract_data_namedtuple(execution::AugmentedExecution)
     soln = execution.solution
     u = soln.u
     t = soln.t
-    x = coordinates(space(execution))
+    x = coordinates(reduced_space(execution))
     execution.simulation.global_reduction((u=u, t=t, x=x, extract_data_namedtuple(execution.saved_values)...))
 end
 
