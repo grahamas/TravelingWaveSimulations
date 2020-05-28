@@ -40,20 +40,9 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
       dt = 0.1,
       algorithm=Tsit5(),
       save_idxs=[IndexSubsampler((2,)), RightCutFromValue((0.0,))],
-      step_reduction = ((u, t, integrator) -> begin
-        # Need to get x from integrator (or simulation)
-        sub_idx = save_idxs === nothing ? CartesianIndices(u) : integrator.opts.save_idxs
-        sub_u = u[sub_idx]
-        sub_x = [x[1] for x in space.arr[population(sub_idx,1)]]
-        fronts = TravelingWaveSimulations.substantial_fronts(sub_u, sub_x)
-        return fronts
-      end, Array{Wavefront{Float64,Float64,Value{Float64,Float64}},1}),
-      global_reduction = (data_named_tuple) -> (wave_properties=get_wave_properties(data_named_tuple),),
-      callback=DiscreteCallback(if !(save_idxs === nothing)
-            cb_E_is_fully_propagated_with_save_idxs
-        else
-            cb_E_is_fully_propagated
-        end, terminate!), 
+      step_reduction = (reduce_to_fronts(save_idxs, space), front_array_type),
+      global_reduction = reduce_to_wave_properties,
+      callback=terminate_when_E_fully_propagates(save_idxs), 
       other_opts...
   )
 end

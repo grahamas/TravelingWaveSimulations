@@ -1,8 +1,34 @@
-function cb_E_is_fully_propagated_with_save_idxs(u,t,integrator)
-    sub_u = population(u[integrator.opts.save_idxs],1);
-    t > 5 && ((all(isapprox.(sub_u, 0.0, atol=1e-4)) || (sub_u[end-10] > 0.005)))
+
+export terminate_when_E_fully_propagates
+
+function terminate_when_E_fully_propagates(save_idxs, min_time=5)
+    DiscreteCallback(E_is_fully_propagated(save_idxs, min_time), terminate!)
 end
-function cb_E_is_fully_propagated(u,t,integrator)
-    pop = population(u,1)
-    t > 5 && ((all(isapprox.(u, 0.0, atol=1e-4)) || (pop[end-10] > 0.005)))
+
+near_zero(u::T) where {T <: Number} = isapprox(u, zero(T), atol=1e-4)
+near_zero(u::AbstractArray) = all(near_zero.(u))
+
+function E_is_fully_propagated(save_idxs, min_time)
+    callback = if save_idxs === nothing
+        (u,t,integrator) -> begin
+            pop = population(u,1)
+            if t > min_time
+                if (near_zero(pop) || (pop[end-10] > 0.005))
+                    return true
+                end
+            end
+            return false
+        end
+    else
+        (u,t,integrator) -> begin
+            pop = population(u[integrator.opts.save_idxs],1)
+            if t > min_time
+                if (near_zero(pop) || (pop[end-10] > 0.005))
+                    return true
+                end
+            end
+            return false
+        end
+    end
+    return callback
 end
