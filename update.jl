@@ -13,25 +13,17 @@ git_pull.([s73_path, nm_path, wcm_path, pde_path, tws_path])
 
 Pkg.activate(s73_path)
 Pkg.update()
-Pkg.activate(joinpath(s73_path, "test"))
-Pkg.update()
 
 Pkg.activate(nm_path)
 Pkg.update()
-Pkg.activate(joinpath(nm_path, "test"))
-Pkg.update()
 
 Pkg.activate(wcm_path)
-Pkg.update()
-Pkg.activate(joinpath(wcm_path, "test"))
 Pkg.update()
 
 Pkg.activate(pde_path)
 Pkg.update()
 
 Pkg.activate(tws_path)
-Pkg.update()
-Pkg.activate(joinpath(tws_path, "test"))
 Pkg.update()
 
 Pkg.instantiate()
