@@ -28,13 +28,15 @@ include("valued_space.jl")
 
 include("connectivity.jl")
 
+include("fronts.jl")
+include("classifications.jl")
 include("callbacks.jl")
 include("step_reductions.jl")
 include("global_reductions.jl")
 
-include("analysis.jl")
 include("examples.jl")
 include("loading.jl")
+include("saving.jl")
 
 include("script_helpers/saving_utils.jl")
 include("script_helpers.jl")

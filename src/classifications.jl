@@ -1,65 +1,79 @@
+#######################################
+### Whole simulation classification ###
+#######################################
 
-
-
-
-# How to handle when new front appears near old front?
-function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{T}, max_vel=200) where {T<:Number, WF<:TravelingWaveSimulations.Wavefront{T,T,Value{T,T}}}
-    PARRTYPE = Persistent{WF,T,Array{WF,1},Array{T,1}}
-    prev_fronts = frame_fronts[1]
-    prev_t = ts[1]
-    inactive_travelers = PARRTYPE[]
-    active_travelers = PARRTYPE[PARRTYPE([front], [t]) for (front, t) in zip(prev_fronts, prev_t)]
-    for (fronts, t) in zip(frame_fronts[2:end], ts[2:end])
-        dt = t - prev_t
-        first_possible_dx = 1
-        slope_dists = [
-            waveform_identity_distance(front, traveler.waveforms[end]) for (front, traveler) in Iterators.product(fronts, active_travelers)
-        ]
-        matched_fronts = BitSet()
-        matched_travelers = BitSet()
-        i_matches = 1
-        while i_matches <= min(length(fronts), length(active_travelers))
-            dist, idx = findmin(slope_dists)
-            if (dist / dt) > max_vel
-                #@info "I broke!"
-                break
-            end
-            front_idx, traveler_idx = Tuple(idx)
-            if (front_idx in matched_fronts) || (traveler_idx in matched_travelers)
-                #@warn "Ambiguous traveling waves."
-                slope_dists[idx] .= Inf
-                continue
-            end
-            push!(matched_fronts, front_idx)
-            push!(matched_travelers, traveler_idx)
-            push!(active_travelers[traveler_idx], (fronts[front_idx], t))
-            slope_dists[idx] .= Inf
-            i_matches += 1
-        end
-        unmatched_fronts = setdiff(BitSet(1:length(fronts)), matched_fronts)
-        unmatched_travelers = setdiff(BitSet(1:length(active_travelers)), matched_travelers)
-        append!(inactive_travelers, active_travelers[unmatched_travelers |> collect])
-        active_travelers::Array{PARRTYPE,1} = active_travelers[matched_travelers |> collect]
-        new_active = PARRTYPE[Persistent([front], [t]) for front in fronts[unmatched_fronts |> collect]]
-        append!(active_travelers, new_active)
+function get_wave_properties(l_frame_fronts::Array{<:Array{<:Wavefront{T,T,Value{T,T}}}}, ts::Array{T,1}; max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, max_background_amp=5e-2, end_snip_idxs=3) where T
+    min_dist = min_vel * min_traveling_frames
+    
+    l_persistent_fronts = persistent_fronts(l_frame_fronts, ts, max_vel)
+    l_final_fronts = filter(l_persistent_fronts) do pf
+        get_stop_time(pf) >= ts[end-end_snip_idxs]
     end
-    return PARRTYPE[inactive_travelers..., active_travelers...]
+    l_final_activating_fronts = filter(l_final_fronts) do pf
+        is_activating_front(pf,max_background_amp)#, min_vel, min_traveling_frames)
+    end
+    
+    all_final_fronts_will_die = all(will_be_deactivated.(l_final_activating_fronts, Ref(l_final_fronts), max_background_amp))
+    
+    # We'll call it traveling solitary if:
+    #  1. There is a traveling front
+    #  2. No elevated activity trails *that* front
+    maybe_farthest_traveling_front = get_farthest_traveling_front(l_persistent_fronts, min_dist, min_vel, min_traveling_frames)
+    #b_traveling_solitary = is_solitary(maybe_farthest_front, l_persistent_fronts)
+    b_traveling_solitary = any(map(l_persistent_fronts) do front
+        is_traveling(front,min_vel, min_traveling_frames) && is_solitary(front, l_persistent_fronts, max_background_amp)
+    end)
+    
+    # We'll call it epileptic if:
+    #  1. There is a traveling front
+    #  2. There is persistently elevated activity following the front.
+    # How to deal with oscillatory activity? 
+    # Want persistent oscillation to be considered epileptic, even if sometimes zero
+    # In practice we'll ignore this for now --- FIXME
+    # FIXME Needs is_traveling
+    b_epileptic = (maybe_farthest_traveling_front !== nothing) && !all_final_fronts_will_die
+    
+    b_decaying = is_decaying(maybe_farthest_traveling_front)
+    velocity, velocity_error = estimate_velocity(maybe_farthest_traveling_front)
+    
+    WaveProperties(; 
+        epileptic=b_epileptic, 
+        traveling_solitary=b_traveling_solitary, 
+        decaying=b_decaying,
+        velocity=velocity,
+        velocity_error=velocity_error
+    )
 end
 
-function all_fronts(exec::AbstractFullExecution)
-    TravelingWaveSimulations.substantial_fronts.(exec.solution.u, Ref([x[1] for x in space(exec).arr])) 
+function get_wave_properties(exec::Execution; params...)
+    l_frames = exec.solution.u
+    ts = timepoints(exec)
+    xs = [x[1] for x in space(exec).arr]
+    l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(xs))
+    get_wave_properties(l_frame_fronts, ts; params...)
 end
 
-
-
-struct ID{OBJ}
-    obj::OBJ
-    id::Int
+function get_wave_properties(exec::Union{AugmentedExecution,ReducedExecution{<:Wavefront}}; params...)
+    get_wave_properties(exec.saved_values.saveval, exec.saved_values.t; params...)
 end
-get_id(id_obj::ID) = id_obj.id
+
+function get_wave_properties(nt::NamedTuple; params...)
+    get_wave_properties(nt.wavefronts, nt.wavefronts_t; params...)
+end
+
+struct WaveProperties
+    epileptic::Bool
+    traveling_solitary::Bool
+    decaying::Bool
+    velocity::Union{Float64,Missing}
+    velocity_error::Union{ Float64,Missing}
+end
+WaveProperties(; epileptic, traveling_solitary, decaying, velocity, velocity_error) = WaveProperties(epileptic, traveling_solitary, decaying, velocity, velocity_error)
 
 
-
+#############################################
+### Single persistent wave classification ###
+#############################################
 
 function is_activating_front(pf::Persistent, max_background_amp)
     # Either the vel and slope have opposing signs
@@ -213,70 +227,3 @@ function get_farthest_traveling_front(arr_pfronts::Array{<:Persistent,1}, min_di
     return arr_pfronts[idx]
 end
 
-function get_wave_properties(l_frame_fronts::Array{<:Array{<:Wavefront{T,T,Value{T,T}}}}, ts::Array{T,1}; max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, max_background_amp=5e-2, end_snip_idxs=3) where T
-    min_dist = min_vel * min_traveling_frames
-    
-    l_persistent_fronts = persistent_fronts(l_frame_fronts, ts, max_vel)
-    l_final_fronts = filter(l_persistent_fronts) do pf
-        get_stop_time(pf) >= ts[end-end_snip_idxs]
-    end
-    l_final_activating_fronts = filter(l_final_fronts) do pf
-        is_activating_front(pf,max_background_amp)#, min_vel, min_traveling_frames)
-    end
-    
-    all_final_fronts_will_die = all(will_be_deactivated.(l_final_activating_fronts, Ref(l_final_fronts), max_background_amp))
-    
-    # We'll call it traveling solitary if:
-    #  1. There is a traveling front
-    #  2. No elevated activity trails *that* front
-    maybe_farthest_traveling_front = get_farthest_traveling_front(l_persistent_fronts, min_dist, min_vel, min_traveling_frames)
-    #b_traveling_solitary = is_solitary(maybe_farthest_front, l_persistent_fronts)
-    b_traveling_solitary = any(map(l_persistent_fronts) do front
-        is_traveling(front,min_vel, min_traveling_frames) && is_solitary(front, l_persistent_fronts, max_background_amp)
-    end)
-    
-    # We'll call it epileptic if:
-    #  1. There is a traveling front
-    #  2. There is persistently elevated activity following the front.
-    # How to deal with oscillatory activity? 
-    # Want persistent oscillation to be considered epileptic, even if sometimes zero
-    # In practice we'll ignore this for now --- FIXME
-    # FIXME Needs is_traveling
-    b_epileptic = (maybe_farthest_traveling_front !== nothing) && !all_final_fronts_will_die
-    
-    b_decaying = is_decaying(maybe_farthest_traveling_front)
-    velocity, velocity_error = estimate_velocity(maybe_farthest_traveling_front)
-    
-    WaveProperties(; 
-        epileptic=b_epileptic, 
-        traveling_solitary=b_traveling_solitary, 
-        decaying=b_decaying,
-        velocity=velocity,
-        velocity_error=velocity_error
-    )
-end
-
-function get_wave_properties(exec::Execution; params...)
-    l_frames = exec.solution.u
-    ts = timepoints(exec)
-    xs = [x[1] for x in space(exec).arr]
-    l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(xs))
-    get_wave_properties(l_frame_fronts, ts; params...)
-end
-
-function get_wave_properties(exec::Union{AugmentedExecution,ReducedExecution{<:Wavefront}}; params...)
-    get_wave_properties(exec.saved_values.saveval, exec.saved_values.t; params...)
-end
-
-function get_wave_properties(nt::NamedTuple; params...)
-    get_wave_properties(nt.wavefronts, nt.wavefronts_t; params...)
-end
-
-struct WaveProperties
-    epileptic::Bool
-    traveling_solitary::Bool
-    decaying::Bool
-    velocity::Union{Float64,Missing}
-    velocity_error::Union{ Float64,Missing}
-end
-WaveProperties(; epileptic, traveling_solitary, decaying, velocity, velocity_error) = WaveProperties(epileptic, traveling_solitary, decaying, velocity, velocity_error)
