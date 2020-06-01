@@ -18,6 +18,7 @@ function translate(wf::Wavefront, args...)
         translate(wf.right, args...)
         )
 end
+Base.max(wf::Wavefront) = max(wf.left, wf.right)
 
 # Center on peaks of first derivative
 

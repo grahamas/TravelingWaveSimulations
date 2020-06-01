@@ -1,229 +1,98 @@
-#######################################
-### Whole simulation classification ###
-#######################################
 
-function get_wave_properties(l_frame_fronts::Array{<:Array{<:Wavefront{T,T,Value{T,T}}}}, ts::Array{T,1}; max_vel=50.0, min_vel=1e-2, min_traveling_frames=5, max_background_amp=5e-2, end_snip_idxs=3) where T
-    min_dist = min_vel * min_traveling_frames
-    
-    l_persistent_fronts = persistent_fronts(l_frame_fronts, ts, max_vel)
-    l_final_fronts = filter(l_persistent_fronts) do pf
-        get_stop_time(pf) >= ts[end-end_snip_idxs]
-    end
-    l_final_activating_fronts = filter(l_final_fronts) do pf
-        is_activating_front(pf,max_background_amp)#, min_vel, min_traveling_frames)
-    end
-    
-    all_final_fronts_will_die = all(will_be_deactivated.(l_final_activating_fronts, Ref(l_final_fronts), max_background_amp))
-    
-    # We'll call it traveling solitary if:
-    #  1. There is a traveling front
-    #  2. No elevated activity trails *that* front
-    maybe_farthest_traveling_front = get_farthest_traveling_front(l_persistent_fronts, min_dist, min_vel, min_traveling_frames)
-    #b_traveling_solitary = is_solitary(maybe_farthest_front, l_persistent_fronts)
-    b_traveling_solitary = any(map(l_persistent_fronts) do front
-        is_traveling(front,min_vel, min_traveling_frames) && is_solitary(front, l_persistent_fronts, max_background_amp)
-    end)
-    
-    # We'll call it epileptic if:
-    #  1. There is a traveling front
-    #  2. There is persistently elevated activity following the front.
-    # How to deal with oscillatory activity? 
-    # Want persistent oscillation to be considered epileptic, even if sometimes zero
-    # In practice we'll ignore this for now --- FIXME
-    # FIXME Needs is_traveling
-    b_epileptic = (maybe_farthest_traveling_front !== nothing) && !all_final_fronts_will_die
-    
-    b_decaying = is_decaying(maybe_farthest_traveling_front)
-    velocity, velocity_error = estimate_velocity(maybe_farthest_traveling_front)
-    
-    WaveProperties(; 
-        epileptic=b_epileptic, 
-        traveling_solitary=b_traveling_solitary, 
-        decaying=b_decaying,
-        velocity=velocity,
-        velocity_error=velocity_error
+### Single wave measurements across time ###
+
+struct SpatiotemporalWaveMeasurements{T}
+    velocities::Vector{T}
+    slopes::Vector{T}
+    maxes::Vector{T}
+end
+function SpatiotemporalWaveMeasurements(pf::Persistent{W,T}) where {W,T}
+    SpatiotemporalWaveMeasurements{T}(
+        get_velocities(pf),
+        [slope(wave) for wave in pf.waveforms],
+        [max(wave) for wave in pf.waveforms]
+       )
+end
+
+#######################################################
+### Single persistent wave classification functions ###
+#######################################################
+
+struct WaveClassifications
+    traveling::Bool
+    positive_velocity::Bool
+    decaying::Bool
+    growing::Bool
+    oscillating::Bool
+    positive_slope::Bool
+    sane::Bool
+end
+function WaveClassifications(pf::Persistent)
+    measurements = SpatiotemporalWaveMeasurements(pf)
+    traveling = is_traveling(measurements.velocities)
+    unidirectional_travel = all(measurements.velocities .>= 0) || all(measurements.velocities .<= 0)
+    decaying = is_decaying(measurements.maxes)
+    growing = is_growing(measurements.maxes)
+    oscillating = is_oscillating(measurements.maxes)
+    positive_slope = measurements.slopes[1] > 0
+
+    WaveClassifications(
+        traveling,
+        traveling && all(measurements.velocities .> 0),
+        decaying,
+        growing, 
+        oscillating,
+        positive_slope,
+        unidirectional_travel #Are there other assumptions?
     )
 end
 
-function get_wave_properties(exec::Execution; params...)
+function is_traveling(velocities::Vector{T<:AbstractFloat})
+    sum(abs.(velocities) .> 1e-8)
+end
+function is_decaying(maxes::Vector{T<:AbstractFloat})
+    fin = length(maxes)
+    all(diff(maxes[3*fin÷4:fin]) .<= 1e-10)
+end
+function is_growing(maxes::Vector{T<:AbstractFloat})
+    fin = length(maxes)
+    all(diff(maxes[3*fin÷4:fin]) .>= -1e-10)
+end
+function is_oscillating(maxes::Vector{T<:AbstractFloat})
+    fin = length(maxes)
+    second_half = fin÷2:fin
+    abs_eps = 1e-10
+    just_increasing = maxes[second_half] .>= abs_eps
+    just_decreasing = maxes[second_half] .<= -abs_eps
+    min_num = length(second_half) ÷ 3
+    sum(just_increasing) > min_num && sum(just_decreasing) > min_num
+end
+
+### Whole execution classification ###
+
+
+function get_execution_properties(exec::Execution; params...)
     l_frames = exec.solution.u
     ts = timepoints(exec)
     xs = [x[1] for x in space(exec).arr]
     l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(xs))
-    get_wave_properties(l_frame_fronts, ts; params...)
+    get_execution_properties(l_frame_fronts, ts; params...)
 end
 
-function get_wave_properties(exec::Union{AugmentedExecution,ReducedExecution{<:Wavefront}}; params...)
-    get_wave_properties(exec.saved_values.saveval, exec.saved_values.t; params...)
+function get_execution_properties(exec::Union{AugmentedExecution,ReducedExecution{<:Wavefront}}; params...)
+    get_execution_properties(exec.saved_values.saveval, exec.saved_values.t; params...)
 end
 
-function get_wave_properties(nt::NamedTuple; params...)
-    get_wave_properties(nt.wavefronts, nt.wavefronts_t; params...)
+function get_execution_properties(nt::NamedTuple; params...)
+    get_execution_properties(nt.wavefronts, nt.wavefronts_t; params...)
 end
 
-struct WaveProperties
+struct ExecutionProperties
     epileptic::Bool
     traveling_solitary::Bool
     decaying::Bool
     velocity::Union{Float64,Missing}
     velocity_error::Union{ Float64,Missing}
 end
-WaveProperties(; epileptic, traveling_solitary, decaying, velocity, velocity_error) = WaveProperties(epileptic, traveling_solitary, decaying, velocity, velocity_error)
-
-
-#############################################
-### Single persistent wave classification ###
-#############################################
-
-function is_activating_front(pf::Persistent, max_background_amp)
-    # Either the vel and slope have opposing signs
-    # or it's a static front
-    # FIXME make sure big enough activation
-    vel_sgn = approx_sign(mean(get_velocities(pf)))
-    slope_sgn = get_slope_sign(pf)
-    if vel_sgn * slope_sgn <= 0
-        return true
-    else
-        return false
-    end
-end
-
-function will_be_overtaken(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp)
-    pf_velocity, vel_err = estimate_velocity(persistent_front)
-    pf_velocity_sign = approx_sign(pf_velocity)
-    pf_stop_place = get_stop_place(persistent_front)
-    for front in contemporary_fronts
-        front_velocity = mean(get_velocities(front))
-        if ((abs(front_velocity) > abs(pf_velocity)) # front is moving faster
-                && (sign(pf_stop_place - get_stop_place(front)) == approx_sign(front_velocity))) # front velocity dir matches relative displacement
-            if pf_velocity_sign == 1 && front.waveforms[end].left.val < max_background_amp
-                return true
-            elseif pf_velocity_sign == -1 && front.waveforms[end].right.val < max_background_amp
-                return true # the persistent_front will be deactivated by front overtaking
-            end
-        end
-    end
-    return false
-end
-
-is_solitary(::Nothing, ::Any) = false
-function is_solitary(subject::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp, middle_portion_to_compare=0.3, noise_tol=1e-3)
-    if length(subject) * middle_portion_to_compare < 4 
-        return false # not enough points to compare
-        # We want the *shorter-duration* front to have the minimum number of points
-    end
-    cut_portions = (1.0 - middle_portion_to_compare) / 2
-    subject_middle_idx = floor(Int, length(subject) * cut_portions):ceil(Int, length(subject) * (cut_portions+middle_portion_to_compare))
-    middle_ts = subject.t[subject_middle_idx]
-    # So now we only compare other fronts that began before this front
-    candidate_fronts = filter(contemporary_fronts) do front
-        (get_start_time(front) <= get_start_time(subject) 
-            && get_stop_time(front) >= middle_ts[end])            
-    end
-    subject_middle_pf = Persistent(subject.waveforms[subject_middle_idx], middle_ts)
-    subject_middle_velocities = get_velocities(subject_middle_pf)
-    subject_velocity_sign = approx_sign(subject_middle_velocities[1])
-    if !all(subject_velocity_sign .== approx_sign.(subject_middle_velocities))
-        return false
-    end
-    for candidate in candidate_fronts
-        candidate_compare_idx = middle_ts[1] .<= candidate.t .<= middle_ts[end]
-        candidate_compare_pf = Persistent(candidate.waveforms[candidate_compare_idx], middle_ts)
-        candidate_compare_velocities = get_velocities(candidate_compare_pf)
-        if all(isapprox.(candidate_compare_velocities, subject_middle_velocities, atol=noise_tol))
-            # matching velocity
-            if subject_velocity_sign == 1 # moving right
-                if subject.waveforms[end].slope.loc > candidate.waveforms[end].slope.loc # subject leading
-                    if candidate.waveforms[end].left.val < max_background_amp
-                        return true
-                    end
-                else
-                    if subject.waveforms[end].left.val < max_background_amp
-                        return true
-                    end
-                end
-            else # moving left
-                if subject.waveforms[end].slope.loc < candidate.waveforms[end].slope.loc # subject leading
-                    if candidate.waveforms[end].right.val < max_background_amp
-                        return true
-                    end
-                else
-                    if subject.waveforms[end].right.val < max_background_amp
-                        return true
-                    end
-                end
-            end
-        end     
-        # FIXME: should account for decreasing trailing front
-    end
-    return false
-end
-
-function has_solitary_traveling_wave(l_activating_fronts, l_final_fronts)
-    any(map(filter(is_traveling, l_activating_fronts)) do traveling_front
-             will_be_cancelled(traveling_front, l_final_fronts)
-        end
-    )
-end
-
-is_decaying(::Nothing) = false
-function is_decaying(persistent_front::Persistent)
-    maxes = map(persistent_front.waveforms) do wf
-        max(wf.left.val, wf.right.val)
-    end
-    num_decreasing = 0
-    for delta in diff(maxes)[end:-1:1]
-        if delta < 0
-            num_decreasing += 1
-        else
-            break
-        end
-    end
-    if num_decreasing > 5
-        return true
-    end
-    return false
-end
-
-function will_be_deactivated(persistent_front::Persistent, contemporary_fronts::AbstractArray{<:Persistent}, max_background_amp)
-    # Check if it's decaying
-    if is_decaying(persistent_front)
-        return true
-    end
-    
-    # Find a deactivate-to-zero that will overtake it
-    if will_be_overtaken(persistent_front, contemporary_fronts, max_background_amp)
-        return true
-    end
-    
-    # Neither decaying nor will be overtaken
-    return false
-end
-
-function persistent_activation(l_frames, t, min_activation)
-    # Test if the left-most value is ever high and non-decreasing
-    leftmost_value = [frame[1] for frame in l_frames[(length(t) ÷ 2):end]]
-    d_leftmost_value = diff(leftmost_value) ./ diff(t[(length(t) ÷ 2):end])
-    # test leftmost is not ONLY decreasing
-    low_enough = leftmost_value[2:end] .< min_activation
-    decreasing = d_leftmost_value .< 0.0
-    not_activated = low_enough .| decreasing
-    not_activated[ismissing.(not_activated)] .= false
-    return !all(not_activated)
-end
-
-function get_farthest_traveling_front(arr_pfronts::Array{<:Persistent,1}, min_dist, min_vel, min_traveling_frames)
-    arr_traveling_pfronts = filter(x -> is_traveling(x, min_vel, min_traveling_frames), arr_pfronts)
-    arr_lengths = map(arr_traveling_pfronts) do pfront
-        abs(pfront.waveforms[1].slope.loc - pfront.waveforms[end].slope.loc)
-    end
-    if length(arr_lengths) == 0
-        return nothing
-    end
-    farthest_length, idx = findmax(arr_lengths)
-    if farthest_length < min_dist
-        return nothing
-    end
-    return arr_pfronts[idx]
-end
+ExecutionProperties(; epileptic, traveling_solitary, decaying, velocity, velocity_error) = ExecutionProperties(epileptic, traveling_solitary, decaying, velocity, velocity_error)
 
