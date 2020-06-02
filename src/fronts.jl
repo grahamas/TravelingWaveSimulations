@@ -145,26 +145,9 @@ function waveform_identity_distance(front1::WF, front2::WF) where {WF <: Traveli
     abs(TravelingWaveSimulations.slope_loc(front1) - TravelingWaveSimulations.slope_loc(front2))
 end
 
-
-function has_traveling_front(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{<:Number}, max_vel=20, min_vel=1e-3, min_traveling_frames=5) where {WF <:TravelingWaveSimulations.Wavefront}
-    p_fronts = persistent_fronts(frame_fronts, ts, max_vel)
-    any(is_traveling.(p_fronts, min_vel, min_traveling_frames)) 
-end
-
-function is_traveling(persistent::Persistent{<:TravelingWaveSimulations.Wavefront}, min_vel, min_traveling_frames)
-    if length(persistent.waveforms) > min_traveling_frames
-        vels = get_velocities(persistent)
-        num_traveling_frames = sum(vels .> min_vel)
-        return num_traveling_frames .> min_traveling_frames
-    else
-        return false
-    end
-    return false
-end
-
 # Constructs list of all persistent fronts within array of arrays of fronts
 # How to handle when new front appears near old front?
-function persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{T}, max_vel=200) where {T<:Number, WF<:TravelingWaveSimulations.Wavefront{T,T,Value{T,T}}}
+function link_persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{T}, max_vel=200) where {T<:Number, WF<:TravelingWaveSimulations.Wavefront{T,T,Value{T,T}}}
     PARRTYPE = Persistent{WF,T,Array{WF,1},Array{T,1}}
     prev_fronts = frame_fronts[1]
     prev_t = ts[1]

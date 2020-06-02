@@ -47,18 +47,18 @@ function WaveClassifications(pf::Persistent)
     )
 end
 
-function is_traveling(velocities::Vector{T<:AbstractFloat})
+function is_traveling(velocities::Vector{<:AbstractFloat})
     sum(abs.(velocities) .> 1e-8)
 end
-function is_decaying(maxes::Vector{T<:AbstractFloat})
+function is_decaying(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
     all(diff(maxes[3*fin÷4:fin]) .<= 1e-10)
 end
-function is_growing(maxes::Vector{T<:AbstractFloat})
+function is_growing(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
     all(diff(maxes[3*fin÷4:fin]) .>= -1e-10)
 end
-function is_oscillating(maxes::Vector{T<:AbstractFloat})
+function is_oscillating(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
     second_half = fin÷2:fin
     abs_eps = 1e-10
@@ -68,31 +68,82 @@ function is_oscillating(maxes::Vector{T<:AbstractFloat})
     sum(just_increasing) > min_num && sum(just_decreasing) > min_num
 end
 
+######################################
 ### Whole execution classification ###
+######################################
+
+struct ExecutionClassifications
+    has_propagation::Bool
+    has_oscillation::Bool
+    propagation_is_decaying::Bool
+    propagation_is_oscillating::Bool
+    persistently_active_near_origin::Bool
+    reaches_steady_state::Bool
+end
+
+function ExecutionClassifications(wavefronts::WS, 
+                                 ts::TS;
+                                 max_resting=5e-2,
+                                 left_length=15.0) where {T,
+                                    WS <: AbstractVector{<:AbstractVector{<:Wavefront}},
+                                    TS <: AbstractVector{T}
+                                 }
+    persistent_fronts = link_persistent_fronts(l_frame_fronts, ts)
+    pf_classifications = WaveClassifications.(persistent_fronts)
+
+    # TODO calculate first four bools with regard to propagation
+    
+    persistently_active_near_origin = check_has_activity_near_left(wavefronts[end],
+                                                               max_resting,
+                                                               left_length)
+    reaches_steady_state = all(wavefronts[end] .== wavefronts[end-1]) 
+    ExecutionClassifications(
+        has_propagation,
+        has_oscillation,
+        propagation_is_decaying,
+        propagation_is_oscillating,
+        persistently_active_near_origin,
+        reaches_steady_state
+    )
 
 
-function get_execution_properties(exec::Execution; params...)
+end
+
+function check_has_activity_near_left(wavefronts, max_resting, left_length)
+   long_enough_activation = false
+   elevated_through = 0.0
+   cur_wavefront_idx = 1 # FIXME should be firstidx
+   while !long_enough_activation && (elevated_through < left_length)
+       this_wavefront = wavefronts[cur_wavefront_idx]
+       if this_wavefront.left.val <= max_resting
+           break
+       else
+           elevated_through = this_wavefront.slope.loc
+           if elevated_through >= left_length
+               long_enough_activation = true
+           else
+               cur_wavefront_idx += 1
+           end
+       end
+   end
+   return long_enough_activation
+end
+
+function ExecutionClassifications(exec::Execution)
     l_frames = exec.solution.u
     ts = timepoints(exec)
     xs = [x[1] for x in space(exec).arr]
-    l_frame_fronts = TravelingWaveSimulations.substantial_fronts.(l_frames, Ref(xs))
-    get_execution_properties(l_frame_fronts, ts; params...)
+    l_frame_fronts = substantial_fronts.(l_frames, Ref(xs)) #arr of arrs of fronts
+    ExecutionClassifications(l_frame_fronts, ts)
 end
 
-function get_execution_properties(exec::Union{AugmentedExecution,ReducedExecution{<:Wavefront}}; params...)
-    get_execution_properties(exec.saved_values.saveval, exec.saved_values.t; params...)
+# Handle case where already reduced to fronts
+function ExecutionClassifications(exec::Union{AugmentedExecution{T,W},ReducedExecution{T,W}}) where {T, W <: AbstractArray{<:Wavefront}}
+    l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
+    ExecutionClassifications(l_frame_fronts, exec.saved_values.t)
 end
 
-function get_execution_properties(nt::NamedTuple; params...)
-    get_execution_properties(nt.wavefronts, nt.wavefronts_t; params...)
+function ExecutionClassifications(nt::NamedTuple; params...)
+    ExecutionClassifications(nt.wavefronts, nt.wavefronts_t; params...)
 end
-
-struct ExecutionProperties
-    epileptic::Bool
-    traveling_solitary::Bool
-    decaying::Bool
-    velocity::Union{Float64,Missing}
-    velocity_error::Union{ Float64,Missing}
-end
-ExecutionProperties(; epileptic, traveling_solitary, decaying, velocity, velocity_error) = ExecutionProperties(epileptic, traveling_solitary, decaying, velocity, velocity_error)
 
