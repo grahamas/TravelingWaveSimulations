@@ -5,12 +5,16 @@ struct SpatiotemporalWaveMeasurements{T}
     velocities::Vector{T}
     slopes::Vector{T}
     maxes::Vector{T}
+    distance::T
+    duration::T
 end
 function SpatiotemporalWaveMeasurements(pf::Persistent{W,T}) where {W,T}
     SpatiotemporalWaveMeasurements{T}(
         get_velocities(pf),
-        [slope(wave) for wave in pf.waveforms],
-        [max(wave) for wave in pf.waveforms]
+        [wave.slope.val for wave in pf.waveforms],
+        [max(wave).val for wave in pf.waveforms],
+        pf.waveforms[end].slope.loc - pf.waveforms[begin].slope.loc,
+        pf.t[end] - pf.t[begin]
        )
 end
 
@@ -29,6 +33,9 @@ struct WaveClassifications
 end
 function WaveClassifications(pf::Persistent)
     measurements = SpatiotemporalWaveMeasurements(pf)
+    WaveClassifications(measurements)
+end
+function WaveClassifications(measurements::SpatiotemporalWaveMeasurements)
     traveling = is_traveling(measurements.velocities)
     unidirectional_travel = all(measurements.velocities .>= 0) || all(measurements.velocities .<= 0)
     decaying = is_decaying(measurements.maxes)
@@ -47,8 +54,8 @@ function WaveClassifications(pf::Persistent)
     )
 end
 
-function is_traveling(velocities::Vector{<:AbstractFloat})
-    sum(abs.(velocities) .> 1e-8)
+function is_traveling(velocities::Vector{<:AbstractFloat}, min_num_traveling_frames=5)
+    sum(abs.(velocities) .> 1e-8) > min_num_traveling_frames
 end
 function is_decaying(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
@@ -59,6 +66,8 @@ function is_growing(maxes::Vector{<:AbstractFloat})
     all(diff(maxes[3*fin÷4:fin]) .>= -1e-10)
 end
 function is_oscillating(maxes::Vector{<:AbstractFloat})
+    # Checks if, within the second half, at least a third
+    # are increasing, and a third decreasing
     fin = length(maxes)
     second_half = fin÷2:fin
     abs_eps = 1e-10
@@ -71,12 +80,12 @@ end
 ######################################
 ### Whole execution classification ###
 ######################################
-
+export ExecutionClassifications
 struct ExecutionClassifications
     has_propagation::Bool
     has_oscillation::Bool
-    propagation_is_decaying::Bool
-    propagation_is_oscillating::Bool
+    farthest_propagation_is_decaying::Bool
+    farthest_propagation_is_oscillating::Bool
     persistently_active_near_origin::Bool
     reaches_steady_state::Bool
 end
@@ -88,11 +97,20 @@ function ExecutionClassifications(wavefronts::WS,
                                     WS <: AbstractVector{<:AbstractVector{<:Wavefront}},
                                     TS <: AbstractVector{T}
                                  }
-    persistent_fronts = link_persistent_fronts(l_frame_fronts, ts)
-    pf_classifications = WaveClassifications.(persistent_fronts)
+    persistent_fronts = link_persistent_fronts(wavefronts, ts)
+    pf_measurements = SpatiotemporalWaveMeasurements.(persistent_fronts)
+    pf_classifications = WaveClassifications.(pf_measurements)
 
     # TODO calculate first four bools with regard to propagation
-    
+    has_propagation = any(map((cls) -> cls.traveling, pf_classifications))
+    has_oscillation = any(map((cls) -> cls.oscillating, pf_classifications))
+    farthest_propagation_is_decaying, farthest_propagation_is_oscillating = if has_propagation
+        _, max_dx = findmax(map(x -> abs(x.distance), pf_measurements))
+        (pf_classifications[max_dx].decaying, pf_classifications[max_dx].oscillating)
+    else
+        (false, false)
+    end
+    @show length.(wavefronts[end])
     persistently_active_near_origin = check_has_activity_near_left(wavefronts[end],
                                                                max_resting,
                                                                left_length)
@@ -100,8 +118,8 @@ function ExecutionClassifications(wavefronts::WS,
     ExecutionClassifications(
         has_propagation,
         has_oscillation,
-        propagation_is_decaying,
-        propagation_is_oscillating,
+        farthest_propagation_is_decaying,
+        farthest_propagation_is_oscillating,
         persistently_active_near_origin,
         reaches_steady_state
     )
@@ -140,6 +158,7 @@ end
 # Handle case where already reduced to fronts
 function ExecutionClassifications(exec::Union{AugmentedExecution{T,W},ReducedExecution{T,W}}) where {T, W <: AbstractArray{<:Wavefront}}
     l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
+    @show length.(l_frame_fronts)
     ExecutionClassifications(l_frame_fronts, exec.saved_values.t)
 end
 
