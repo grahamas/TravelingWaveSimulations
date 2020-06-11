@@ -3,9 +3,6 @@ uuid = "b7a787de-74f3-11e9-2c3d-21bc6dc7d0e1"
 authors = ["Graham Smith <grahamas@gmail.com>"]
 version = "0.1.0"
 
-[compat]
-julia = "1.3"
-
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 AxisIndices = "f52c9ee2-1b1c-4fd8-8546-6350938c7f11"
@@ -54,6 +51,9 @@ Strided = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
 TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 WilsonCowanModel = "bdbc91b4-201b-11e9-2b98-89611552dcef"
+
+[compat]
+julia = "1.3"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
