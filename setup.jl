@@ -35,4 +35,8 @@ Pkg.activate(tws_path)
 Pkg.develop([PackageSpec(path=x) for x in [s73_path, nm_path, wcm_path, pde_path]])
 Pkg.update()
 
+Pkg.activate(rel_path("_research"))
+Pkg.develop([PackageSpec(path=x) for x in [s73_path, nm_path, wcm_path, pde_path, tws_path]])
+Pkg.update()
+
 Pkg.build()
