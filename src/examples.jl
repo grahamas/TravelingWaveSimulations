@@ -11,7 +11,7 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
                                                      n=256, x=700.0, 
                                                      stim_strength=6.0,
                                                      stim_width=28.1,
-                                                     stim_duration=7.0,other_opts=Dict(:saveat=>[0.0]))
+                                                     stim_duration=7.0,other_opts=Dict(:saveat=>[0.0], :save_end=>true))
   simulation = Simulation(
     WCMSpatial(;
       pop_names = ("E", "I"),
