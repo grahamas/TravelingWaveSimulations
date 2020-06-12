@@ -1,6 +1,6 @@
 (example, mdb) = load_data(datadir(), "reduced_line_dos_effectively_sigmoid")
-#example_name = get_example_name(mdb.fns[1])
-#sim_name = get_sim_name(mdb.fns[1])
+example_name = TravelingWaveSimulations.get_example_name(mdb.fns[1])
+sim_name = TravelingWaveSimulations.get_sim_name(mdb.fns[1])
 
 GC.gc()
 mods = TravelingWaveSimulations.get_mods(mdb)
@@ -15,7 +15,7 @@ mod_names = all_mod_names[varied_mods] |> sort
 mod_values = [mods[name] for name in mod_names]
 mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
 
-mod_array(T) = AxisArray(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
+mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
 
 first_result = MultiDBRowIter(mdb) |> first
 classification_names = fieldnames(ExecutionClassifications)
