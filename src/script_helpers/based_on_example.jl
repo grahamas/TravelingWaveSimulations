@@ -101,7 +101,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
     
     # Sample data to initialize results
     sample_execution = execute(example())
-    sample_data = extract_data_namedtuple(sample_execution)
+    sample_data = reduce_to_namedtuple(sample_execution)
     sample_results = init_results_tuple(pkeys, sample_data)
     missing_data = init_missing_data(sample_data)
     
@@ -116,7 +116,7 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
             mod_name, execution = execute_single_modification(example, modification)
             these_params = extract_params_tuple(modification, pkeys)
             if execution !== missing #is success
-                these_data = extract_data_namedtuple(execution)
+                these_data = reduce_to_namedtuple(execution)
             else
                 these_data = missing_data
             end
@@ -164,7 +164,7 @@ function based_on_example_serial(; data_root::AbstractString=datadir(),
 
     # Sample data to initialize results
     sample_execution = execute(example())
-    sample_data = extract_data_namedtuple(sample_execution)
+    sample_data = reduce_to_namedtuple(sample_execution)
     
     results = init_results_tuple(pkeys, sample_data)
     missing_data = init_missing_data(sample_data)
@@ -172,7 +172,7 @@ function based_on_example_serial(; data_root::AbstractString=datadir(),
         mod_name, execution = execute_single_modification(example, modification)
         these_params = extract_params_tuple(modification, pkeys)
         if execution !== missing #is success
-            these_data = extract_data_namedtuple(execution)
+            these_data = reduce_to_namedtuple(execution)
         else
             these_data = missing_data
         end

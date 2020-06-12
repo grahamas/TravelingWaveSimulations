@@ -10,30 +10,36 @@ function getkeys(d, keys)
     [d[key] for key in keys]
 end
 
-function extract_data_namedtuple(execution::Execution)
-    soln = execution.solution
-    u = soln.u
-    t = soln.t
-    x = coordinates(reduced_space(execution)) |> collect
-    return execution.simulation.global_reduction((u=u, t=t, x=x))
+function reduce_to_namedtuple(exec::AbstractExecution)
+    exec.simulation.global_reduction(exec)
 end
 
-
-function extract_data_namedtuple(execution::ReducedExecution)
-    execution.simulation.global_reduction(extract_data_namedtuple(execution.saved_values))
-end
-
-function extract_data_namedtuple(execution::AugmentedExecution)
-    soln = execution.solution
-    u = soln.u
-    t = soln.t
-    x = coordinates(reduced_space(execution))
-    execution.simulation.global_reduction((u=u, t=t, x=x, extract_data_namedtuple(execution.saved_values)...))
-end
-
-function extract_data_namedtuple(sv::SavedValues{T,<:Array{<:Wavefront,1}}) where T
-    return (wavefronts=sv.saveval, wavefronts_t=sv.t)
-end
+#function extract_data_namedtuple(execution::Execution)
+#    soln = execution.solution
+#    u = soln.u
+#    t = soln.t
+#    x = coordinates(reduced_space(execution)) |> collect
+#    return execution.simulation.global_reduction((u=u, t=t, x=x))
+#end
+#
+#function extract_data_namedtuple(execution::ReducedExecution)
+#    # xs is necessary for the algorithm
+#    nt = (xs=frame_xs(execution), final_frame=execution.solution.u[end],
+#          extract_data_namedtuple(execution.saved_values)...)
+#    execution.simulation.global_reduction(nt)
+#end
+#
+#function extract_data_namedtuple(execution::AugmentedExecution)
+#    soln = execution.solution
+#    u = soln.u
+#    t = soln.t
+#    x = coordinates(reduced_space(execution))
+#    execution.simulation.global_reduction((us=u, ts=t, xs=x, extract_data_namedtuple(execution.saved_values)...))
+#end
+#
+#function extract_data_namedtuple(sv::SavedValues{T,<:Array{<:Wavefront,1}}) where T
+#    return (wavefronts=sv.saveval, wavefronts_t=sv.t)
+#end
 
 function extract_params_tuple(modification, pkeys)
     return NamedTuple{Tuple(pkeys)}(getkeys(modification, pkeys))

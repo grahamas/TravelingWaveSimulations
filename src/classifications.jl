@@ -35,7 +35,14 @@ function WaveClassifications(pf::Persistent)
     measurements = SpatiotemporalWaveMeasurements(pf)
     WaveClassifications(measurements)
 end
+
+last_quartile_dxs(fin) = ((3*fin)÷4):fin
+
 function WaveClassifications(measurements::SpatiotemporalWaveMeasurements)
+    if length(measurements.maxes) < 4
+        # not long enough to be classified
+        return WaveClassifications(false, false, false, false, false, false, false)
+    end
     traveling = is_traveling(measurements.velocities)
     unidirectional_travel = all(measurements.velocities .>= 0) || all(measurements.velocities .<= 0)
     decaying = is_decaying(measurements.maxes)
@@ -59,11 +66,11 @@ function is_traveling(velocities::Vector{<:AbstractFloat}, min_num_traveling_fra
 end
 function is_decaying(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
-    all(diff(maxes[3*fin÷4:fin]) .<= 1e-10)
+    all(diff(maxes[last_quartile_dxs(fin)]) .<= 1e-10)
 end
 function is_growing(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
-    all(diff(maxes[3*fin÷4:fin]) .>= -1e-10)
+    all(diff(maxes[last_quartile_dxs(fin)]) .>= -1e-10)
 end
 function is_oscillating(maxes::Vector{<:AbstractFloat})
     # Checks if, within the second half, at least a third
@@ -169,7 +176,7 @@ end
 function ExecutionClassifications(exec::Execution)
     l_frames = exec.solution.u
     ts = timepoints(exec)
-    xs = [x[1] for x in space(exec).arr]
+    xs = frame_xs(exec)
     l_frame_fronts = substantial_fronts.(l_frames, Ref(xs)) #arr of arrs of fronts
     final_frame = l_frames[end]
     ExecutionClassifications(l_frame_fronts, ts, xs, final_frame)
@@ -179,7 +186,7 @@ end
 function ExecutionClassifications(exec::AugmentedExecution{T,W}) where {T, W <: AbstractArray{<:Wavefront}}
     @assert exec.solution.t[end] > 0.0 # Needs solution to have final frame
     l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
-    xs = [x[1] for x in reduced_space(exec).arr]
+    xs = frame_xs(exec)
     ExecutionClassifications(l_frame_fronts, exec.saved_values.t, xs, exec.solution.u[end])
 end
 
@@ -188,8 +195,5 @@ function ExecutionClassifications(exec::ReducedExecution{T,W}) where {T, W <: Ab
     @assert exec.solution.t[end] > 0.0 # Needs solution to have final frame
     l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
     ExecutionClassifications(l_frame_fronts, exec.saved_values.t, exec.solution.u[end])
-end
-function ExecutionClassifications(nt::NamedTuple; params...)
-    ExecutionClassifications(nt.wavefronts, nt.wavefronts_t; params...)
 end
 
