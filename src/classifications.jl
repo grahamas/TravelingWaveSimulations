@@ -66,11 +66,11 @@ function is_traveling(velocities::Vector{<:AbstractFloat}, min_num_traveling_fra
 end
 function is_decaying(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
-    all(diff(maxes[last_quartile_dxs(fin)]) .<= -1e-10)
+    all(diff(maxes[last_quartile_dxs(fin)]) .<= -1e-8)
 end
 function is_growing(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
-    all(diff(maxes[last_quartile_dxs(fin)]) .>= 1e-10)
+    all(diff(maxes[last_quartile_dxs(fin)]) .>= 1e-8)
 end
 function is_oscillating(maxes::Vector{<:AbstractFloat})
     # Checks if, within the second half, at least a third
