@@ -19,18 +19,18 @@ mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef
 
 first_result = MultiDBRowIter(mdb) |> first
 classification_names = fieldnames(ExecutionClassifications)
-A = NamedTuple{Tuple(classification_names)}([mod_array(Bool) for _ in classification_names]) 
+classifications_A = NamedTuple{Tuple(classification_names)}([mod_array(Bool) for _ in classification_names]) 
 
 for (this_mod, this_result) in MultiDBRowIter(mdb)
     exec_classification = this_result[:wave_properties]
-    A_idx = this_mod[mod_names]
+    classifications_A_idx = this_mod[mod_names]
     if exec_classification === missing
         for name in classification_names
-            A[name][A_idx...] = missing
+            classifications_A[name][classifications_A_idx...] = missing
         end
     else
         for name in classification_names
-            A[name][A_idx...] = getproperty(exec_classification, name)
+            classifications_A[name][classifications_A_idx...] = getproperty(exec_classification, name)
         end
     end
 end

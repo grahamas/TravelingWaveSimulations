@@ -1,5 +1,5 @@
 
-function mean_skip_missing(A; dims)
+function mean_skip_missing(A::AbstractArray; dims)
     missings = ismissing.(A)
     zeroed = copy(A)
     zeroed[missings] .= 0
@@ -14,12 +14,11 @@ function avg_across_dims(arr, dims)
     return collect(squeezed)
 end
 
-let classifications = A, mod_names = string.(mod_names)
+let classifications = classifications_A, mod_names = string.(mod_names)
     all_dims = 1:length(mod_names)
     for (x,y) in IterTools.subsets(all_dims, Val{2}())
         classification_names = Tuple(keys(classifications))
         @show (x,y)
-        scene, layout = layoutscene(resolution=(600, 600))
         collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
         # FIXME: don't include in calculation if not sane
         mean_class = NamedTuple{classification_names}([avg_across_dims(a, collapsed_dims) for a in classifications])
@@ -27,13 +26,19 @@ let classifications = A, mod_names = string.(mod_names)
         @assert size(mean_class[1]) == length.((mod_values[x], mod_values[y]))
         
         for name in classification_names
-            layout = GridLayout()
+            scene, layout = layoutscene(resolution=(600, 600))
+            #layout = GridLayout()
             layout[1,2] = ax = LAxis(scene); 
-            heatmap = Makie.heatmap!(ax, mod_values[x], mod_values[y], mean_class[name]', ylabel=mod_names[y], xlabel=mod_names[x], title=string(name))
-            layout[1,3] = cbar = LColorbar(scene, heatmap)
+            @show size(mod_values[x])
+            @show size(mean_class[name])
+            heatmap = Makie.heatmap!(ax, mod_values[x], mod_values[y], mean_class[name])#, ylabel=mod_names[y], xlabel=mod_names[x], title=string(name))
+            min_val, max_val = extrema(mean_class[name])
             layout[1,1] = LText(scene, mod_names[y], tellheight=false, rotation=pi/2)
             layout[2,2] = LText(scene, mod_names[x], tellwidth=false)
-            cbar.width = 25
+            if min_val != max_val
+                layout[1,3] = cbar = LColorbar(scene, heatmap)
+                cbar.width = 25
+            end
             layout[0,:] = LText(scene, string(name))
         
             tightlimits!.([ax])#, tw_ax])

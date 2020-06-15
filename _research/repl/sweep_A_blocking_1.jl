@@ -1,5 +1,5 @@
 based_on_example_serial(; example_name="reduced_line_dos_effectively_sigmoid", 
-                        modifications=["Aee=40.0:6.0:250.0", "Aei=20.0:8.0:200.0",
-                                       "Aie=15.0:8.0:140.0", "Aii=1.0:10.0:200.0",
+                        modifications=["Aee=40.0:12.0:250.0", "Aei=20.0:16.0:250.0",
+                                       "Aie=15.0:16.0:250.0", "Aii=1.0:20.0:250.0",
                                        "firing_θE=6.0", "firing_θI=7.0",
                                        "blocking_θE=25.0", "blocking_θI=10.0"])
