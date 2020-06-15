@@ -66,11 +66,11 @@ function is_traveling(velocities::Vector{<:AbstractFloat}, min_num_traveling_fra
 end
 function is_decaying(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
-    all(diff(maxes[last_quartile_dxs(fin)]) .<= 1e-10)
+    all(diff(maxes[last_quartile_dxs(fin)]) .<= -1e-10)
 end
 function is_growing(maxes::Vector{<:AbstractFloat})
     fin = length(maxes)
-    all(diff(maxes[last_quartile_dxs(fin)]) .>= -1e-10)
+    all(diff(maxes[last_quartile_dxs(fin)]) .>= 1e-10)
 end
 function is_oscillating(maxes::Vector{<:AbstractFloat})
     # Checks if, within the second half, at least a third
@@ -96,11 +96,11 @@ struct ExecutionClassifications
     persistently_active_near_origin::Bool
     reaches_steady_state::Bool
 end
-function show(io::IO, ec::ExecutionClassifications)
+function Base.show(io::IO, ec::ExecutionClassifications)
     nv_pairs = [(name, getfield(ec, name)) for name in fieldnames(ExecutionClassifications)]
     names, values = zip(nv_pairs...)
     nt = NamedTuple{Tuple(names)}(values)
-    show(io, nt)
+    Base.show(io, nt)
 end
 function ExecutionClassifications(wavefronts::WS, 
                                  ts::TS,
