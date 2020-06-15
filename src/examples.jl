@@ -3,6 +3,7 @@ include("example_helpers.jl")
 examples_dict = Dict()
 
 ABS_STOP=300.0
+X_PROP = 0.9
 examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
                                                      Aee=70.0, See=25.0,
                                                      Aii=2.0, Sii=27.0,
@@ -39,10 +40,10 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
       tspan = (0.0,stop_time),
       dt = 0.1,
       algorithm=Tsit5(),
-      save_idxs=[IndexSubsampler((2,)), RightCutFromValue((0.0,))],
+      save_idxs=[IndexSubsampler((2,)), RightCutProportionFromValue((0.0,),(X_PROP,))],
       step_reduction = (reduce_to_fronts(save_idxs, space), front_array_type),
       global_reduction = reduce_to_wave_properties,
-      callback=terminate_when_E_fully_propagates(save_idxs), 
+      callback=terminate_when_E_fully_propagates(save_idxs, proportion_full=X_PROP, min_time=0.1), 
       other_opts...
   )
 end
