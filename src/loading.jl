@@ -39,7 +39,11 @@ function Base.iterate(mdb::MultiDB, fns_state...)
 end
 
 function parse_mod_val(val)
-    parse(Float64, val)
+    if val == "nothing"
+        return nothing
+    else
+        parse(Float64, val)
+    end
 end
 function parse_mod_val(val1, val2)
     parse(Float64, val1):parse(Float64, val2)
@@ -68,6 +72,7 @@ function get_mods(fn::String)
     mods_str_arr = split(mods_str, ";")
     mod_tuples = map(parse_mod, mods_str_arr)
     mod_dict = Dict(map((x) -> Pair(x...), mod_tuples)...)   
+    return mod_dict
 end
 function get_mods(mdb::MultiDB)
     @assert all(map((path) -> splitpath(path)[end-1], mdb.fns) .== splitpath(mdb.fns[1])[end-1])
