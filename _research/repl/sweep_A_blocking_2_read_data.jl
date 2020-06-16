@@ -28,9 +28,6 @@ classifications_A = NamedTuple{Tuple(classification_names)}([mod_array(Bool) for
 
 for (this_mod, this_result) in MultiDBRowIter(mdb)
     exec_classification = this_result[:wave_properties]
-    if exec_classification.has_propagation == true
-        @show "HEI"
-    end
     classifications_A_idx = this_mod[mod_names]
     if exec_classification === missing
         for name in classification_names
