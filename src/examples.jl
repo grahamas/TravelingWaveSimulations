@@ -12,7 +12,7 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
                                                      n=256, x=700.0, 
                                                      stim_strength=6.0,
                                                      stim_width=28.1,
-                                                     stim_duration=7.0,other_opts=Dict(:saveat=>[0.0], :save_end=>true))
+                                                     stim_duration=7.0,other_opts=Dict())
   simulation = Simulation(
     WCMSpatial(;
       pop_names = ("E", "I"),
@@ -41,7 +41,7 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
       dt = 0.1,
       algorithm=Tsit5(),
       save_idxs=[IndexSubsampler((2,)), RightCutProportionFromValue((0.0,),(X_PROP,))],
-      step_reduction = (reduce_to_fronts(save_idxs, space), front_array_type),
+      step_reduction = nothing,#(reduce_to_fronts(save_idxs, space), front_array_type),
       global_reduction = reduce_to_wave_properties,
       callback=terminate_when_E_fully_propagates(save_idxs, proportion_full=X_PROP, min_time=0.1), 
       other_opts...
