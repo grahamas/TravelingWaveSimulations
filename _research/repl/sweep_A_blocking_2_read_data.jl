@@ -24,7 +24,7 @@ mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef
 
 first_result = MultiDBRowIter(mdb) |> first
 classification_names = fieldnames(ExecutionClassifications)
-classifications_A = NamedTuple{Tuple(classification_names)}([mod_array(Bool) for _ in classification_names]) 
+classifications_A = Dict(name => mod_array(Bool) for name in classification_names) 
 
 for (this_mod, this_result) in MultiDBRowIter(mdb)
     exec_classification = this_result[:wave_properties]

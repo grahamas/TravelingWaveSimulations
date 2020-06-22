@@ -7,6 +7,7 @@ results
 
 *.png
 *.mp4
+*.mkv
 *.gif
 *_res.jld2
 *.ipynb

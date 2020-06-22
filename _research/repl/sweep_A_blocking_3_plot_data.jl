@@ -17,14 +17,13 @@ end
 let classifications = classifications_A, mod_names = string.(mod_names)
     all_dims = 1:length(mod_names)
     for (x,y) in IterTools.subsets(all_dims, Val{2}())
-        classification_names = Tuple(keys(classifications))
         collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
         # FIXME: don't include in calculation if not sane
-        mean_class = NamedTuple{classification_names}([avg_across_dims(a, collapsed_dims) for a in classifications])
+        mean_class = Dict(name => avg_across_dims(classifications[name], collapsed_dims) for name in keys(classifications))
         
-        @assert size(mean_class[1]) == length.((mod_values[x], mod_values[y]))
+        @assert size(first(values(mean_class))) == length.((mod_values[x], mod_values[y]))
         
-        for name in classification_names
+        for name in keys(classifications)
             scene, layout = layoutscene(resolution=(600, 600))
             #layout = GridLayout()
             layout[1,2] = ax = LAxis(scene); 
