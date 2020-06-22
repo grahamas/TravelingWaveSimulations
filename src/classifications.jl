@@ -107,11 +107,12 @@ function ExecutionClassifications(wavefronts::WS,
                                  xs::XS,
                                  final_frame::AbstractArray{T};
                                  max_resting=5e-2,
-                                 left_length=15.0) where {T,
+                                 origin_radius=150.0) where {T,
                                     WS <: AbstractVector{<:AbstractVector{<:Wavefront}},
                                     TS <: AbstractVector{T},
                                     XS <: AbstractVector{T}
                                  }
+    @assert origin_radius < xs[end]
     persistent_fronts = link_persistent_fronts(wavefronts, ts)
     pf_measurements = SpatiotemporalWaveMeasurements.(persistent_fronts)
     pf_classifications = WaveClassifications.(pf_measurements)
@@ -125,10 +126,11 @@ function ExecutionClassifications(wavefronts::WS,
     else
         (false, false)
     end
-    persistently_active_near_origin = check_has_activity_near_left(population(final_frame, 1),
+    persistently_active_near_origin = check_has_activity_near_origin(population(final_frame, 1),
                                                                #FIXME: E population assumption
                                                                max_resting,
-                                                               findfirst(xs .>= left_length))
+                                                               xs,
+                                                              origin_radius)
     reaches_steady_state = if length(wavefronts[end]) == 0
         true 
         #FIXME: invalid if moving plateau... but that's fundamentally a steady state
@@ -149,51 +151,47 @@ function ExecutionClassifications(wavefronts::WS,
 
 end
 
-function check_has_activity_near_left(wavefronts::AbstractVector{<:Wavefront}, max_resting, left_length)
-   long_enough_activation = false
-   elevated_through = 0.0
-   cur_wavefront_idx = 1 # FIXME should be firstidx
-   while !long_enough_activation && (elevated_through < left_length)
-       this_wavefront = wavefronts[cur_wavefront_idx]
-       if this_wavefront.left.val <= max_resting
-           break
-       else
-           elevated_through = this_wavefront.slope.loc
-           if elevated_through >= left_length
-               long_enough_activation = true
-           else
-               cur_wavefront_idx += 1
-           end
-       end
-   end
-   return long_enough_activation
+function implies_origin_activity(wavefront, max_resting, radius)
+    left, slope, right = points = wavefront.left, wavefront.slope, wavefront.right
+    active_point_near_origin = any(map(points) do point
+        point.val > max_resting && (-radius <= point.loc <= radius)
+    end)
+    elevated_spanning_front = left.loc < -radius && right.loc > radius && left.val > max_resting && right.val > max_resting
+    return active_point_near_origin || elevated_spanning_front
 end
 
-function check_has_activity_near_left(frame::AbstractVector{T}, max_resting, left_length) where {T <: Number}
-    return all(frame[begin:left_length] .> max_resting)
+
+function check_has_activity_near_origin(wavefronts::AbstractVector{<:Wavefront}, max_resting, xs, radius)
+    return any(implies_origin_activity.(wavefronts, Ref(max_resting), Ref(radius)))
 end
 
-function ExecutionClassifications(exec::Execution)
+function check_has_activity_near_origin(frame::AbstractVector{T}, max_resting, xs, radius) where {T <: Number}
+    left_dx = findfirst(xs .>= -radius)
+    right_dx = findfirst(xs .>= radius)
+    return any(frame[left_dx:right_dx] .> max_resting)
+end
+
+function ExecutionClassifications(exec::Execution; kwargs...)
     l_frames = exec.solution.u
     ts = timepoints(exec)
     xs = frame_xs(exec)
     l_frame_fronts = substantial_fronts.(l_frames, Ref(xs)) #arr of arrs of fronts
     final_frame = l_frames[end]
-    ExecutionClassifications(l_frame_fronts, ts, xs, final_frame)
+    ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
 end
 
 # Handle case where already reduced to fronts
-function ExecutionClassifications(exec::AugmentedExecution{T,W}) where {T, W <: AbstractArray{<:Wavefront}}
+function ExecutionClassifications(exec::AugmentedExecution{T,W}; kwargs...) where {T, W <: AbstractArray{<:Wavefront}}
     @assert exec.solution.t[end] > 0.0 # Needs solution to have final frame
     l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
     xs = frame_xs(exec)
-    ExecutionClassifications(l_frame_fronts, exec.saved_values.t, xs, exec.solution.u[end])
+    ExecutionClassifications(l_frame_fronts, exec.saved_values.t, xs, exec.solution.u[end]; kwargs...)
 end
 
-function ExecutionClassifications(exec::ReducedExecution{T,W}) where {T, W <: AbstractArray{<:Wavefront}}
+function ExecutionClassifications(exec::ReducedExecution{T,W}; kwargs...) where {T, W <: AbstractArray{<:Wavefront}}
     error("Needs final frame, but given ReducedExecution with no frames")
     @assert exec.solution.t[end] > 0.0 # Needs solution to have final frame
     l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
-    ExecutionClassifications(l_frame_fronts, exec.saved_values.t, exec.solution.u[end])
+    ExecutionClassifications(l_frame_fronts, exec.saved_values.t, exec.solution.u[end]; kwargs...)
 end
 

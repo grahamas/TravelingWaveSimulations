@@ -48,6 +48,47 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
   )
 end
 
+examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; stop_time=ABS_STOP,
+                                                     Aee=16.0, See=2.5,
+                                                     Aii=4.0, Sii=2.7,
+                                                     Aie=27.0, Sie=2.5,
+                                                     Aei=18.2, Sei=2.7,
+                                                     n=101, x=100.0, 
+                                                     stim_strength=1.2,
+                                                     common_baseline = 0.1,
+                                                     stim_width=28.1,
+                                                     other_opts=Dict()
+                                                    )
+  simulation = Simulation(
+    WCMSpatial(;
+      pop_names = ("E", "I"),
+      α = (1.5, 1.0),
+      β = (1.1, 1.1),
+      τ = (10.0, 18.0),
+      nonlinearity = PopulationActionsParameters(NeuralModels.ZeroedSigmoidNonlinearity(a = 1.2, θ=2.6), SigmoidNonlinearity(a = 1.0, θ = 8.0)),
+      stimulus =  pops(SharpBumpStimulusParameter;
+          strength = [stim_strength,stim_strength],
+          width = [stim_width, stim_width],
+          time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]],
+          baseline = [common_baseline, common_baseline]),
+      connectivity = FFTParameter(pops(ExpAbsSumDecayingConnectivityParameter;
+          amplitude = [Aee -Aei;
+                       Aie -Aii],
+          spread = [(See,) (Sei,);
+                    (Sie,) (Sii,)]
+          ))
+      );
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,), extent=(x,)),
+      save_idxs=nothing,
+      tspan = (0.0,stop_time),
+      dt = 1.0,
+      algorithm=Euler(),
+      other_opts...
+  )
+end
+
+
+
 function get_example(example_name)
     return examples_dict[example_name]
 end
