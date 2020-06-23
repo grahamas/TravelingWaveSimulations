@@ -14,7 +14,7 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
                                                      stim_width=28.1,
                                                      stim_duration=7.0,other_opts=Dict())
   simulation = Simulation(
-    WCMSpatial(;
+                          WCMSpatial{N_CDT,P}(;
       pop_names = ("E", "I"),
       α = (1.0, 1.0),
       β = (1.0, 1.0),
@@ -48,6 +48,50 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
   )
 end
 
+examples_dict["orientation"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
+                                                     Aee=16.0, See=2.5,
+                                                     Aii=4.0, Sii=2.7,
+                                                     Aie=27.0, Sie=2.5,
+                                                     Aei=18.2, Sei=2.7,
+                                                     Atheta=16.0,
+                                                     Stheta_x=25.0, Stheta_theta=pi/12,
+                                                     n=101, x=100.0, 
+                                                     stim_strength=1.2,
+                                                     common_baseline = 0.1,
+                                                     stim_width=28.1,
+                                                     other_opts=Dict()
+                                                    )
+  simulation = Simulation(
+                          WCMSpatial{N_CDT,P}(;
+      pop_names = ("E", "I"),
+      α = (1.5, 1.0),
+      β = (1.1, 1.1),
+      τ = (10.0, 18.0),
+      nonlinearity = PopulationActionsParameters(NeuralModels.ZeroedSigmoidNonlinearity(a = 1.2, θ=2.6), SigmoidNonlinearity(a = 1.0, θ = 8.0)),
+      stimulus =  pops(SharpBumpStimulusParameter;
+          strength = [stim_strength,stim_strength],
+          width = [stim_width, stim_width],
+          time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]],
+          baseline = [common_baseline, common_baseline]),
+      connectivity = FFTParameter(pops([
+          pops(ExpAbsSumDecayingConnectivityParameter;
+            amplitude = [Aee -Aei;
+                       Aie -Aii],
+            spread = [(See, 2pi) (Sei, 2pi);
+                    (Sie, 2pi) (Sii, 2pi)]
+          ),  
+          pops([NoOpParameter{typeof(Atheta)}() ExpAbsSumDecayingConnectivityParameter(; amplitude=Atheta, spread=(Stheta_x, Stheta_theta));
+                NoOpParameter{typeof(Atheta)}() NoOpParameter{typeof(Atheta)}()])
+         ]))
+      );
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
+      save_idxs=nothing,
+      tspan = (0.0,stop_time),
+      algorithm=nothing,
+      other_opts...
+     )
+end
+
 examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; stop_time=ABS_STOP,
                                                      Aee=16.0, See=2.5,
                                                      Aii=4.0, Sii=2.7,
@@ -60,7 +104,7 @@ examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,
                                                      other_opts=Dict()
                                                     )
   simulation = Simulation(
-    WCMSpatial(;
+                          WCMSpatial{N_CDT,P}(;
       pop_names = ("E", "I"),
       α = (1.5, 1.0),
       β = (1.1, 1.1),
@@ -86,7 +130,6 @@ examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,
       other_opts...
   )
 end
-
 
 
 function get_example(example_name)
