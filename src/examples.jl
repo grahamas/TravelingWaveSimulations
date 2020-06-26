@@ -11,7 +11,7 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
                                                      Aei=70.0, Sei=27.0,
                                                      n=256, x=700.0, 
                                                      stim_strength=6.0,
-                                                     stim_width=28.1,
+                                                     stim_radius=14.0,
                                                      stim_duration=7.0,other_opts=Dict())
   simulation = Simulation(
                           WCMSpatial{N_CDT,P}(;
@@ -24,9 +24,9 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
         firing_a = [1.2, 1.0],
         blocking_θ = [30.0, 30.0],
         blocking_a = [1.2, 1.0]),
-      stimulus = pops(SharpBumpStimulusParameter;
+      stimulus = pops(CircleStimulusParameter;
           strength = [stim_strength, stim_strength],
-          width = [stim_width, stim_width],
+          radius = [stim_radius, stim_radius],
           time_windows = [[(0.0, stim_duration)], [(0.0, stim_duration)]],
           baseline=[0.0, 0.0]),
       connectivity = FFTParameter(pops(GaussianConnectivityParameter;
@@ -48,17 +48,15 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
   )
 end
 
-examples_dict["orientation"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
+examples_dict["simple_square"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
                                                      Aee=16.0, See=2.5,
                                                      Aii=4.0, Sii=2.7,
                                                      Aie=27.0, Sie=2.5,
                                                      Aei=18.2, Sei=2.7,
-                                                     Atheta=16.0,
-                                                     Stheta_x=25.0, Stheta_theta=pi/12,
-                                                     n=101, x=100.0, 
+                                                     n=100, x=100,
                                                      stim_strength=1.2,
                                                      common_baseline = 0.1,
-                                                     stim_width=28.1,
+                                                     stim_radius=14.0,
                                                      other_opts=Dict()
                                                     )
   simulation = Simulation(
@@ -68,23 +66,70 @@ examples_dict["orientation"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P
       β = (1.1, 1.1),
       τ = (10.0, 18.0),
       nonlinearity = PopulationActionsParameters(NeuralModels.ZeroedSigmoidNonlinearity(a = 1.2, θ=2.6), SigmoidNonlinearity(a = 1.0, θ = 8.0)),
-      stimulus =  pops(SharpBumpStimulusParameter;
+      stimulus =  pops(CircleStimulusParameter;
           strength = [stim_strength,stim_strength],
-          width = [stim_width, stim_width],
+          radius = [stim_radius, stim_radius],
+          time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]],
+          baseline = [common_baseline, common_baseline]),
+      connectivity = FFTParameter(#pops([
+          pops(ExpAbsSumDecayingConnectivityParameter;
+            amplitude = [Aee -Aei;
+                       Aie -Aii],
+            spread = [(See, See) (Sei, Sei);
+                    (Sie, Sie) (Sii, Sii)]
+          )#,  
+          #pops([NoOpParameter{typeof(Atheta)}() ExpAbsSumDecayingConnectivityParameter(; amplitude=Atheta, spread=(Stheta_x, Stheta_theta));
+           #     NoOpParameter{typeof(Atheta)}() NoOpParameter{typeof(Atheta)}()])
+           # ])
+        )
+      );
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
+      save_idxs=nothing,
+      algorithm=nothing,
+      tspan = (0.0,stop_time),
+      other_opts...
+     )
+end
+
+examples_dict["orientation"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
+                                                     Aee=16.0, See=2.5,
+                                                     Aii=4.0, Sii=2.7,
+                                                     Aie=27.0, Sie=2.5,
+                                                     Aei=18.2, Sei=2.7,
+                                                     Atheta=16.0,
+                                                     Stheta_x=25.0, Stheta_theta=pi/12,
+                                                     n_space=100, x_space=100.0, 
+                                                     n_theta=8, x_theta=2pi,
+                                                     stim_strength=1.2,
+                                                     common_baseline = 0.0,
+                                                     stim_x=10.0, stim_theta=0.1,
+                                                     other_opts=Dict()
+                                                    )
+  simulation = Simulation(
+                          WCMSpatial{N_CDT,P}(;
+      pop_names = ("E", "I"),
+      α = (1.5, 1.0),
+      β = (1.1, 1.1),
+      τ = (10.0, 18.0),
+      nonlinearity = PopulationActionsParameters(NeuralModels.ZeroedSigmoidNonlinearity(a = 1.2, θ=2.6), SigmoidNonlinearity(a = 1.0, θ = 8.0)),
+      stimulus =  pops(RectangleStimulusParameter;
+          strength = [stim_strength,stim_strength],
+          widths = [(stim_x, stim_theta), (stim_x, stim_theta)],
           time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]],
           baseline = [common_baseline, common_baseline]),
       connectivity = FFTParameter(pops([
           pops(ExpAbsSumDecayingConnectivityParameter;
             amplitude = [Aee -Aei;
                        Aie -Aii],
-            spread = [(See, 2pi) (Sei, 2pi);
-                    (Sie, 2pi) (Sii, 2pi)]
+            spread = [(See, Stheta_x) (Sei, Stheta_x);
+                    (Sie, Stheta_x) (Sii, Stheta_x)]
           ),  
           pops([NoOpParameter{typeof(Atheta)}() ExpAbsSumDecayingConnectivityParameter(; amplitude=Atheta, spread=(Stheta_x, Stheta_theta));
                 NoOpParameter{typeof(Atheta)}() NoOpParameter{typeof(Atheta)}()])
-         ]))
+         ])
+                                 )
       );
-      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,n), extent=(x,x)),
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_space,n_theta), extent=(x_space,x_theta)),
       save_idxs=nothing,
       tspan = (0.0,stop_time),
       algorithm=nothing,
@@ -100,7 +145,7 @@ examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,
                                                      n=101, x=100.0, 
                                                      stim_strength=1.2,
                                                      common_baseline = 0.1,
-                                                     stim_width=28.1,
+                                                     stim_radius=14.0,
                                                      other_opts=Dict()
                                                     )
   simulation = Simulation(
@@ -110,9 +155,9 @@ examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,
       β = (1.1, 1.1),
       τ = (10.0, 18.0),
       nonlinearity = PopulationActionsParameters(NeuralModels.ZeroedSigmoidNonlinearity(a = 1.2, θ=2.6), SigmoidNonlinearity(a = 1.0, θ = 8.0)),
-      stimulus =  pops(SharpBumpStimulusParameter;
+      stimulus =  pops(CircleStimulusParameter;
           strength = [stim_strength,stim_strength],
-          width = [stim_width, stim_width],
+          radius = [stim_radius, stim_radius],
           time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]],
           baseline = [common_baseline, common_baseline]),
       connectivity = FFTParameter(pops(ExpAbsSumDecayingConnectivityParameter;
@@ -131,6 +176,50 @@ examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,
   )
 end
 
+examples_dict["orientation_nofft"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
+                                                     Aee=16.0, See=2.5,
+                                                     Aii=4.0, Sii=2.7,
+                                                     Aie=27.0, Sie=2.5,
+                                                     Aei=18.2, Sei=2.7,
+                                                     Atheta=16.0,
+                                                     Stheta_x=25.0, Stheta_theta=pi/12,
+                                                     n_space=100, x_space=100.0, 
+                                                     n_theta=8, x_theta=2pi,
+                                                     stim_strength=1.2,
+                                                     common_baseline = 0.0,
+                                                     stim_x=10.0, stim_theta=0.1,
+                                                     other_opts=Dict()
+                                                    )
+  simulation = Simulation(
+                          WCMSpatial{N_CDT,P}(;
+      pop_names = ("E", "I"),
+      α = (1.5, 1.0),
+      β = (1.1, 1.1),
+      τ = (10.0, 18.0),
+      nonlinearity = PopulationActionsParameters(NeuralModels.ZeroedSigmoidNonlinearity(a = 1.2, θ=2.6), SigmoidNonlinearity(a = 1.0, θ = 8.0)),
+      stimulus =  pops(RectangleStimulusParameter;
+          strength = [stim_strength,stim_strength],
+          widths = [(stim_x, stim_theta), (stim_x, stim_theta)],
+          time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]],
+          baseline = [common_baseline, common_baseline]),
+      connectivity = pops([
+          pops(ExpAbsSumDecayingConnectivityParameter;
+            amplitude = [Aee -Aei;
+                       Aie -Aii],
+            spread = [(See, Stheta_x) (Sei, Stheta_x);
+                    (Sie, Stheta_x) (Sii, Stheta_x)]
+          ),  
+          pops([NoOpParameter{typeof(Atheta)}() ExpAbsSumDecayingConnectivityParameter(; amplitude=Atheta, spread=(Stheta_x, Stheta_theta));
+                NoOpParameter{typeof(Atheta)}() NoOpParameter{typeof(Atheta)}()])
+         ])
+      );
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_space,n_theta), extent=(x_space,x_theta)),
+      save_idxs=nothing,
+      tspan = (0.0,stop_time),
+      algorithm=nothing,
+      other_opts...
+     )
+end
 
 function get_example(example_name)
     return examples_dict[example_name]
