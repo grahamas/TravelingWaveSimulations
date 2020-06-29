@@ -12,6 +12,10 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
                                                      n=256, x=700.0, 
                                                      stim_strength=6.0,
                                                      stim_radius=14.0,
+                                                     firing_θE=6.0,
+                                                     firing_θI=11.4,
+                                                     blocking_θE=30.0,
+                                                     blocking_θI=30.0,
                                                      stim_duration=7.0,other_opts=Dict())
   simulation = Simulation(
                           WCMSpatial{N_CDT,P}(;
@@ -20,9 +24,9 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
       β = (1.0, 1.0),
       τ = (3.0, 3.0),
       nonlinearity = pops(DifferenceOfSigmoids;
-        firing_θ = [6.0, 11.4],
+        firing_θ = [firing_θE, firing_θI],
         firing_a = [1.2, 1.0],
-        blocking_θ = [30.0, 30.0],
+        blocking_θ = [blocking_θE, blocking_θI],
         blocking_a = [1.2, 1.0]),
       stimulus = pops(CircleStimulusParameter;
           strength = [stim_strength, stim_strength],
@@ -137,12 +141,53 @@ examples_dict["orientation"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P
      )
 end
 
-examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; stop_time=ABS_STOP,
+examples_dict["oscillating_pulse"] = @EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; stop_time=ABS_STOP,
                                                      Aee=16.0, See=2.5,
                                                      Aii=4.0, Sii=2.7,
                                                      Aie=27.0, Sie=2.5,
                                                      Aei=18.2, Sei=2.7,
-                                                     n=101, x=100.0, 
+                                                     n=100, x=100.0, 
+                                                     stim_strength=1.2,
+                                                     common_baseline = 0.1,
+                                                     stim_radius=14.0,
+                                                     other_opts=Dict()
+                                                    )
+  simulation = Simulation(
+                          WCMSpatial{N_CDT,P}(;
+      pop_names = ("E", "I"),
+      α = (1.5, 1.0),
+      β = (1.1, 1.1),
+      τ = (10.0, 18.0),
+      nonlinearity = PopulationActionsParameters(NeuralModels.ZeroedSigmoidNonlinearity(a = 1.2, θ=2.6), SigmoidNonlinearity(a = 1.0, θ = 8.0)),
+      stimulus =  pops(CircleStimulusParameter;
+          strength = [stim_strength,stim_strength],
+          radius = [stim_radius, stim_radius],
+          time_windows = [[(0.0, 5.0)], [(0.0, 5.0)]],
+          baseline = [common_baseline, common_baseline]),
+      connectivity = FFTParameter(pops(ExpAbsSumDecayingConnectivityParameter;
+          amplitude = [Aee -Aei;
+                       Aie -Aii],
+          spread = [(See,) (Sei,);
+                    (Sie,) (Sii,)]
+          ))
+      );
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,), extent=(x,)),
+      save_idxs=nothing,
+      tspan = (0.0,stop_time),
+      other_opts...
+  )
+end
+
+
+
+#### REPLICATIONS ####
+
+examples_dict["FAULTY_neuman_fft"] = @EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; stop_time=ABS_STOP,
+                                                     Aee=16.0, See=2.5,
+                                                     Aii=4.0, Sii=2.7,
+                                                     Aie=27.0, Sie=2.5,
+                                                     Aei=18.2, Sei=2.7,
+                                                     n=100, x=100.0, 
                                                      stim_strength=1.2,
                                                      common_baseline = 0.1,
                                                      stim_radius=14.0,
@@ -176,14 +221,14 @@ examples_dict["replicate_neuman_fft"] = @EI_kw_example function example(N_ARR=1,
   )
 end
 
-examples_dict["orientation_nofft"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
+examples_dict["orientation_NOFFT"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
                                                      Aee=16.0, See=2.5,
                                                      Aii=4.0, Sii=2.7,
                                                      Aie=27.0, Sie=2.5,
                                                      Aei=18.2, Sei=2.7,
                                                      Atheta=16.0,
                                                      Stheta_x=25.0, Stheta_theta=pi/12,
-                                                     n_space=100, x_space=100.0, 
+                                                     n_space=50, x_space=100.0, 
                                                      n_theta=8, x_theta=2pi,
                                                      stim_strength=1.2,
                                                      common_baseline = 0.0,

@@ -1,48 +1,10 @@
 
-function mean_skip_missing(A::AbstractArray; dims)
-    missings = ismissing.(A)
-    zeroed = copy(A)
-    zeroed[missings] .= 0
-    nonmissingsum = sum(zeroed; dims=dims)
-    nonmissingmean = nonmissingsum ./ sum(.!missings; dims=dims)
-    return nonmissingmean
-end
-
-function avg_across_dims(arr, dims)
-    avgd = mean_skip_missing(arr, dims=dims)
-    squeezed = dropdims(avgd, dims=dims)
-    return collect(squeezed)
-end
-
-let classifications = classifications_A, mod_names = string.(mod_names)
-    all_dims = 1:length(mod_names)
-    for (x,y) in IterTools.subsets(all_dims, Val{2}())
-        collapsed_dims = Tuple(setdiff(all_dims, (x,y)))
-        # FIXME: don't include in calculation if not sane
-        mean_class = Dict(name => avg_across_dims(classifications[name], collapsed_dims) for name in keys(classifications))
-        
-        @assert size(first(values(mean_class))) == length.((mod_values[x], mod_values[y]))
-        
-        for name in keys(classifications)
-            scene, layout = layoutscene(resolution=(600, 600))
-            #layout = GridLayout()
-            layout[1,2] = ax = LAxis(scene); 
-            heatmap = Makie.heatmap!(ax, mod_values[x], mod_values[y], mean_class[name])#, ylabel=mod_names[y], xlabel=mod_names[x], title=string(name))
-            min_val, max_val = extrema(mean_class[name])
-            layout[1,1] = LText(scene, mod_names[y], tellheight=false, rotation=pi/2)
-            layout[2,2] = LText(scene, mod_names[x], tellwidth=false)
-            if min_val != max_val
-                layout[1,3] = cbar = LColorbar(scene, heatmap)
-                cbar.width = 25
-            end
-            layout[0,:] = LText(scene, string(name))
-        
-            tightlimits!.([ax])#, tw_ax])
-        
-            path = plotsdir("$(example_name)/$(sim_name)/single_slices/$(mod_names[x])_$(mod_names[y])_$(name)_slice.png")
-            mkpath(dirname(path))
-            Makie.save(path, scene)
-        end
+let classifications = classifications_A
+    for name in keys(classifications)
+        scene = sweep_2D_slice_heatmaps(classifications[name], title = "$(name) proportion")
+        path = plotsdir("$(example_name)/$(sim_name)/$(name)_slices.png")
+        mkpath(path |> dirname)
+        Makie.save(path, scene)
     end
 end
 

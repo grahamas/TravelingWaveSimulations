@@ -95,8 +95,8 @@ function Base.iterate(it::DBRowIter, ((keydb, valdb), (keydb_state, valdb_state)
     return ((key, val), ((keydb, valdb), (keydb_state, valdb_state)))
 end
 function Base.iterate(it::DBRowIter)
-    keydb = JuliaDB.select(it.db, Keys())
-    valdb = JuliaDB.select(it.db, JuliaDB.Not(Keys()))
+    keydb = JuliaDB.select(it.db, JuliaDB.Keys())
+    valdb = JuliaDB.select(it.db, JuliaDB.Not(JuliaDB.Keys()))
     key, keydb_state = @ifsomething iterate(keydb)
     val, valdb_state = iterate(valdb)
     return ((key, val), ((keydb, valdb), (keydb_state, valdb_state)))
@@ -192,4 +192,48 @@ function load_data(data_root, example_name, nth::Int)
         sorted_sims[end+nth]
     end
     return (get_example(example_name), MultiDB(joinpath.(Ref(sim_path), readdir(sim_path))))
+end
+
+export load_ExecutionClassifications_recent
+function load_ExecutionClassifications_recent(example_name, data_root = datadir(), offset_from_current=0)
+    (example, mdb) = load_data(data_root, example_name, offset_from_current)
+    example_name = get_example_name(mdb.fns[1])
+    sim_name = get_sim_name(mdb.fns[1])
+
+    mods = get_mods(mdb)
+
+    is_range(x::Nothing) = false
+    is_range(x::AbstractRange) = true
+    is_range(x::Number) = false
+    
+    all_mod_names = keys(mods) |> collect
+    all_mod_values = values(mods) |> collect
+    varied_mods = is_range.(all_mod_values)
+    fixed_mods = .!varied_mods
+    fixed_mods_dict = Dict(name => mods[name] for name in all_mod_names[fixed_mods])
+    
+    mod_names = all_mod_names[varied_mods] |> sort
+    mod_values = [mods[name] for name in mod_names]
+    mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
+    
+    mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
+    
+    first_result = MultiDBRowIter(mdb) |> first
+    classification_names = fieldnames(ExecutionClassifications)
+    classifications_A = Dict(name => mod_array(Bool) for name in classification_names) 
+
+    for (this_mod, this_result) in MultiDBRowIter(mdb)
+        exec_classification = this_result[:wave_properties]
+        classifications_A_idx = this_mod[mod_names]
+        if exec_classification === missing
+            for name in classification_names
+                classifications_A[name][classifications_A_idx...] = missing
+            end
+        else
+            for name in classification_names
+                classifications_A[name][classifications_A_idx...] = getproperty(exec_classification, name)
+            end
+        end
+    end
+    return classifications_A
 end

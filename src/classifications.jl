@@ -107,7 +107,7 @@ function ExecutionClassifications(wavefronts::WS,
                                  xs::XS,
                                  final_frame::AbstractArray{T};
                                  max_resting=5e-2,
-                                 origin_radius=150.0) where {T,
+                                 origin_radius=20.0) where {T,
                                     WS <: AbstractVector{<:AbstractVector{<:Wavefront}},
                                     TS <: AbstractVector{T},
                                     XS <: AbstractVector{T}

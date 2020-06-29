@@ -11,6 +11,7 @@ using ArgParse
 using IterTools
 using Statistics, LinearAlgebra, Distances, GLM
 using RecipesBase
+using AxisIndices
 
 using JuliaDB, CSV, DataFrames
 
