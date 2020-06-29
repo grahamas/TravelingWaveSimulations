@@ -1,17 +1,9 @@
 using InteractiveUtils
-if @isdefined nworkers
-    @everywhere using DrWatson
-    @everywhere quickactivate(@__DIR__, "TravelingWaveSimulations")
-    @everywhere using TravelingWaveSimulations
-    @everywhere ENV["GKSwstype"] = "100" # For headless plotting (on server)
-    @everywhere ENV["MPLBACKEND"]="Agg"
-else
-    using DrWatson
-    quickactivate(@__DIR__, "TravelingWaveSimulations")
-    using TravelingWaveSimulations
-    ENV["GKSwstype"] = "100" # For headless plotting (on server)
-    ENV["MPLBACKEND"]="Agg"
-end
+@everywhere using DrWatson
+@everywhere quickactivate(@__DIR__, "TravelingWaveSimulations")
+@everywhere using TravelingWaveSimulations
+@everywhere ENV["GKSwstype"] = "100" # For headless plotting (on server)
+@everywhere ENV["MPLBACKEND"]="Agg"
 
 using ArgParse
 arg_settings = ArgParseSettings(; autofix_names = true)
@@ -27,9 +19,6 @@ arg_settings = ArgParseSettings(; autofix_names = true)
     "--no-save-raw"
         help = "Don't save raw simulation"
         action = :store_true
-    "--max-batch-size"
-        default = 1000
-        arg_type = Int
     "--max-sims-in-mem"
         arg_type = Int
     "--backup-paths"

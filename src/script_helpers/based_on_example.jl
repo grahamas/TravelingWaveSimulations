@@ -1,9 +1,6 @@
 
 export based_on_example, based_on_example_serial
 
-DEFAULT_SAVE_BATCH_SIZE = 10000
-
-
 function catch_for_saving(results_channel, data_path, pkeys, n_batches, progress=false)
     @show data_path
     mkpath(data_path)
@@ -60,10 +57,10 @@ julia> using TravelingWaveSimulations
 julia> based_on_example(; example_name="sigmoid_normal", modifications=["iiS=0.7"])
 ```
 """
-function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bool=false,
+function based_on_example(; data_root::AbstractString=datadir(), 
+        no_save_raw::Bool=false,
         example_name::AbstractString=nothing,
         modifications::AbstractArray=[],
-        max_batch_size=DEFAULT_SAVE_BATCH_SIZE,
         max_sims_in_mem=floor(Int,Sys.free_memory() / 2^20), #Assuming a sim will never be larger than a MiB
         backup_paths=[],
         progress=false,
@@ -88,12 +85,12 @@ function based_on_example(; data_root::AbstractString=datadir(), no_save_raw::Bo
         @warn "MUST HAVE MORE THAN ONE CORE"
         throw(InvalidStateException)
     else
-        min(max_batch_size, ceil(Int, length(modifications) / (nprocs() - 1)))
+        min(max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1)))
     end
-    pkeys = mods_to_pkeys(modifications)
     max_held_batches = floor(Int, max_sims_in_mem / parallel_batch_size)
     @assert max_held_batches > 0
     @warn "max_held_batches = $max_held_batches"
+    pkeys = mods_to_pkeys(modifications)
     batches = Iterators.partition(modifications, parallel_batch_size)
     n_batches = length(batches)
     @show n_batches
