@@ -74,8 +74,10 @@ function based_on_example(; data_root::AbstractString=datadir(),
     pkeys = mods_to_pkeys(modifications)
    
     function prob_func(prob, i, repeat)
-        new_sim = example(; modifications[i]...)        
-        remake(prob, p=modifications[i], f=convert(ODEFunction{true},make_system_mutator(new_sim)))
+        these_mods = modifications[i]
+        new_sim = example(; these_mods...)        
+        pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
+        remake(prob, p=pkeys_nt, f=convert(ODEFunction{true},make_system_mutator(new_sim)))
     end
 
     # Run simulation for every modification
@@ -83,7 +85,7 @@ function based_on_example(; data_root::AbstractString=datadir(),
     sample_execution = execute(initial_simulation)
     sample_data = initial_simulation.global_reduction(sample_execution.solution)
     u_init = init_results_tuple(pkeys, sample_data)
-    ensemble_solution = solve(initial_simulation, EnsembleThreads(); 
+    ensemble_solution = solve(initial_simulation, EnsembleDistributed(); 
                               prob_func=prob_func, 
                               reduction=(u,data,i) -> (append_namedtuple_arr!(u,data), false),
                               u_init=u_init, 
@@ -125,9 +127,10 @@ function based_on_example_serial(; data_root::AbstractString=datadir(),
     pkeys = mods_to_pkeys(modifications)
    
     function prob_func(prob, i, repeat)
-        mods = modifications[i]
-        new_sim = example(; mods...)        
-        remake(prob, p=mods, f=convert(ODEFunction{true},make_system_mutator(new_sim)))
+        these_mods = modifications[i]
+        new_sim = example(; these_mods...)        
+        pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
+        remake(prob, p=pkeys_nt, f=convert(ODEFunction{true},make_system_mutator(new_sim)))
     end
 
     # Run simulation for every modification
