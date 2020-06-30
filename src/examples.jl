@@ -44,7 +44,7 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
       tspan = (0.0,stop_time),
       dt = 0.1,
       algorithm=Tsit5(),
-      save_idxs=[IndexSubsampler((2,)), RightCutProportionFromValue((0.0,),(X_PROP,))],
+      save_idxs=nothing,#[IndexSubsampler((2,)), RightCutProportionFromValue((0.0,),(X_PROP,))],
       step_reduction = nothing,#(reduce_to_fronts(save_idxs, space), front_array_type),
       global_reduction = reduce_to_wave_properties,
       callback=terminate_when_E_fully_propagates(save_idxs, proportion_full=X_PROP, min_time=0.1), 

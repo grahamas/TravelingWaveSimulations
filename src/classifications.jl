@@ -172,6 +172,7 @@ function check_has_activity_near_origin(frame::AbstractVector{T}, max_resting, x
 end
 
 function ExecutionClassifications(exec::Execution; kwargs...)
+    @warn "should dispatch to solution"
     l_frames = exec.solution.u
     ts = timepoints(exec)
     xs = frame_xs(exec)
@@ -182,6 +183,7 @@ end
 
 # Handle case where already reduced to fronts
 function ExecutionClassifications(exec::AugmentedExecution{T,W}; kwargs...) where {T, W <: AbstractArray{<:Wavefront}}
+    @warn "should dispatch to solution"
     @assert exec.solution.t[end] > 0.0 # Needs solution to have final frame
     l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
     xs = frame_xs(exec)
@@ -189,9 +191,22 @@ function ExecutionClassifications(exec::AugmentedExecution{T,W}; kwargs...) wher
 end
 
 function ExecutionClassifications(exec::ReducedExecution{T,W}; kwargs...) where {T, W <: AbstractArray{<:Wavefront}}
+    @warn "should dispatch to solution"
     error("Needs final frame, but given ReducedExecution with no frames")
     @assert exec.solution.t[end] > 0.0 # Needs solution to have final frame
     l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
     ExecutionClassifications(l_frame_fronts, exec.saved_values.t, exec.solution.u[end]; kwargs...)
 end
 
+using DiffEqBase
+function ExecutionClassifications(sol::DiffEqBase.AbstractTimeseriesSolution; kwargs...)
+    l_frames = sol.u
+    @assert l_frames[1] isa AxisArray
+    ts = sol.t
+    xs = keys.(axes(l_frames[1]))
+    @assert length(xs) == 2
+    xs = xs[1]
+    l_frame_fronts = substantial_fronts.(l_frames, Ref(xs)) #arr of arrs of fronts
+    final_frame = l_frames[end]
+    ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
+end

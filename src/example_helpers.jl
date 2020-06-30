@@ -74,7 +74,7 @@ function kw_example(fn_expr)
     if isa(x, Expr) && (x.head == :kw)
       kwarg_name = x.args[1]
       if kwarg_name ∈ seen_kwarg_names
-        @warn "Duplicated: $kwarg_name"
+        #@warn "Duplicated: $kwarg_name"
         push!(duplicated_kwarg_names, kwarg_name)
       else
         push!(seen_kwarg_names, kwarg_name)
@@ -91,7 +91,6 @@ function kw_example(fn_expr)
     end
   end
   sym = MacroTools.combinedef(fn_dct)
-  @show sym
 end
 
 macro EI_kw_example(fn_expr)

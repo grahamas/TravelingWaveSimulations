@@ -70,13 +70,21 @@ function push_namedtuple!(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES
     arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}
     NamedTuple{NAMES, arrd_TYPES}([[val] for val in values(mods)])
 end
-function push_namedtuple!(tup::NamedTuple, mods)
+function push_namedtuple!(tup::NamedTuple, mods::Union{Dict,NamedTuple})
     for mod in pairs(mods)
         push!(tup[mod[1]], mod[2])
     end
+    return tup
 end
 push_namedtuple!(::Nothing, ::Nothing) = nothing
 push_namedtuple!(nt::NamedTuple, ::Nothing) = nt
+
+function append_namedtuple_arr!(target_tup::NamedTuple, arr::Array{<:NamedTuple, 1})
+    for key in keys(arr[1])
+        append!(target_tup[key], [nt[key] for nt in arr])
+    end
+    return target_tup
+end
 
 function init_missing_data(sample_data::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
      NamedTuple{NAMES}([missing for _ in NAMES])
