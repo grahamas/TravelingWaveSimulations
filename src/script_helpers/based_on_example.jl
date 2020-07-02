@@ -137,11 +137,11 @@ function based_on_example_serial(; data_root::AbstractString=datadir(),
     initial_simulation = example()
     sample_execution = execute(initial_simulation)
     sample_data = initial_simulation.global_reduction(sample_execution.solution)
-    u_init = init_results_tuple(pkeys, sample_data)
+    u_init = init_results_tuple(pkeys, sample_data, length(modifications))
     @show typeof(u_init)
     ensemble_solution = solve(initial_simulation, EnsembleSerial(); 
                               prob_func=prob_func, 
-                              reduction=(u,data,i) -> (append_namedtuple_arr!(u,data), false),
+                              reduction=(u,data,i) -> (setindex_namedtuple!(u, data, i), false),
                               u_init=u_init, 
                               trajectories=length(modifications))
 

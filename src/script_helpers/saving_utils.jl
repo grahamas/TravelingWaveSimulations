@@ -45,11 +45,11 @@ function extract_params_tuple(modification, pkeys)
     return NamedTuple{Tuple(pkeys)}(getkeys(modification, pkeys))
 end
 
-function init_results_tuple(pkeys::Array{Symbol}, results::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
+function init_results_tuple(pkeys::Array{Symbol}, results::NamedTuple{NAMES,TYPES}, init_length=0) where {NAMES,TYPES}
     N = length(pkeys)
     ALL_NAMES = Tuple([pkeys...,NAMES...])
     ARR_TYPES = Tuple{[Array{Float64,1} for _ in 1:N]..., [Array{Union{Missing,TYPE},1} for TYPE in TYPES.parameters]...}
-    empty_arrs = [[Float64[] for _ in 1:N]..., [Union{Missing,TYPE}[] for TYPE in TYPES.parameters]...]
+    empty_arrs = [[Vector{Float64}(undef,init_length) for _ in 1:N]..., [Vector{Union{Missing,TYPE}}(undef, init_length) for TYPE in TYPES.parameters]...]
     NamedTuple{ALL_NAMES,ARR_TYPES}(empty_arrs)
 end
 
@@ -78,6 +78,22 @@ function push_namedtuple!(tup::NamedTuple, mods::Union{Dict,NamedTuple})
 end
 push_namedtuple!(::Nothing, ::Nothing) = nothing
 push_namedtuple!(nt::NamedTuple, ::Nothing) = nt
+
+function setindex_namedtuple!(tup_arrs::NamedTuple, tup::NamedTuple, idx)
+    for mod in pairs(tup)
+        tup_arrs[mod[1]][idx] = mod[2]
+    end
+    return tup_arrs
+end
+function setindex_namedtuple!(tup_arrs::NamedTuple, arr::Vector{<:NamedTuple}, idx::AbstractArray)
+    for key in keys(tup_arrs)
+        tup_arr = tup_arrs[key]
+        for i in 1:length(idx)
+            tup_arr[i] = arr[i][key]
+        end
+    end
+    return tup_arrs
+end
 
 function append_namedtuple_arr!(target_tup::NamedTuple, arr::Array{<:NamedTuple, 1})
     for key in keys(arr[1])
