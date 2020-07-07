@@ -9,7 +9,7 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
                                                      Aii=2.0, Sii=27.0,
                                                      Aie=35.0, Sie=25.0,
                                                      Aei=70.0, Sei=27.0,
-                                                     n=256, x=700.0, 
+                                                     n_lattice=512, x_lattice=1400.0, 
                                                      stim_strength=6.0,
                                                      stim_radius=14.0,
                                                      firing_θE=6.0,
@@ -40,7 +40,7 @@ examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function 
                     (Sie,) (Sii,)]
          ))
       );
-      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n,), extent=(x,)),
+      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_lattice,), extent=(x_lattice,)),
       tspan = (0.0,stop_time),
       dt = 0.1,
       algorithm=Tsit5(),

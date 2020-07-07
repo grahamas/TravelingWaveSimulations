@@ -1,4 +1,5 @@
 using Distributed, ClusterManagers
+data_root = "/local/grahams"
 
 function init_fast_partition(ntasks=24; partition="fast",
                                         time="1-00:00:00",

@@ -50,6 +50,7 @@ function based_on_example(; data_root::AbstractString=datadir(),
 
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     @warn "# of mods: $(length(modifications))"
+    @warn "Parallelizing over $(nworkers()) workers"
 
     # Initialize saving paths
     data_path = joinpath(data_root, example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
@@ -61,7 +62,9 @@ function based_on_example(; data_root::AbstractString=datadir(),
     end
 
     # Initialize example
+    @show example_name
     example = get_example(example_name)
+    @show example
     
     # Initialize parallelism
     parallel_batch_size = if nprocs() == 1
@@ -92,6 +95,9 @@ function based_on_example(; data_root::AbstractString=datadir(),
                               trajectories=length(modifications), 
                               batch_size=parallel_batch_size)
 
+    # TODO: only works for namedtuple u
+    @warn """saving $(joinpath(data_path, "ensemble_solution.jdb"))""" 
+    JuliaDB.save(table(ensemble_solution.u, pkey=pkeys), joinpath(data_path, "ensemble_solution.jdb"))
     return ensemble_solution
     # for backup_path in backup_paths
     #     run(`scp -r $data_path $backup_path`)
@@ -111,6 +117,7 @@ function based_on_example_serial(; data_root::AbstractString=datadir(),
 
     modifications, modifications_prefix = parse_modifications_argument(modifications)
     @warn "# of mods: $(length(modifications))"
+    @warn "Serial."
 
     # Initialize saving paths
     data_path = joinpath(data_root, example_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
