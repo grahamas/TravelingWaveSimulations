@@ -2,54 +2,79 @@ include("example_helpers.jl")
 
 examples_dict = Dict()
 
-ABS_STOP=300.0
-X_PROP = 0.9
-examples_dict["reduced_line_dos_effectively_sigmoid"] = @EI_kw_example function example(N_ARR=1,N_CDT=1,P=2; SNR_scale=80.0, stop_time=ABS_STOP,
-                                                     Aee=70.0, See=25.0,
-                                                     Aii=2.0, Sii=27.0,
-                                                     Aie=35.0, Sie=25.0,
-                                                     Aei=70.0, Sei=27.0,
-                                                     n_lattice=512, x_lattice=1400.0, 
-                                                     stim_strength=6.0,
-                                                     stim_radius=14.0,
-                                                     firing_θE=6.0,
-                                                     firing_θI=11.4,
-                                                     blocking_θE=30.0,
-                                                     blocking_θI=30.0,
-                                                     stim_duration=7.0,other_opts=Dict())
-  simulation = Simulation(
-                          WCMSpatial{N_CDT,P}(;
-      pop_names = ("E", "I"),
-      α = (1.0, 1.0),
-      β = (1.0, 1.0),
-      τ = (3.0, 3.0),
-      nonlinearity = pops(DifferenceOfSigmoids;
-        firing_θ = [firing_θE, firing_θI],
-        firing_a = [1.2, 1.0],
-        blocking_θ = [blocking_θE, blocking_θI],
-        blocking_a = [1.2, 1.0]),
-      stimulus = pops(CircleStimulusParameter;
-          strength = [stim_strength, stim_strength],
-          radius = [stim_radius, stim_radius],
-          time_windows = [[(0.0, stim_duration)], [(0.0, stim_duration)]],
-          baseline=[0.0, 0.0]),
-      connectivity = FFTParameter(pops(GaussianConnectivityParameter;
-          amplitude = [Aee -Aei;
-                       Aie -Aii],
-          spread = [(See,) (Sei,);
-                    (Sie,) (Sii,)]
-         ))
-      );
-      space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_lattice,), extent=(x_lattice,)),
-      tspan = (0.0,stop_time),
-      dt = 0.1,
-      algorithm=Tsit5(),
-      save_idxs=nothing,#[IndexSubsampler((2,)), RightCutProportionFromValue((0.0,),(X_PROP,))],
-      step_reduction = nothing,#(reduce_to_fronts(save_idxs, space), front_array_type),
-      global_reduction = reduce_to_wave_properties,
-      callback=terminate_when_E_fully_propagates(save_idxs, proportion_full=X_PROP, min_time=0.1), 
-      other_opts...
-  )
+const ABS_STOP=300.0
+const X_PROP = 0.9
+examples_dict["reduced_line_dos_effectively_sigmoid"] = (
+                  N_ARR=1,N_CDT=1,P=2; 
+                  SNR_scale=80.0, stop_time=ABS_STOP,
+                  Aee=70.0, See=25.0,
+                  Aii=2.0, Sii=27.0,
+                  Aie=35.0, Sie=25.0,
+                  Aei=70.0, Sei=27.0,
+                  n_lattice=512, x_lattice=1400.0, 
+                  firing_θE=6.0,
+                  firing_θI=11.4,
+                  blocking_θE=30.0,
+                  blocking_θI=30.0,
+                  stim_strength=6.0,
+                  stim_radius=14.0,
+                  stim_duration=7.0,
+                  pop_names = ("E", "I"),
+                  α = (1.0, 1.0),
+                  β = (1.0, 1.0),
+                  τ = (3.0, 3.0),
+                  nonlinearity = pops(DifferenceOfSigmoids;
+                      firing_θ = [firing_θE, firing_θI],
+                      firing_a = [1.2, 1.0],
+                      blocking_θ = [blocking_θE, blocking_θI],
+                      blocking_a = [1.2, 1.0]
+                  ),
+                  stimulus = pops(CircleStimulusParameter;
+                      strength = [stim_strength, stim_strength],
+                      radius = [stim_radius, stim_radius],
+                      time_windows = [[(0.0, stim_duration)], [(0.0, stim_duration)]],
+                      baseline=[0.0, 0.0]
+                  ),
+                  connectivity = FFTParameter(pops(GaussianConnectivityParameter;
+                      amplitude = [Aee -Aei;
+                                   Aie -Aii],
+                      spread = [(See,) (Sei,);
+                                (Sie,) (Sii,)]
+                     )
+                  ),
+                  space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_lattice,), 
+                                                           extent=(x_lattice,)),
+                  tspan = (0.0,stop_time),
+                  dt = 0.1,
+                  algorithm=Tsit5(),
+                  save_idxs=nothing,
+                  step_reduction=nothing,#(reduce_to_fronts(save_idxs, space), front_array_type),
+                  global_reduction = reduce_to_wave_properties,
+                  callback=terminate_when_E_fully_propagates(save_idxs, 
+                                                             proportion_full=X_PROP, 
+                                                             min_time=0.1), 
+                  other_opts...
+            ) -> begin
+    Simulation(
+        WCMSpatial{N_CDT,P}(;
+            pop_names = pop_names,
+            α = α,
+            β = β,
+            τ = τ,
+            nonlinearity = nonlinearity,
+            stimulus = stimulus,
+            connectivity = connectivity
+           );
+        space = space,
+        tspan = tspan,
+        dt = dt,
+        algorithm = algorithm,
+        save_idxs = save_idxs,
+        step_reduction = step_reduction,
+        global_reduction = global_reduction,
+        callback = callback,
+        other_opts...
+    )
 end
 
 examples_dict["simple_square"] = @EI_kw_example function example(N_ARR=2,N_CDT=2,P=2; stop_time=ABS_STOP,
