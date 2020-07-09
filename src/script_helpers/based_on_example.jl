@@ -94,6 +94,11 @@ function based_on_example(; data_root::AbstractString=datadir(),
                               u_init=u_init, 
                               trajectories=length(modifications), 
                               batch_size=parallel_batch_size)
+    ensemble_solution = if ensemble_solution isa Tuple
+        ensemble_solution[1]
+    else
+        ensemble_solution
+    end
 
     # TODO: only works for namedtuple u
     @warn """saving $(joinpath(data_path, "ensemble_solution.jdb"))""" 

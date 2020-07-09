@@ -49,7 +49,8 @@ end
 Base.BroadcastStyle(::Type{<:ValuedSpace}) = Broadcast.ArrayStyle{ValuedSpace}()
 
 Base.size(vs::ValuedSpace) = size(vs.values)
-Base.getindex(vs::ValuedSpace, inds::Vararg{Int,N}) where N = vs.values[inds...]#ValuedSpace(vs.values[I], vs.coordinates[I])
+Base.getindex(vs::ValuedSpace, i::Int) = vs.values[i]
+Base.getindex(vs::ValuedSpace, inds::Vararg{Int,N}) where N = @view vs.values[inds...]#ValuedSpace(vs.values[I], vs.coordinates[I])
 getvalue(vs::ValuedSpace, idx::Union{CartesianIndex,Int}) = Value(vs.coordinates[idx], vs.values[idx])
 #Base.getindex(vs::ValuedSpace, idx::Union{CartesianIndex,Int}) = ValuedSpace([vs.values[idx]], [vs.coordinates[idx]])
 function Base.getindex(vs::ValuedSpace, fidx::AbstractFloat)
@@ -77,7 +78,7 @@ function getslice(vs::ValuedSpace, (left_loc,right_loc)::Tuple{AbstractFloat,Abs
     else
         maybe_right - 1
     end
-    return ValuedSpace(vs.values[left_idx:right_idx], vs.coordinates[left_idx:right_idx])
+    return @views ValuedSpace(vs.values[left_idx:right_idx], vs.coordinates[left_idx:right_idx])
 end
 Base.setindex!(vs::ValuedSpace, val, inds::Vararg{Int,N}) where N = vs.values[inds...] = val
 Base.showarg(io::IO, vs::ValuedSpace, toplevel) = print(io, typeof(vs), ":\n\tValues: $(vs.values)\n\tCoordinates: $(vs.coordinates)")
