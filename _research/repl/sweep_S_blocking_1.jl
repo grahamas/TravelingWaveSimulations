@@ -3,7 +3,7 @@ based_on_example(; example_name="reduced_line_dos_effectively_sigmoid",
                                        "Sie=14.0:24.0:320.0", "Sii=14.0:24.0:600.0",
                                        "firing_θE=6.0", "firing_θI=7.0",
                                        "blocking_θE=25.0", "blocking_θI=10.0",
-                                       "n_lattice=512", "x_lattice=1400",
+                                       #"n_lattice=512", "x_lattice=1400",
                                        #"step_reduction=nothing"],
                                        "save_everystep=false"],
                         data_root=data_root)

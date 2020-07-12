@@ -76,7 +76,7 @@ function based_on_example(; data_root::AbstractString=datadir(),
     @show parallel_batch_size
     pkeys = mods_to_pkeys(modifications)
    
-    function prob_func(prob, i, repeat)
+    function prob_function(prob, i, repeat)
         these_mods = modifications[i]
         new_sim = example(; these_mods...)        
         pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
@@ -89,7 +89,7 @@ function based_on_example(; data_root::AbstractString=datadir(),
     sample_data = initial_simulation.global_reduction(sample_execution.solution)
     u_init = init_results_tuple(pkeys, sample_data)
     ensemble_solution = solve(initial_simulation, EnsembleDistributed(); 
-                              prob_func=prob_func, 
+                              prob_func=prob_function, 
                               reduction=(u,data,i) -> (append_namedtuple_arr!(u,data), false),
                               u_init=u_init, 
                               trajectories=length(modifications), 
