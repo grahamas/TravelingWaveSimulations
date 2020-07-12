@@ -4,6 +4,7 @@ let classifications = classifications_A
         scene = sweep_2D_slice_heatmaps(classifications[name], title = "$(name) proportion")
         path = plotsdir("$(example_name)/$(sim_name)/$(name)_slices.png")
         mkpath(path |> dirname)
+        @warn "saving $path"
         Makie.save(path, scene)
     end
 end

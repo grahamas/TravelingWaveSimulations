@@ -36,6 +36,7 @@ include("global_reductions.jl")
 include("examples.jl")
 include("loading.jl")
 include("saving.jl")
+include("plotting.jl")
 
 include("script_helpers/saving_utils.jl")
 include("script_helpers.jl")
