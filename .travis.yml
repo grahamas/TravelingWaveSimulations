@@ -14,7 +14,7 @@ install:
       Pkg.develop(deps);
       Pkg.build()'
 script:
-      travis_wait julia --project -e 'using Pkg; Pkg.test(coverage=true)'
+      travis_wait 30 julia --project -e 'using Pkg; Pkg.test(coverage=true)'
 jobs:
   include:
   - stage: Documentation
