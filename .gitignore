@@ -27,5 +27,5 @@ plots
 *.db
 
 old
-
+build
 tmp
