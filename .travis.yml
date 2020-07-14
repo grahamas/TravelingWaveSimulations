@@ -14,14 +14,15 @@ install:
       Pkg.develop(deps);
       Pkg.build()'
 script:
-      julia --project -e 'using Pkg; Pkg.test(coverage=true)'
+      travis_wait 30 julia --project -e 'using Pkg; Pkg.test(coverage=true)'
 jobs:
   include:
   - stage: Documentation
     script:
-    - julia --project=docs/ -e 'using Pkg;
-      haskey(Pkg.installed(), "Documenter") || Pkg.add("Documenter");
-      Pkg.instantiate();
+    - travis_wait julia --project=docs/ -e 'using Pkg; 
+      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["", "Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE"]]; 
+      Pkg.develop(deps);
+      Pkg.build();
       include("docs/make.jl")'
     after_success: skip
 notifications:

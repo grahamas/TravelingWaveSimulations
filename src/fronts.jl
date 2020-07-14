@@ -38,12 +38,14 @@ function detect_all_fronts(valued_space::ValuedSpace)
         right_boundary = translate(zero_crossing(d_values, idx, idx+1, 1e-4), valued_space)
         if right_boundary !== nothing
             this_front = getslice(d_values, (left_boundary, right_boundary))
-            _, midx = findmax(abs.(this_front))
-            steepest_slope = getvalue(this_front, midx)
-            push!(fronts, Wavefront(left_boundary,
-                                    steepest_slope,
-                                    right_boundary)
-            )
+            if length(this_front) > 0
+                _, midx = findmax(abs.(this_front))
+                steepest_slope = getvalue(this_front, midx)
+                push!(fronts, Wavefront(left_boundary,
+                                        steepest_slope,
+                                        right_boundary)
+                )
+            end
             steepest_slope = nothing
             left_boundary = right_boundary
             right_boundary = nothing
@@ -171,13 +173,13 @@ function link_persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}
             front_idx, traveler_idx = Tuple(idx)
             if (front_idx in matched_fronts) || (traveler_idx in matched_travelers)
                 #@warn "Ambiguous traveling waves."
-                slope_dists[idx] .= Inf
+                slope_dists[idx] = Inf
                 continue
             end
             push!(matched_fronts, front_idx)
             push!(matched_travelers, traveler_idx)
             push!(active_travelers[traveler_idx], (fronts[front_idx], t))
-            slope_dists[idx] .= Inf
+            slope_dists[idx] = Inf
             i_matches += 1
         end
         unmatched_fronts = setdiff(BitSet(1:length(fronts)), matched_fronts)

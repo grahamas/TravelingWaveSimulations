@@ -41,6 +41,10 @@ end
 function parse_mod_val(val)
     if val == "nothing"
         return nothing
+    elseif val == "false"
+        return false
+    elseif val == "true"
+        return true
     else
         parse(Float64, val)
     end
@@ -79,11 +83,20 @@ function get_mods(mdb::MultiDB)
     get_mods(mdb.fns[1])
 end
 
+function equals_str(key,val)
+    "$key=$val"
+end
+function equals_strs(assocs)
+    [equals_str(p...) for p in pairs(assocs)]
+end
+function mods_filename(; kwargs...)
+    join(equals_strs(kwargs), "_")
+end
 
 
 # Data loading functions
 
-export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, load_data
+export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, load_data_recent
 
 struct DBRowIter
     db
@@ -177,12 +190,12 @@ end
     
 
 "Load most recent simulation"
-function load_data(data_root, example_name)
-    nsims = length(readdir(joinpath(data_root, example_name)))
-    load_data(data_root, example_name, nsims)
-end
+#function load_data_recent(data_root, example_name)
+#    nsims = length(readdir(joinpath(data_root, example_name)))
+#    load_data(data_root, example_name, nsims)
+#end
 "Load nth simulation, ordered by time"
-function load_data(data_root, example_name, nth::Int)
+function load_data_recent(data_root, example_name, nth::Int=0)
     ex_path = joinpath(data_root, example_name)
     sims = readdir(ex_path)
     sorted_sims = sort(joinpath.(Ref(ex_path), sims), by=mtime)
@@ -195,9 +208,8 @@ function load_data(data_root, example_name, nth::Int)
 end
 
 export load_ExecutionClassifications_recent
-function load_ExecutionClassifications_recent(example_name, data_root = datadir(), offset_from_current=0)
-    (example, mdb) = load_data(data_root, example_name, offset_from_current)
-    example_name = get_example_name(mdb.fns[1])
+function load_ExecutionClassifications_recent(::Type{<:AbstractArray}, example_name, offset_from_current=0; data_root = datadir())
+    (example, mdb) = load_data_recent(data_root, example_name, offset_from_current)
     sim_name = get_sim_name(mdb.fns[1])
 
     mods = get_mods(mdb)
@@ -214,13 +226,13 @@ function load_ExecutionClassifications_recent(example_name, data_root = datadir(
     
     mod_names = all_mod_names[varied_mods] |> sort
     mod_values = [mods[name] for name in mod_names]
+    init_mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
     mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
     
-    mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
     
     first_result = MultiDBRowIter(mdb) |> first
     classification_names = fieldnames(ExecutionClassifications)
-    classifications_A = Dict(name => mod_array(Bool) for name in classification_names) 
+    classifications_A = Dict(name => init_mod_array(Bool) for name in classification_names) 
 
     for (this_mod, this_result) in MultiDBRowIter(mdb)
         exec_classification = this_result[:wave_properties]
@@ -235,5 +247,47 @@ function load_ExecutionClassifications_recent(example_name, data_root = datadir(
             end
         end
     end
-    return classifications_A
+    return classifications_A, sim_name
+end
+
+function load_ExecutionClassifications_recent(::Type{<:DataFrame}, example_name, offset_from_current=0; data_root = datadir())
+    (example, mdb) = load_data_recent(data_root, example_name, offset_from_current)
+    sim_name = get_sim_name(mdb.fns[1])
+
+    mods = get_mods(mdb)
+
+    is_range(x::Nothing) = false
+    is_range(x::AbstractRange) = true
+    is_range(x::Number) = false
+    
+    all_mod_names = keys(mods) |> collect
+    all_mod_values = values(mods) |> collect
+    varied_mods = is_range.(all_mod_values)
+    fixed_mods = .!varied_mods
+    fixed_mods_dict = Dict(name => mods[name] for name in all_mod_names[fixed_mods])
+    
+    mod_names = all_mod_names[varied_mods] |> sort
+    mod_values = [mods[name] for name in mod_names]
+    init_mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
+    mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
+    
+    
+    first_result = MultiDBRowIter(mdb) |> first
+    classification_names = fieldnames(ExecutionClassifications)
+    classifications_A = Dict(name => init_mod_array(Bool) for name in classification_names) 
+
+    for (this_mod, this_result) in MultiDBRowIter(mdb)
+        exec_classification = this_result[:wave_properties]
+        classifications_A_idx = this_mod[mod_names]
+        if exec_classification === missing
+            for name in classification_names
+                classifications_A[name][classifications_A_idx...] = missing
+            end
+        else
+            for name in classification_names
+                classifications_A[name][classifications_A_idx...] = getproperty(exec_classification, name)
+            end
+        end
+    end
+    return classifications_A, sim_name
 end

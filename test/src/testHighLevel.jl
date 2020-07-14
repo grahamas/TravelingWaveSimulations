@@ -7,5 +7,5 @@
         firing_θE=6.0,firing_θI=7.0, 
         other_opts=Dict())
     (mod_name, exec) = @test_nowarn execute_single_modification(line_example, these_mods)
-    wp = @test_nowarn get_wave_properties(exec)
+    wp = @test_nowarn ExecutionClassifications(exec)
 end
