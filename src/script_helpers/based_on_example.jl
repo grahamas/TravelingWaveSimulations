@@ -34,10 +34,9 @@ Run simulation based on example named `example_name` described in `src/examples`
 `data_root` defines the root of the data saving directory tree.
 
 # Example
-```jldoctest
-julia> using TravelingWaveSimulations
-julia> based_on_example(; example_name="sigmoid_normal", modifications=["iiS=0.7"])
-```
+#```jldoctest; filter = r".*"
+#julia> based_on_example_serial(; example_name="reduced_line_dos_effectively_sigmoid", modifications=["Sii=23.0"])
+#```
 """
 function based_on_example(; data_root::AbstractString=datadir(), 
         no_save_raw::Bool=false,
