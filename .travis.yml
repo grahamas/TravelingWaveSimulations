@@ -19,7 +19,7 @@ jobs:
   include:
   - stage: Documentation
     script:
-    - travis_wait julia --project=docs/ -e 'using Pkg; 
+    - travis_wait 30 julia --project=docs/ -e 'using Pkg; 
       deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["", "Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE"]]; 
       Pkg.develop(deps);
       Pkg.build();
