@@ -32,8 +32,9 @@ export get_prototype
 
 include("util/loading.jl")
 export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, 
-       load_data_recent,
-       load_ExecutionClassifications_recent
+       load_simulation_data_recent, load_simulation_data, get_recent_simulation_data_path
+       load_ExecutionClassifications_recent,
+       load_ExecutionClassifications
 include("util/saving.jl")
 include("plot/plotting.jl")
 export custom_animate
