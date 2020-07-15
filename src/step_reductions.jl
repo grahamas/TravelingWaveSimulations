@@ -1,6 +1,4 @@
 
-export front_array_type, reduce_to_fronts
-
 const front_array_type = Array{Wavefront{Float64,Float64,Value{Float64,Float64}},1}
 
 function reduce_to_fronts(save_idxs, space)

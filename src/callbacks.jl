@@ -1,6 +1,4 @@
 
-export terminate_when_E_fully_propagates
-
 function terminate_when_E_fully_propagates(save_idxs; proportion_full=0.95, min_time=5)
     DiscreteCallback(E_is_fully_propagated(save_idxs, proportion_full, min_time), terminate!)
 end

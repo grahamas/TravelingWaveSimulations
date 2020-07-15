@@ -3,7 +3,7 @@ using MakieLayout, Makie
 export heatmap_sweep_with_target
 function heatmap_sweep_with_target(sweep::AbstractArray,
 			target_mods_nt::NamedTuple{mod_names}, 
-			example_name,
+			prototype_name,
             sim_name;
             fixed_mods=Dict(),
             title,
@@ -12,7 +12,7 @@ function heatmap_sweep_with_target(sweep::AbstractArray,
 		) where {mod_names}
     mod_values = keys.(axes(sweep))
     mod_names_str = [string(name) for name in mod_names]
-    line_example = get_example(example_name)
+    line_prototype = get_prototype(prototype_name)
     all_dims = 1:length(mod_names)
     slices_2d = IterTools.subsets(all_dims, Val{2}())
     plot_size = (plot_side_size, plot_side_size)
@@ -36,7 +36,7 @@ function heatmap_sweep_with_target(sweep::AbstractArray,
         
         heatmap
     end
-    savedir(bn) = plotsdir(example_name, sim_name, mods_filename(; fixed_mods..., target_mods_nt...), bn)
+    savedir(bn) = plotsdir(prototype_name, sim_name, mods_filename(; fixed_mods..., target_mods_nt...), bn)
     mkpath(savedir("") |> dirname)
     
     layout[:,1] = LText.(scene, mod_names_str[1:end-1], tellheight=false, rotation=pi/2)
@@ -49,9 +49,9 @@ function heatmap_sweep_with_target(sweep::AbstractArray,
     
     these_mods =  (save_idxs=nothing, other_opts=Dict(), fixed_mods..., target_mods_nt...)
     @show these_mods
-    example = get_example(example_name)
-    (mod_name, exec) = TravelingWaveSimulations.execute_single_modification(example, these_mods)
-    #exec = execute(line_example(;mods..., other_opts=Dict()))
+    prototype = get_prototype(prototype_name)
+    (mod_name, exec) = execute_single_modification(prototype, these_mods)
+    #exec = execute(line_prototype(;mods..., other_opts=Dict()))
     #wp = ExecutionClassifications(exec.solution)
     #@show wp.has_propagation
     @warn "Not validating has_propagation"
