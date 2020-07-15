@@ -1,5 +1,3 @@
-export parse_modifications_argument, parse_analyses_argument
-
 MOD_SEP = "+"
 
 parse_num(str) = try

@@ -26,6 +26,7 @@ plots
 *.bson
 *.db
 
+_old
 old
 build
 tmp

@@ -87,7 +87,6 @@ end
 ######################################
 ### Whole execution classification ###
 ######################################
-export ExecutionClassifications
 struct ExecutionClassifications
     has_propagation::Bool
     has_oscillation::Bool

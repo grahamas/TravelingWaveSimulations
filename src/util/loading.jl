@@ -62,7 +62,7 @@ end
 function get_sim_name(fn::String)
     splitpath(fn)[end-1]
 end
-function get_example_name(fn::String)
+function get_prototype_name(fn::String)
     splitpath(fn)[end-2]
 end
 function get_mods(fn::String)
@@ -96,7 +96,6 @@ end
 
 # Data loading functions
 
-export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, load_data_recent
 
 struct DBRowIter
     db
@@ -116,21 +115,21 @@ function Base.iterate(it::DBRowIter)
 end
 
 struct DBExecIter
-    example
+    prototype
     db
     constant_mods
 end
 Base.length(it::DBExecIter) = length(it.db)
 function Base.iterate(it::DBExecIter, (db_iter, db_state))
     (key, val), db_state = @ifsomething iterate(db_iter, db_state)
-    model = it.example(; key..., it.constant_mods...)
+    model = it.prototype(; key..., it.constant_mods...)
     exec = Execution(model, BareSolution(; val...))
     return ((key, exec), (db_iter, db_state))
 end
 function Base.iterate(it::DBExecIter)
     db_iter = DBRowIter(it.db)
     (key, val), db_state = @ifsomething iterate(db_iter)
-    model = it.example(; key..., it.constant_mods...)
+    model = it.prototype(; key..., it.constant_mods...)
     exec = Execution(model, BareSolution(; val...))
     return ((key, exec), (db_iter, db_state))
 end
@@ -155,7 +154,7 @@ function Base.iterate(it::MultiDBRowIter, (mdb_state, (db_exec_iter, wrapped_db_
 end
 
 struct MultiDBExecIter
-    example
+    prototype
     dbs::MultiDB
     constant_mods
 end
@@ -163,7 +162,7 @@ function Base.iterate(it::MultiDBExecIter, (dbs_state, (db_iter, wrapped_db_stat
     exec_tuple = iterate(db_iter, wrapped_db_state...)
     while exec_tuple === nothing
         db, dbs_state = @ifsomething iterate(it.dbs, dbs_state)
-        db_iter = DBExecIter(it.example, db, it.constant_mods)
+        db_iter = DBExecIter(it.prototype, db, it.constant_mods)
         exec_tuple = iterate(db_iter)
     end
     mod_exec, db_state = exec_tuple
@@ -171,7 +170,7 @@ function Base.iterate(it::MultiDBExecIter, (dbs_state, (db_iter, wrapped_db_stat
 end
 function Base.iterate(it::MultiDBExecIter)
     (db, dbs_state) = @ifsomething iterate(it.dbs)
-    db_iter = DBExecIter(it.example, db, it.constant_mods)
+    db_iter = DBExecIter(it.prototype, db, it.constant_mods)
     return iterate(it, (dbs_state, (db_iter,())))
 end
     
@@ -190,13 +189,13 @@ end
     
 
 "Load most recent simulation"
-#function load_data_recent(data_root, example_name)
-#    nsims = length(readdir(joinpath(data_root, example_name)))
-#    load_data(data_root, example_name, nsims)
+#function load_data_recent(data_root, prototype_name)
+#    nsims = length(readdir(joinpath(data_root, prototype_name)))
+#    load_data(data_root, prototype_name, nsims)
 #end
 "Load nth simulation, ordered by time"
-function load_data_recent(data_root, example_name, nth::Int=0)
-    ex_path = joinpath(data_root, example_name)
+function load_data_recent(data_root, prototype_name, nth::Int=0)
+    ex_path = joinpath(data_root, prototype_name)
     sims = readdir(ex_path)
     sorted_sims = sort(joinpath.(Ref(ex_path), sims), by=mtime)
     sim_path = if nth > 0
@@ -204,12 +203,11 @@ function load_data_recent(data_root, example_name, nth::Int=0)
     else
         sorted_sims[end+nth]
     end
-    return (get_example(example_name), MultiDB(joinpath.(Ref(sim_path), readdir(sim_path))))
+    return (get_prototype(prototype_name), MultiDB(joinpath.(Ref(sim_path), readdir(sim_path))))
 end
 
-export load_ExecutionClassifications_recent
-function load_ExecutionClassifications_recent(::Type{<:AbstractArray}, example_name, offset_from_current=0; data_root = datadir())
-    (example, mdb) = load_data_recent(data_root, example_name, offset_from_current)
+function load_ExecutionClassifications_recent(::Type{<:AbstractArray}, prototype_name, offset_from_current=0; data_root = datadir())
+    (prototype, mdb) = load_data_recent(data_root, prototype_name, offset_from_current)
     sim_name = get_sim_name(mdb.fns[1])
 
     mods = get_mods(mdb)
@@ -250,8 +248,8 @@ function load_ExecutionClassifications_recent(::Type{<:AbstractArray}, example_n
     return classifications_A, sim_name
 end
 
-function load_ExecutionClassifications_recent(::Type{<:DataFrame}, example_name, offset_from_current=0; data_root = datadir())
-    (example, mdb) = load_data_recent(data_root, example_name, offset_from_current)
+function load_ExecutionClassifications_recent(::Type{<:DataFrame}, prototype_name, offset_from_current=0; data_root = datadir())
+    (prototype, mdb) = load_data_recent(data_root, prototype_name, offset_from_current)
     sim_name = get_sim_name(mdb.fns[1])
 
     mods = get_mods(mdb)
