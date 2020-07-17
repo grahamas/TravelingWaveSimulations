@@ -76,6 +76,27 @@ prototypes_dict["dos_ring"] = (
     )
 end
 
+prototypes_dict["dos_ring_absconn"] = (args...;
+                  Aee=70.0, See=25.0,
+                  Aii=2.0, Sii=27.0,
+                  Aie=35.0, Sie=25.0,
+                  Aei=70.0, Sei=27.0,
+                  connectivity = FFTParameter(pops(ExpAbsSumDecayingConnectivityParameter;
+                      amplitude = [Aee -Aei;
+                                   Aie -Aii],
+                      spread = [(See,) (Sei,);
+                                (Sie,) (Sii,)]
+                     )
+                  ),
+				 kwargs...) -> prototypes_dict["dos_ring"](args...;
+				 	Aee=Aee, See=See,
+					Aii=Aii, Sii=Sii,
+					Aie=Aie, Sie=Sie,
+					Aei=Aei, Sei=Sei,
+					connectivity=connectivity,
+					kwargs...)
+					
+
 prototypes_dict["oscillating_pulse"] = (
                   N_ARR=1,N_CDT=1,P=2; 
                   SNR_scale=80.0, stop_time=ABS_STOP,

@@ -40,12 +40,21 @@ end
 function iterate_prototype(prototype::Function, 
                            modifications_specification; 
                            kwargs...)
-    modifications, modifications_prefix = parse_modifications_specification(modifications_specification)
-    iterate_prototype(prototype, modifications, modifications_prefix; kwargs...)
+    modifications, modification_strs = parse_modifications_specification(modifications_specification)
+    iterate_prototype(prototype, modifications, modification_strs; kwargs...)
 end
 function iterate_prototype(prototype::Function,
                            modifications::AbstractArray,
+<<<<<<< Updated upstream:src/prototypes/prototype_iteration.jl
                            modifications_prefix::AbstractString; 
+||||||| merged common ancestors
+                           modifications_prefix::AbstractString; 
+                           prototype_name,
+=======
+                           modification_strs::Vector{<:AbstractString}; 
+                           prototype_name,
+                           experiment_name="",
+>>>>>>> Stashed changes:src/prototypes/iteration.jl
                            data_root::AbstractString=datadir(), 
                            max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^20))#, 
                            # Assuming a sim will never be larger than a MiB   ^^^
@@ -57,6 +66,7 @@ function iterate_prototype(prototype::Function,
     @warn "# of mods: $(length(modifications))"
 
     # Initialize saving paths
+<<<<<<< Updated upstream:src/prototypes/prototype_iteration.jl
     data_path = joinpath(data_root, prototype_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
     if !no_save_raw
         raw_path = joinpath(data_path, "raw")
@@ -64,6 +74,13 @@ function iterate_prototype(prototype::Function,
     else
         raw_path = nothing
     end
+||||||| merged common ancestors
+    data_path = joinpath(data_root, prototype_name, modifications_prefix)
+=======
+    data_path = init_data_path(modification_strs; data_root=data_root, 
+                                                  prototype_name=prototype_name,
+                                                  experiment_name=experiment_name)
+>>>>>>> Stashed changes:src/prototypes/iteration.jl
 
     # Initialize prototype
     @show prototype_name

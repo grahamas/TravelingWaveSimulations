@@ -65,8 +65,8 @@ end
 function get_prototype_name(mdb::MultiDB)
     splitpath(mdb.fns[2])[end-2]
 end
-function get_mod_names(mdb::MultiDB)
-    first(MultiDBRowIter(mdb))[1] |> keys
+function get_mods(mdb::MultiDB)
+   read_modifications_from_data_dir(splitpath(mdb.fns[begin])[begin:end-1]) 
 end
 
 function equals_str(key,val)
@@ -215,19 +215,16 @@ _is_range(x::Number) = false
 
 # FIXME type can be either <:AbstractArray or DataFrame -- should impact return type
 # not sure why it was necessary... never actually implemented
-function load_ExecutionClassifications(type::Type, data_path; axes=nothing)
+function load_ExecutionClassifications(type::Type, data_path)
     mdb = load_simulation_data(data_path)
-    if axes == nothing
-        axes = get_axes(mdb)
-    end
+    mods = get_mods(mdb)
 
-    first_result = MultiDBRowIter(mdb) |> first
-    first_mods = first_result[1]
-    fixed_names = [name for name in keys(first_mods) if !(name in keys(axes))]
-    axes_names = keys(axes) |> collect
+    fixed_names = [name for name in keys(mods) if length(mods[name]) == 1]
+    varying_names = [name for name in keys(mods) if length(mods[name]) > 1]
     fixed_mods = NamedTuple{Tuple(fixed_names)}([first_mods[key] for key in fixed_names])
+    varying_mods = NamedTuple{Tuple(varying_names)}([mods[key] for key in varying_names])
 
-    init_mod_array(T) = NamedAxisArray{keys(axes)}(Array{Union{Bool,Missing}}(undef, length.(values(axes))...), values(axes))
+    init_mod_array(T) = NamedAxisArray{keys(varying_mods)}(Array{Union{Bool,Missing}}(undef, length.(values(varying_mods))...), values(varying_mods))
     #mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
     
     
@@ -237,7 +234,7 @@ function load_ExecutionClassifications(type::Type, data_path; axes=nothing)
     for (this_mod, this_result) in MultiDBRowIter(mdb)
         @assert all(this_mod[fixed_names] .== values(fixed_mods))
         exec_classification = this_result[:wave_properties]
-        A_idx = this_mod[axes_names]
+        A_idx = this_mod[varying_names]
         if exec_classification === missing
             for name in classification_names
                 classifications_A[name][A_idx...] = missing

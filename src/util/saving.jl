@@ -1,3 +1,27 @@
+const modifications_prefix_filename = "modifications_prefix.txt"
+
+function init_data_path(modifications; data_root, prototype_name, 
+                                       experiment_name="",
+                                       unique_id="$(Dates.now())_$(gitdescribe())")
+    data_path = joinpath(data_root, prototype_name, experiment_name,
+                               unique_id)
+    mkpath(data_path)
+    open(joinpath(data_path, modifications_prefix_filename), "w") do io
+        println.(Ref(io), modifications)
+    end
+    return data_path
+end
+
+function read_modifications_from_data_dir(data_dir)
+    modifications = Dict{Symbol,Any}()
+    open(joinpath(data_dir, modifications_prefix_filename), "r") do io
+        for line in readlines(io)
+            parse_to_dict!(modifications, line)
+        end
+    end
+    return modifications
+end
+
 
 function mods_to_pkeys(modifications)::Array{Symbol,1}
     pkeys = keys(modifications[1]) |> collect

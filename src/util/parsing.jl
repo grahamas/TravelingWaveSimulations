@@ -31,16 +31,15 @@ function parse_modification(str::AbstractString)
     end
 end
 
+function parse_modification_to_dict!(dict, modification_str)
+    merge!(dict, parse_modification(modification_str))
+end
+
 must_be_list(x::AbstractArray) = x
 must_be_list(x) = [x]
 
-function make_prefix(strs, path_prefix="")
-    prefix = "$(join(sort(strs), ';'))_"
-    if length(prefix) >= 255
-        return make_prefix(strs[2:end], path_prefix=joinpath(path_prefix, strs[1]))
-    else
-        return joinpath(path_prefix,prefix)
-    end
+function make_modifications_prefix(strs, path_prefix="")
+    prefix = "$(join(sort(strs), ';'))"
 end
 
 function parse_modifications_array(modification_strs::AbstractArray)
@@ -60,12 +59,10 @@ end
 function parse_modifications_argument(modification_strs)
     if modification_strs != []
         parsed_modifications = parse_modifications_array(modification_strs)
-        modifications_prefix = make_prefix(modification_strs)
     else
         parsed_modifications = [Dict()]
-        modifications_prefix = ""
     end
-    return parsed_modifications, modifications_prefix
+    return parsed_modifications, modification_strs
 end
 
 function parse_analyses_array(analysis_strs::AbstractArray)
