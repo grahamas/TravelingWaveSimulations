@@ -35,9 +35,9 @@ must_be_list(x::AbstractArray) = x
 must_be_list(x) = [x]
 
 function make_prefix(strs, path_prefix="")
-    prefix = "$(join(sort(strs), ';'))_"
+    prefix = "$(join(sort(strs), ';'))_$(Dates.now())_$(gitdescribe())"
     if length(prefix) >= 255
-        return make_prefix(strs[2:end], path_prefix=joinpath(path_prefix, strs[1]))
+        return make_prefix(strs[2:end], joinpath(path_prefix, strs[1]))
     else
         return joinpath(path_prefix,prefix)
     end
@@ -57,7 +57,7 @@ function parse_modifications_array(modification_strs::AbstractArray)
     return modification_cases
 end
 
-function parse_modifications_argument(modification_strs)
+function parse_modifications_specification(modification_strs::AbstractArray)
     if modification_strs != []
         parsed_modifications = parse_modifications_array(modification_strs)
         modifications_prefix = make_prefix(modification_strs)

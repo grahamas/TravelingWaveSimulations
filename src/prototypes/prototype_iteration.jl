@@ -33,7 +33,7 @@ Run simulation based on prototype named `prototype_name` described in `src/proto
 
 `data_root` defines the root of the data saving directory tree.
 """
-function iterate_prototype(prototype_name::AbstractString, modifications; kwargs...)
+function iterate_prototype(prototype_name::AbstractString, args...; kwargs...)
     prototype = get_prototype(prototype_name)
     iterate_prototype(prototype, args...; kwargs..., prototype_name=prototype_name)
 end
@@ -46,6 +46,7 @@ end
 function iterate_prototype(prototype::Function,
                            modifications::AbstractArray,
                            modifications_prefix::AbstractString; 
+                           prototype_name,
                            data_root::AbstractString=datadir(), 
                            max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^20))#, 
                            # Assuming a sim will never be larger than a MiB   ^^^
@@ -57,13 +58,7 @@ function iterate_prototype(prototype::Function,
     @warn "# of mods: $(length(modifications))"
 
     # Initialize saving paths
-    data_path = joinpath(data_root, prototype_name, "$(modifications_prefix)$(Dates.now())_$(gitdescribe())")
-    if !no_save_raw
-        raw_path = joinpath(data_path, "raw")
-        run(`mkdir -p $raw_path`)
-    else
-        raw_path = nothing
-    end
+    data_path = joinpath(data_root, prototype_name, modifications_prefix)
 
     # Initialize prototype
     @show prototype_name
@@ -108,6 +103,7 @@ function iterate_prototype(prototype::Function,
 
     # TODO: only works for namedtuple u
     @warn """saving $(joinpath(data_path, "ensemble_solution.jdb"))""" 
+    mkpath(data_path)
     JuliaDB.save(table(ensemble_solution.u, pkey=pkeys), joinpath(data_path, "ensemble_solution.jdb"))
     return ensemble_solution
     # for backup_path in backup_paths
