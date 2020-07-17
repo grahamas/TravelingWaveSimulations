@@ -40,7 +40,7 @@ export custom_animate
 
 include("util/parsing.jl")
 export parse_modifications_argument, parse_analyses_argument
-include("prototypes/prototype_iteration.jl")
+include("prototypes/iteration.jl")
 export iterate_prototype, execute_single_modification
 include("prototypes/replications.jl")
 
