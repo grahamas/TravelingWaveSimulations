@@ -66,7 +66,7 @@ function get_prototype_name(mdb::MultiDB)
     splitpath(mdb.fns[2])[end-2]
 end
 function get_mods(mdb::MultiDB)
-   read_modifications_from_data_dir(splitpath(mdb.fns[begin])[begin:end-1]) 
+    read_modifications_from_data_path(joinpath(splitpath(mdb.fns[begin])[begin:end-1]...)) 
 end
 
 function equals_str(key,val)
@@ -209,19 +209,20 @@ function load_ExecutionClassifications_recent(type::Type, prototype_name, offset
     return (load_ExecutionClassifications(type, recent_path; kwargs...), nothing) 
 end
 
-_is_range(x::Nothing) = false
-_is_range(x::AbstractRange) = true
-_is_range(x::Number) = false
+_is_varying(x::Nothing) = false
+_is_varying(x::AbstractArray) = true
+_is_varying(x::Number) = false
 
 # FIXME type can be either <:AbstractArray or DataFrame -- should impact return type
 # not sure why it was necessary... never actually implemented
 function load_ExecutionClassifications(type::Type, data_path)
     mdb = load_simulation_data(data_path)
     mods = get_mods(mdb)
+    @show mods
 
-    fixed_names = [name for name in keys(mods) if length(mods[name]) == 1]
-    varying_names = [name for name in keys(mods) if length(mods[name]) > 1]
-    fixed_mods = NamedTuple{Tuple(fixed_names)}([first_mods[key] for key in fixed_names])
+    fixed_names = [name for name in keys(mods) if !_is_varying(mods[name])]
+    varying_names = [name for name in keys(mods) if _is_varying(mods[name])]
+    fixed_mods = NamedTuple{Tuple(fixed_names)}([mods[key] for key in fixed_names])
     varying_mods = NamedTuple{Tuple(varying_names)}([mods[key] for key in varying_names])
 
     init_mod_array(T) = NamedAxisArray{keys(varying_mods)}(Array{Union{Bool,Missing}}(undef, length.(values(varying_mods))...), values(varying_mods))
@@ -232,7 +233,6 @@ function load_ExecutionClassifications(type::Type, data_path)
     classifications_A = Dict(name => init_mod_array(Bool) for name in classification_names) 
 
     for (this_mod, this_result) in MultiDBRowIter(mdb)
-        @assert all(this_mod[fixed_names] .== values(fixed_mods))
         exec_classification = this_result[:wave_properties]
         A_idx = this_mod[varying_names]
         if exec_classification === missing

@@ -30,17 +30,17 @@ export reduce_to_wave_properties
 include("prototypes/prototypes.jl")
 export get_prototype
 
+include("util/parsing.jl")
+export parse_modifications_argument, parse_analyses_argument
+include("util/saving.jl")
 include("util/loading.jl")
 export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, 
        load_simulation_data_recent, load_simulation_data, get_recent_simulation_data_path
        load_ExecutionClassifications_recent,
        load_ExecutionClassifications
-include("util/saving.jl")
 include("plot/plotting.jl")
 export custom_animate
 
-include("util/parsing.jl")
-export parse_modifications_argument, parse_analyses_argument
 include("prototypes/prototype_iteration.jl")
 export iterate_prototype, execute_single_modification
 include("prototypes/replications.jl")

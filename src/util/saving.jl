@@ -12,14 +12,14 @@ function init_data_path(modifications; data_root, prototype_name,
     return data_path
 end
 
-function read_modifications_from_data_dir(data_dir)
-    modifications = Dict{Symbol,Any}()
-    open(joinpath(data_dir, modifications_prefix_filename), "r") do io
-        for line in readlines(io)
-            parse_to_dict!(modifications, line)
+function read_modifications_from_data_path(data_path)
+    modifications_dict = Dict{Symbol,Any}()
+    open(joinpath(data_path, modifications_prefix_filename), "r") do io
+        for modification_line in readlines(io)
+            parse_modification_to_dict!(modifications_dict, modification_line)
         end
     end
-    return modifications
+    return modifications_dict
 end
 
 
