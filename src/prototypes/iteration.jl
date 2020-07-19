@@ -33,14 +33,14 @@ Run simulation based on prototype named `prototype_name` described in `src/proto
 
 `data_root` defines the root of the data saving directory tree.
 """
-function iterate_prototype(prototype_name::AbstractString, modifications; kwargs...)
+function iterate_prototype(prototype_name::AbstractString, args...; kwargs...)
     prototype = get_prototype(prototype_name)
     iterate_prototype(prototype, args...; kwargs..., prototype_name=prototype_name)
 end
 function iterate_prototype(prototype::Function, 
                            modifications_specification; 
                            kwargs...)
-    modifications, modification_strs = parse_modifications_specification(modifications_specification)
+    modifications, modification_strs = parse_modifications_argument(modifications_specification)
     iterate_prototype(prototype, modifications, modification_strs; kwargs...)
 end
 function iterate_prototype(prototype::Function,

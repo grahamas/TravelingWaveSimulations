@@ -41,7 +41,7 @@ export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB,
 include("plot/plotting.jl")
 export custom_animate
 
-include("prototypes/prototype_iteration.jl")
+include("prototypes/iteration.jl")
 export iterate_prototype, execute_single_modification
 include("prototypes/replications.jl")
 

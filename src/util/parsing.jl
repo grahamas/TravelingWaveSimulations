@@ -18,7 +18,7 @@ parse_array(array_str::AbstractString) = @> array_str strip(['[', ']']) split(',
 
 function parse_rhs(value_str)
     if value_str[1] == '['
-        @assert value_str[end] == '['
+        @assert value_str[end] == ']'
         return parse_array(value_str)
     elseif occursin(":", value_str)
         return parse_range(value_str)
@@ -34,8 +34,12 @@ end
 
 function dict_array_from_array_dict(dct)
     key = only(keys(dct))
-    arr = only(values(dct))
-    return [Dict(key => val) for val in arr]
+    maybe_arr = only(values(dct))
+    if maybe_arr isa AbstractArray
+        return [Dict(key => val) for val in maybe_arr]
+    else
+        return [Dict(key => maybe_arr)]
+    end
 end
 
 function parse_modification_to_dict!(dict, modification_str)
@@ -58,7 +62,7 @@ function parse_modifications_array(modification_strs::AbstractArray)
     return modification_cases
 end
 
-function parse_modifications_argument(modification_strs)
+function parse_modifications_argument(modification_strs::Vector{String})
     if modification_strs != []
         parsed_modifications = parse_modifications_array(modification_strs)
     else

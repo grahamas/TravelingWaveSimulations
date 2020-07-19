@@ -46,6 +46,7 @@ prototypes_dict["dos_ring"] = (
                   space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_lattice,), 
                                                            extent=(x_lattice,)),
                   tspan = (0.0,stop_time),
+                  dt=0.1,
                   algorithm=Tsit5(),
                   save_idxs=nothing,
                   step_reduction=(reduce_to_fronts(save_idxs, space), front_array_type),
@@ -67,6 +68,7 @@ prototypes_dict["dos_ring"] = (
            );
         space = space,
         tspan = tspan,
+        dt=dt,
         algorithm = algorithm,
         save_idxs = save_idxs,
         step_reduction = step_reduction,
