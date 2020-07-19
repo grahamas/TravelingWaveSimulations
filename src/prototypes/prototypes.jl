@@ -309,3 +309,75 @@ prototypes_dict["orientation_torus"] = (
     )
 end
 
+prototypes_dict["harris_ermentrout_pure_sigmoid"] = (
+                  N_ARR=1,N_CDT=1,P=2; 
+                  SNR_scale=80.0, stop_time=ABS_STOP,
+                  tau=0.68,
+                  sigma=0.8,
+                  Aee=1.0, See=1.0,
+                  Aii=0.25, Sii=sigma,
+                  Aie=1.0, Sie=1.0,
+                  Aei=1.5, Sei=sigma,
+                  n_lattice=512, x_lattice=1400.0, 
+                  firing_θE=6.0,
+                  firing_θI=11.4,
+                  blocking_θE=30.0,
+                  blocking_θI=30.0,
+                  stim_strength=6.0,
+                  stim_radius=14.0,
+                  stim_duration=1.0,
+                  pop_names = ("E", "I"),
+                  α = (1.0, 1.0),
+                  β = (1.0, 1.0),
+                  τ = (1.0, tau),
+                  nonlinearity = pops(UnrectifiedSigmoidNonlinearity;
+                      θ = [0.125, 0.4],
+                      a = [50.0, 50.0],
+                  ),
+                  stimulus = pops(CircleStimulusParameter;
+                      strength = [stim_strength, stim_strength],
+                      radius = [stim_radius, stim_radius],
+                      time_windows = [[(0.0, stim_duration)], [(0.0, stim_duration)]],
+                      baseline=[0.0, 0.0]
+                  ),
+                  connectivity = FFTParameter(pops(ExpAbsSumDecayingConnectivityParameter;
+                      amplitude = [Aee -Aei;
+                                   Aie -Aii],
+                      spread = [(See,) (Sei,);
+                                (Sie,) (Sii,)]
+                     )
+                  ),
+                  space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_lattice,), 
+                                                           extent=(x_lattice,)),
+                  tspan = (0.0,stop_time),
+                  dt=0.1,
+                  algorithm=Tsit5(),
+                  save_idxs=nothing,
+                  step_reduction=(reduce_to_fronts(save_idxs, space), front_array_type),
+                  global_reduction = reduce_to_wave_properties,
+                  callback=terminate_when_E_fully_propagates(save_idxs, 
+                                                             proportion_full=X_PROP, 
+                                                             min_time=0.1), 
+                  other_opts...
+            ) -> begin
+    Simulation(
+        WCMSpatial{N_CDT,P}(;
+            pop_names = pop_names,
+            α = α,
+            β = β,
+            τ = τ,
+            nonlinearity = nonlinearity,
+            stimulus = stimulus,
+            connectivity = connectivity
+           );
+        space = space,
+        tspan = tspan,
+        dt=dt,
+        algorithm = algorithm,
+        save_idxs = save_idxs,
+        step_reduction = step_reduction,
+        global_reduction = global_reduction,
+        callback = callback,
+        other_opts...
+    )
+end
