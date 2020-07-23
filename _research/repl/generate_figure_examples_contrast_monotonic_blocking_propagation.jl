@@ -1,4 +1,4 @@
-include("figure_contrast_normal_blocking_propagation.jl")
+include("figure_contrast_monotonic_blocking_propagation.jl")
 
 # Definitely propagating
 save_figure_example_contrast_monotonic_blocking((:Aei, :Aee), [

@@ -1,4 +1,4 @@
-include("figure_contrast_normal_blocking_propagation.jl")
+include("figure_contrast_monotonic_blocking_propagation.jl")
 save_figure_contrast_monotonic_blocking((:Aei, :Aee), fcmb_monotonic_A_fpath, fcmb_blocking_A_fpath, :has_propagation, "contrast_monotonic_blocking_A")
 save_figure_contrast_monotonic_blocking((:Aie, :Aee), fcmb_monotonic_A_fpath, fcmb_blocking_A_fpath, :has_propagation, "contrast_monotonic_blocking_A")
 save_figure_contrast_monotonic_blocking((:Aei, :Aie), fcmb_monotonic_A_fpath, fcmb_blocking_A_fpath, :has_propagation, "contrast_monotonic_blocking_A")

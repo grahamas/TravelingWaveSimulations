@@ -93,38 +93,6 @@ function figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}
     sweep_sublayout[:h] = [monotonic_sweep_ax, blocking_sweep_ax]
     layout[2,1:2] = sweep_sublayout
 
-    dropdims_mean(data; dims) = dropdims(mean(data, dims=dims), dims=dims)
-
-    monotonic_y_avg_ax = LAxis(scene)
-    monotonic_y_avg = lines!(monotonic_y_avg_ax, monotonic_x, dropdims_mean(monotonic_data, dims=2))
-    blocking_y_avg_ax = LAxis(scene)
-    blocking_y_avg = lines!(blocking_y_avg_ax, blocking_x, dropdims_mean(monotonic_data, dims=2))
-    linkyaxes!(monotonic_y_avg_ax, blocking_y_avg_ax)
-    linkxaxes!(monotonic_y_avg_ax, monotonic_sweep_ax)
-    linkxaxes!(blocking_y_avg_ax, blocking_sweep_ax)
-    ylims!.([monotonic_y_avg_ax, blocking_y_avg_ax],0,1)
-    hideydecorations!(blocking_y_avg_ax)
-    monotonic_y_avg_ax.ylabel = "proportion"
-    monotonic_y_avg_ax.xlabel = blocking_y_avg_ax.xlabel = string(x_sym)
-    y_avg_sublayout = [monotonic_y_avg_ax, blocking_y_avg_ax]
-    layout[3,1:2] = y_avg_sublayout
-    
-    monotonic_x_avg_ax = LAxis(scene)
-    monotonic_x_avg = lines!(monotonic_x_avg_ax, monotonic_y, dropdims_mean(monotonic_data, dims=1))
-    blocking_x_avg_ax = LAxis(scene)
-    blocking_x_avg = lines!(blocking_x_avg_ax, blocking_y, dropdims_mean(blocking_data, dims=1))
-    linkyaxes!(monotonic_x_avg_ax, blocking_x_avg_ax)
-    ylims!.([monotonic_x_avg_ax, blocking_x_avg_ax],0,1)
-    #linkxaxes!(monotonic_x_avg_ax, monotonic_sweep_ax)
-    #linkxaxes!(blocking_x_avg_ax, blocking_sweep_ax)
-    hideydecorations!(blocking_x_avg_ax)
-    monotonic_x_avg_ax.ylabel = "proportion"
-    monotonic_x_avg_ax.xlabel = blocking_x_avg_ax.xlabel = string(y_sym)
-    x_avg_sublayout = [monotonic_x_avg_ax, blocking_x_avg_ax]
-    layout[2,3:4] = x_avg_sublayout
-
-
-
     monotonic_histogram = StatsMakie.histogram(monotonic_data[:], closed=:right)
     blocking_histogram = StatsMakie.histogram(blocking_data[:], closed=:right)
     histogram_sublayout = GridLayout()
