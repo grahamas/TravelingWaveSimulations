@@ -19,7 +19,18 @@ function calc_binary_segmentation(arr)
             sometimes = sometimes / total,
             always = always / total)
 end
-_fpath_names(fpath) = splitpath(fpath)[end-1:end]
+function _fpath_names(fpath)
+    path_components = splitpath(fpath)
+    @assert path_components[end-2] == "data"
+    prototype_name, sim_name = path_components[end-1:end]
+    return (prototype_name, sim_name)
+end
+function _fpath_params(fpath)
+    prototype_name, sim_name = _fpath_names(fpath)
+    sim_params = TravelingWaveSimulations.parse_modifications_filename(sim_name)
+    return prototype_name, sim_params
+end
+
 _namedaxisarray_names(naa::NamedAxisArray{names}) where names = names
 _getaxis(naa::NamedAxisArray, dims) = naa.data.axes[[dim(naa, dims)...]]
 function save_figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
@@ -27,7 +38,7 @@ function save_figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Sy
                                      blocking_fpath::AbstractString,
                                      property_sym::Symbol,
                                      unique_id::String="")
-    scene = figure_contrast_monotonic_blocking((x_sym, y_sym),
+    scene, _ = figure_contrast_monotonic_blocking((x_sym, y_sym),
                                                monotonic_fpath,
                                                blocking_fpath,
                                                property_sym)
@@ -38,7 +49,8 @@ end
 function figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
                                      monotonic_fpath::AbstractString, 
                                      blocking_fpath::AbstractString,
-                                     property_sym::Symbol)
+                                     property_sym::Symbol;
+                                     scene_resolution=(1200,1200))
     monotonic_prototype_name, monotonic_sim_name = _fpath_names(monotonic_fpath)
     blocking_prototype_name, blocking_sim_name = _fpath_names(blocking_fpath)
     @show monotonic_sim_name, monotonic_prototype_name
@@ -62,7 +74,7 @@ function figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}
         end
     end
 
-    scene, layout = layoutscene(resolution=(1200,1200))
+    scene, layout = layoutscene(resolution=scene_resolution)
     
     title_size = 20
     monotonic_title = layout[1,1] = LText(scene, "Monotonic nonl.", textsize=20)
@@ -135,7 +147,54 @@ function figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}
     monotonic_title.tellwidth = false
     blocking_title.tellwidth = false
     
-    return scene
+    return scene, layout
     
+end
+
+function save_figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
+                                                         example_specs::Array{<:NamedTuple},
+                                     monotonic_fpath::AbstractString, 
+                                     blocking_fpath::AbstractString,
+                                     property_sym::Symbol,
+                                     unique_id::String="")
+    scene, _ = figure_example_contrast_monotonic_blocking((x_sym, y_sym),
+                                               example_specs,
+                                               monotonic_fpath,
+                                               blocking_fpath,
+                                               property_sym)
+    fname = "figure_examples_contrast_monotonic_blocking_$(x_sym)_$(y_sym)_$(property_sym).png"
+    mkpath(plotsdir(unique_id))
+    Makie.save(plotsdir(unique_id,fname), scene)
+end
+function figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
+                                                    example_specs::Array{<:NamedTuple},
+                                     monotonic_fpath::AbstractString, 
+                                     blocking_fpath::AbstractString,
+                                     property_sym::Symbol)
+    monotonic_prototype_name, monotonic_spec = _fpath_params(monotonic_fpath)
+    blocking_prototype_name, blocking_spec = _fpath_params(blocking_fpath)
+    @assert monotonic_prototype_name == blocking_prototype_name
+
+    @show monotonic_spec
+    monotonic_prototype, blocking_prototype = get_prototype.((monotonic_prototype_name, blocking_prototype_name))
+
+    scene_height = 450 * (2 + length(example_specs))
+    scene_width = 450 * 4
+    scene, layout = figure_contrast_monotonic_blocking((x_sym, y_sym), monotonic_fpath, blocking_fpath, property_sym; scene_resolution=(scene_width, scene_height))
+
+    for spec in example_specs
+        _, monotonic_example_exec = execute_single_modification(monotonic_prototype, merge(monotonic_spec, pairs(spec)))
+        _, blocking_example_exec = execute_single_modification(blocking_prototype, merge(blocking_spec, pairs(spec)))
+        
+        examples_layout = GridLayout()
+        examples_layout[2,1] = monotonic_ax = exec_heatmap!(scene, monotonic_example_exec)
+        examples_layout[2,2] = blocking_ax = exec_heatmap!(scene, blocking_example_exec)
+        examples_layout[1,:] = LText(scene, "$(spec)", tellwidth=false)
+        
+        layout[end+1, 1:4] = examples_layout
+    end
+    return scene, layout
+
+
 end
 
