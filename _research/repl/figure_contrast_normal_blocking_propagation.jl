@@ -1,3 +1,10 @@
+
+fcmb_monotonic_A_fpath = "/home/graham/data/dos_ring/Aee=40.0:12.0:250.0;Aei=20.0:16.0:250.0;Aie=15.0:16.0:250.0;Aii=1.0:20.0:250.0;blocking_θE=25.0;blocking_θI=25.0;firing_θE=6.0;firing_θI=7.0;step_reduction=nothing_2020-07-08T21:24:38.395_v1.0-208-gc225329_dirty"
+fcmb_blocking_A_fpath = "/home/graham/data/dos_ring/Aee=40.0:12.0:250.0;Aei=20.0:16.0:250.0;Aie=15.0:16.0:250.0;Aii=1.0:20.0:250.0;blocking_θE=25.0;blocking_θI=10.0;firing_θE=6.0;firing_θI=7.0;step_reduction=nothing_2020-07-06T11:27:29.306_v1.0-205-g3f85b45_dirty"
+
+fcmb_monotonic_S_fpath = "/home/graham/data/dos_ring/See=14.0:5.0:100.0;Sei=14.0:5.0:100.0;Sie=14.0:5.0:100.0;Sii=14.0:5.0:100.0;blocking_θE=25.0;blocking_θI=25.0;firing_θE=6.0;firing_θI=7.0;save_everystep=false_2020-07-09T08:35:00.708_v1.0-210-g00df749_dirty"
+fcmb_blocking_S_fpath = "/home/graham/data/dos_ring/See=14.0:5.0:100.0;Sei=14.0:5.0:100.0;Sie=14.0:5.0:100.0;Sii=14.0:5.0:100.0;blocking_θE=25.0;blocking_θI=10.0;firing_θE=6.0;firing_θI=7.0;save_everystep=false_2020-07-09T08:04:38.231_v1.0-210-g00df749_dirty"
+
 using DrWatson
 include(projectdir("repl", "setup", "basic.jl"))
 include(projectdir("repl", "setup", "plot.jl"))
@@ -14,7 +21,21 @@ function calc_binary_segmentation(arr)
 end
 _fpath_names(fpath) = splitpath(fpath)[end-1:end]
 _namedaxisarray_names(naa::NamedAxisArray{names}) where names = names
-function figure_contrast_monotonic_blocking((y_sym, x_sym)::Tuple{Symbol,Symbol}, 
+_getaxis(naa::NamedAxisArray, dims) = naa.data.axes[[dim(naa, dims)...]]
+function save_figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
+                                     monotonic_fpath::AbstractString, 
+                                     blocking_fpath::AbstractString,
+                                     property_sym::Symbol,
+                                     unique_id::String="")
+    scene = figure_contrast_monotonic_blocking((x_sym, y_sym),
+                                               monotonic_fpath,
+                                               blocking_fpath,
+                                               property_sym)
+    fname = "figure_contrast_monotonic_blocking_$(x_sym)_$(y_sym)_$(property_sym).png"
+    mkpath(plotsdir(unique_id))
+    Makie.save(plotsdir(unique_id,fname), scene)
+end
+function figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
                                      monotonic_fpath::AbstractString, 
                                      blocking_fpath::AbstractString,
                                      property_sym::Symbol)
@@ -27,12 +48,18 @@ function figure_contrast_monotonic_blocking((y_sym, x_sym)::Tuple{Symbol,Symbol}
     monotonic_prototype, blocking_prototype = get_prototype.((monotonic_prototype_name, blocking_prototype_name))
 
 
-    monotonic_data, blocking_data = map((monotonic_fpath, blocking_fpath)) do fpath
+    (monotonic_x,monotonic_y,monotonic_data), (blocking_x,blocking_y,blocking_data) = map((monotonic_fpath, blocking_fpath)) do fpath
         A = TravelingWaveSimulations.load_ExecutionClassifications(AbstractArray, fpath)[property_sym]
         name_syms = _namedaxisarray_names(A)
         collapsed_syms = Tuple(setdiff(name_syms, (y_sym, x_sym)))
         @assert length(collapsed_syms) == length(name_syms) - 2
-        Simulation73.avg_across_dims(A, collapsed_syms)
+        reduced_data = Simulation73.avg_across_dims(A, collapsed_syms)
+        x, y = _getaxis(A, (x_sym, y_sym)) .|> ax -> ax.keys
+        if findfirst(name_syms .== y_sym) < findfirst(name_syms .== x_sym)
+            return (x,y,reduced_data')
+        else
+            return (x,y,reduced_data)
+        end
     end
 
     scene, layout = layoutscene(resolution=(1200,1200))
@@ -42,9 +69,9 @@ function figure_contrast_monotonic_blocking((y_sym, x_sym)::Tuple{Symbol,Symbol}
     blocking_title = layout[1,2] = LText(scene, "Blocking nonl.", textsize=20)
 
     monotonic_sweep_ax = LAxis(scene) 
-    monotonic_heatmap = heatmap!(monotonic_sweep_ax, monotonic_data, colorrange=(0,1))
+    monotonic_heatmap = heatmap!(monotonic_sweep_ax, monotonic_x,monotonic_y,monotonic_data, colorrange=(0,1))
     blocking_sweep_ax = LAxis(scene) 
-    blocking_heatmap = heatmap!(blocking_sweep_ax, blocking_data, colorrange=(0,1))
+    blocking_heatmap = heatmap!(blocking_sweep_ax,blocking_x,blocking_y, blocking_data, colorrange=(0,1))
     tightlimits!.([monotonic_sweep_ax, blocking_sweep_ax])
     linkaxes!(monotonic_sweep_ax, blocking_sweep_ax)
     hideydecorations!(blocking_sweep_ax)
@@ -54,36 +81,56 @@ function figure_contrast_monotonic_blocking((y_sym, x_sym)::Tuple{Symbol,Symbol}
     sweep_sublayout[:h] = [monotonic_sweep_ax, blocking_sweep_ax]
     layout[2,1:2] = sweep_sublayout
 
-    monotonic_slice_ax = LAxis(scene)
-    monotonic_slice = lines!(monotonic_slice_ax, monotonic_data[:,end÷2])
-    blocking_slice_ax = LAxis(scene)
-    blocking_slice = lines!(blocking_slice_ax, blocking_data[:,end÷2])
-    linkaxes!(monotonic_slice_ax, blocking_slice_ax)
-    hideydecorations!(blocking_slice_ax)
-    monotonic_slice_ax.ylabel = "proportion"
-    monotonic_slice_ax.xlabel = monotonic_slice_ax.xlabel = string(x_sym)
-    slice_sublayout = GridLayout()
-    slice_sublayout[:h] = [monotonic_slice_ax, blocking_slice_ax]
-    layout[3,1:2] = slice_sublayout
+    dropdims_mean(data; dims) = dropdims(mean(data, dims=dims), dims=dims)
+
+    monotonic_y_avg_ax = LAxis(scene)
+    monotonic_y_avg = lines!(monotonic_y_avg_ax, monotonic_x, dropdims_mean(monotonic_data, dims=2))
+    blocking_y_avg_ax = LAxis(scene)
+    blocking_y_avg = lines!(blocking_y_avg_ax, blocking_x, dropdims_mean(monotonic_data, dims=2))
+    linkyaxes!(monotonic_y_avg_ax, blocking_y_avg_ax)
+    linkxaxes!(monotonic_y_avg_ax, monotonic_sweep_ax)
+    linkxaxes!(blocking_y_avg_ax, blocking_sweep_ax)
+    ylims!.([monotonic_y_avg_ax, blocking_y_avg_ax],0,1)
+    hideydecorations!(blocking_y_avg_ax)
+    monotonic_y_avg_ax.ylabel = "proportion"
+    monotonic_y_avg_ax.xlabel = blocking_y_avg_ax.xlabel = string(x_sym)
+    y_avg_sublayout = [monotonic_y_avg_ax, blocking_y_avg_ax]
+    layout[3,1:2] = y_avg_sublayout
+    
+    monotonic_x_avg_ax = LAxis(scene)
+    monotonic_x_avg = lines!(monotonic_x_avg_ax, monotonic_y, dropdims_mean(monotonic_data, dims=1))
+    blocking_x_avg_ax = LAxis(scene)
+    blocking_x_avg = lines!(blocking_x_avg_ax, blocking_y, dropdims_mean(blocking_data, dims=1))
+    linkyaxes!(monotonic_x_avg_ax, blocking_x_avg_ax)
+    ylims!.([monotonic_x_avg_ax, blocking_x_avg_ax],0,1)
+    #linkxaxes!(monotonic_x_avg_ax, monotonic_sweep_ax)
+    #linkxaxes!(blocking_x_avg_ax, blocking_sweep_ax)
+    hideydecorations!(blocking_x_avg_ax)
+    monotonic_x_avg_ax.ylabel = "proportion"
+    monotonic_x_avg_ax.xlabel = blocking_x_avg_ax.xlabel = string(y_sym)
+    x_avg_sublayout = [monotonic_x_avg_ax, blocking_x_avg_ax]
+    layout[2,3:4] = x_avg_sublayout
 
 
-    monotonic_histogram = StatsMakie.histogram(monotonic_data[:])
-    blocking_histogram = StatsMakie.histogram(blocking_data[:])
+
+    monotonic_histogram = StatsMakie.histogram(monotonic_data[:], closed=:right)
+    blocking_histogram = StatsMakie.histogram(blocking_data[:], closed=:right)
     histogram_sublayout = GridLayout()
 
     monotonic_histogram_ax = LAxis(scene)
     plot!(monotonic_histogram_ax, monotonic_histogram)
-    #ylims!(monotonic_histogram_ax, 0, 1)
+    xlims!(monotonic_histogram_ax, 0, 1)
     blocking_histogram_ax = LAxis(scene)
     plot!(blocking_histogram_ax, blocking_histogram)
-    #ylims!(blocking_histogram_ax, 0, 1)
+    xlims!(blocking_histogram_ax, 0, 1)
     linkaxes!(monotonic_histogram_ax, blocking_histogram_ax)
+    tightlimits!.([monotonic_histogram_ax, blocking_histogram_ax])
     hideydecorations!(blocking_histogram_ax)
     monotonic_histogram_ax.ylabel = "count"
     monotonic_histogram_ax.xlabel = blocking_histogram_ax.xlabel = "proportion"
 
     histogram_sublayout[:h] = [monotonic_histogram_ax, blocking_histogram_ax]
-    layout[4,1:2] = histogram_sublayout
+    layout[3,3:4] = histogram_sublayout
 
     monotonic_title.tellwidth = false
     blocking_title.tellwidth = false

@@ -13,13 +13,18 @@ function init_data_path(modifications; data_root, prototype_name,
 end
 
 function read_modifications_from_data_path(data_path)
-    modifications_dict = Dict{Symbol,Any}()
-    open(joinpath(data_path, modifications_prefix_filename), "r") do io
-        for modification_line in readlines(io)
-            parse_modification_to_dict!(modifications_dict, modification_line)
+    mod_txt_fn = joinpath(data_path, modifications_prefix_filename) 
+    if isfile(mod_txt_fn)
+        modifications_dict = Dict{Symbol,Any}()
+        open(mod_txt_filename, "r") do io
+            for modification_line in readlines(io)
+                parse_modification_to_dict!(modifications_dict, modification_line)
+            end
         end
+        return modifications_dict
+    else
+        return parse_modifications_filename(basename(data_path))
     end
-    return modifications_dict
 end
 
 

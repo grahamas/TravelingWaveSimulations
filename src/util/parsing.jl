@@ -70,3 +70,17 @@ function parse_modifications_argument(modification_strs::Vector{String})
     end
     return parsed_modifications, modification_strs
 end
+
+function parse_modifications_filename(fn::AbstractString)
+    if fn[1:4] in string.(2019:2200) # FIXME: only works through year 2200 -_-
+        # no mods
+        return []
+    end
+    mods_str = split(fn, "_20")[1]
+    mods_str_arr = split(mods_str, ";")
+    mod_tuples = map(parse_mod, mods_str_arr)
+    mod_dict = Dict(map(x -> Pair(x...), mod_tuples)...)
+    return mod_dict
+end
+
+
