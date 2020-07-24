@@ -20,6 +20,7 @@ function calc_binary_segmentation(arr)
             always = always / total)
 end
 function _fpath_names(fpath)
+    @show fpath
     path_components = splitpath(fpath)
     @assert path_components[end-2] == "data"
     prototype_name, sim_name = path_components[end-1:end]
@@ -92,6 +93,14 @@ function slice_2d_and_steepest_line_and_histogram!(scene::Scene,
         histogram_ax.ylabel = "count"
     end
 
+    segmented = calc_binary_segmentation(data)
+    segmented_ax = LAxis(scene)
+    segment_names = string.([keys(segmented)...])
+    barplot!(segmented_ax, [values(segmented)...])
+    ylims!(segmented_ax, 0, 1)
+    segmented_ax.xticks =( 1:3, segment_names)
+    #segmented_ax.xticklabelrotation = (pi,)
+
     # TODO Make diagonal slice
 
     if colorbar_width === nothing
@@ -104,7 +113,9 @@ function slice_2d_and_steepest_line_and_histogram!(scene::Scene,
     
     # TODO put the diagonal slice and the histogram next to each other
     # in a nested layout
-    layout[3,1] = histogram_ax
+    summary_layout = GridLayout()
+    summary_layout[:h] = [histogram_ax, segmented_ax]
+    layout[3,1] = summary_layout
 
     return layout
 
@@ -251,8 +262,10 @@ function figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Sy
     scene, layout = figure_contrast_monotonic_blocking_all((x_sym, y_sym), other_syms, monotonic_fpath, blocking_fpath, property_sym; scene_resolution=(scene_width, scene_height))
 
     for spec in example_specs
-        _, monotonic_example_exec = execute_single_modification(monotonic_prototype, merge(monotonic_spec, pairs(spec)))
-        _, blocking_example_exec = execute_single_modification(blocking_prototype, merge(blocking_spec, pairs(spec)))
+        _, monotonic_example_exec = execute_single_modification(monotonic_prototype, merge(monotonic_spec, pairs(spec), Dict(:save_everystep => true)))
+        @show ExecutionClassifications(monotonic_example_exec).has_propagation
+        _, blocking_example_exec = execute_single_modification(blocking_prototype, merge(blocking_spec, pairs(spec), Dict(:save_everystep => true)))
+        @show ExecutionClassifications(blocking_example_exec).has_propagation
         
         examples_layout = GridLayout()
         examples_layout[2,1] = monotonic_ax = exec_heatmap!(scene, monotonic_example_exec)
