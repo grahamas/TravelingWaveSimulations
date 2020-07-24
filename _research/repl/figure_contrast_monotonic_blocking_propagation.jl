@@ -46,75 +46,127 @@ function save_figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Sy
     mkpath(plotsdir(unique_id))
     Makie.save(plotsdir(unique_id,fname), scene)
 end
+
+function slice_2d_and_steepest_line_and_histogram!(scene::Scene, 
+                                                   (x_sym, y_sym)::Tuple{Symbol,Symbol},
+                                                   fpath::String,
+                                                   property_sym::Symbol; 
+                                                   title, titlesize=20, hide_y=false,
+                                                   colorbar_width=nothing)
+    prototype_name, sim_name = _fpath_names(fpath)
+    prototype = get_prototype.(prototype_name)
+
+    A = TravelingWaveSimulations.load_ExecutionClassifications(AbstractArray, fpath)[property_sym]
+    name_syms = _namedaxisarray_names(A)
+    collapsed_syms = Tuple(setdiff(name_syms, (y_sym, x_sym)))
+    @assert length(collapsed_syms) == length(name_syms) - 2
+    reduced_data = Simulation73.avg_across_dims(A, collapsed_syms)
+    x, y = _getaxis(A, (x_sym, y_sym)) .|> ax -> ax.keys
+    data = if findfirst(name_syms .== y_sym) < findfirst(name_syms .== x_sym)
+        reduced_data'
+    else
+        reduced_data
+    end
+
+    layout = GridLayout()
+    title_facet = layout[1,1] = LText(scene, title, textsize=titlesize, tellwidth=false)
+
+    sweep_ax = LAxis(scene) 
+    heatmap = heatmap!(sweep_ax, x,y,data, colorrange=(0,1))
+    tightlimits!(sweep_ax)
+    sweep_ax.xlabel = string(x_sym)
+    if hide_y
+        hideydecorations!(sweep_ax)
+    else
+        sweep_ax.ylabel = string(y_sym)
+    end
+
+    histogram = StatsMakie.histogram(data[:], closed=:right)
+    histogram_ax = LAxis(scene)
+    plot!(histogram_ax, histogram)
+    xlims!(histogram_ax, 0, 1)
+    histogram_ax.xlabel = "proportion"
+    if hide_y
+        #hideydecorations!(histogram_ax)
+    else
+        histogram_ax.ylabel = "count"
+    end
+
+    # TODO Make diagonal slice
+
+    if colorbar_width === nothing
+        layout[2,1] = sweep_ax
+    else
+        sweep_layout = GridLayout()
+        sweep_layout[:h] = [sweep_ax, LColorbar(scene, heatmap, width=colorbar_width)]
+        layout[2,1] = sweep_layout
+    end
+    
+    # TODO put the diagonal slice and the histogram next to each other
+    # in a nested layout
+    layout[3,1] = histogram_ax
+
+    return layout
+
+end
+
+
 function figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
                                      monotonic_fpath::AbstractString, 
                                      blocking_fpath::AbstractString,
                                      property_sym::Symbol;
                                      scene_resolution=(1200,1200))
-    monotonic_prototype_name, monotonic_sim_name = _fpath_names(monotonic_fpath)
-    blocking_prototype_name, blocking_sim_name = _fpath_names(blocking_fpath)
-    @show monotonic_sim_name, monotonic_prototype_name
-    @show blocking_sim_name, blocking_prototype_name
-    @assert monotonic_prototype_name == blocking_prototype_name
-
-    monotonic_prototype, blocking_prototype = get_prototype.((monotonic_prototype_name, blocking_prototype_name))
-
-
-    (monotonic_x,monotonic_y,monotonic_data), (blocking_x,blocking_y,blocking_data) = map((monotonic_fpath, blocking_fpath)) do fpath
-        A = TravelingWaveSimulations.load_ExecutionClassifications(AbstractArray, fpath)[property_sym]
-        name_syms = _namedaxisarray_names(A)
-        collapsed_syms = Tuple(setdiff(name_syms, (y_sym, x_sym)))
-        @assert length(collapsed_syms) == length(name_syms) - 2
-        reduced_data = Simulation73.avg_across_dims(A, collapsed_syms)
-        x, y = _getaxis(A, (x_sym, y_sym)) .|> ax -> ax.keys
-        if findfirst(name_syms .== y_sym) < findfirst(name_syms .== x_sym)
-            return (x,y,reduced_data')
-        else
-            return (x,y,reduced_data)
-        end
-    end
-
+    
     scene, layout = layoutscene(resolution=scene_resolution)
+
+    layout[1,1] = monotonic_sweep_ax = slice_2d_and_steepest_line_and_histogram!(scene, (x_sym, y_sym),
+                                                            monotonic_fpath,
+                                                            property_sym; title="Monotonic")
+    layout[1,2] = blocking_sweep_ax = slice_2d_and_steepest_line_and_histogram!(scene, (x_sym, y_sym),
+                                                            blocking_fpath,
+                                                            property_sym; title="Blocking", hide_y=true)
+
+    return scene, layout
     
-    title_size = 20
-    monotonic_title = layout[1,1] = LText(scene, "Monotonic nonl.", textsize=20)
-    blocking_title = layout[1,2] = LText(scene, "Blocking nonl.", textsize=20)
+end
 
-    monotonic_sweep_ax = LAxis(scene) 
-    monotonic_heatmap = heatmap!(monotonic_sweep_ax, monotonic_x,monotonic_y,monotonic_data, colorrange=(0,1))
-    blocking_sweep_ax = LAxis(scene) 
-    blocking_heatmap = heatmap!(blocking_sweep_ax,blocking_x,blocking_y, blocking_data, colorrange=(0,1))
-    tightlimits!.([monotonic_sweep_ax, blocking_sweep_ax])
-    linkaxes!(monotonic_sweep_ax, blocking_sweep_ax)
-    hideydecorations!(blocking_sweep_ax)
-    monotonic_sweep_ax.ylabel = string(y_sym)
-    monotonic_sweep_ax.xlabel = blocking_sweep_ax.xlabel = string(x_sym)
-    sweep_sublayout  = GridLayout()
-    sweep_sublayout[:h] = [monotonic_sweep_ax, blocking_sweep_ax]
-    layout[2,1:2] = sweep_sublayout
 
-    monotonic_histogram = StatsMakie.histogram(monotonic_data[:], closed=:right)
-    blocking_histogram = StatsMakie.histogram(blocking_data[:], closed=:right)
-    histogram_sublayout = GridLayout()
-
-    monotonic_histogram_ax = LAxis(scene)
-    plot!(monotonic_histogram_ax, monotonic_histogram)
-    xlims!(monotonic_histogram_ax, 0, 1)
-    blocking_histogram_ax = LAxis(scene)
-    plot!(blocking_histogram_ax, blocking_histogram)
-    xlims!(blocking_histogram_ax, 0, 1)
-    linkaxes!(monotonic_histogram_ax, blocking_histogram_ax)
-    tightlimits!.([monotonic_histogram_ax, blocking_histogram_ax])
-    hideydecorations!(blocking_histogram_ax)
-    monotonic_histogram_ax.ylabel = "count"
-    monotonic_histogram_ax.xlabel = blocking_histogram_ax.xlabel = "proportion"
-
-    histogram_sublayout[:h] = [monotonic_histogram_ax, blocking_histogram_ax]
-    layout[3,3:4] = histogram_sublayout
-
-    monotonic_title.tellwidth = false
-    blocking_title.tellwidth = false
+function figure_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Symbol,Symbol}, (other_x_sym, other_y_sym)::Tuple{Symbol,Symbol},
+                                     monotonic_fpath::AbstractString, 
+                                     blocking_fpath::AbstractString,
+                                     property_sym::Symbol;
+                                     scene_resolution=(1200,1200))
     
+    scene, layout = layoutscene(resolution=scene_resolution)
+
+    layout[1,1] = monotonic_sweep_ax = slice_2d_and_steepest_line_and_histogram!(
+                                                            scene, 
+                                                            (x_sym, y_sym),
+                                                            monotonic_fpath,
+                                                            property_sym; 
+                                                            title="Monotonic")
+    layout[1,2] = blocking_sweep_ax = slice_2d_and_steepest_line_and_histogram!(
+                                                            scene, 
+                                                            (x_sym, y_sym),
+                                                            blocking_fpath,
+                                                            property_sym; 
+                                                            title="Blocking", 
+                                                            hide_y=true)
+    layout[1,3] = other_monotonic_sweep_ax = slice_2d_and_steepest_line_and_histogram!(
+                                                           scene, 
+                                                           (other_x_sym, other_y_sym),
+                                                           monotonic_fpath,
+                                                           property_sym; 
+                                                           title="Monotonic")
+    layout[1,4] = other_blocking_sweep_ax = slice_2d_and_steepest_line_and_histogram!(
+                                                          scene, 
+                                                          (other_x_sym, other_y_sym),
+                                                          blocking_fpath,
+                                                          property_sym; 
+                                                          title="Blocking",
+                                                          hide_y=true,
+                                                          colorbar_width=25)
+
     return scene, layout
     
 end
@@ -134,6 +186,21 @@ function save_figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{S
     mkpath(plotsdir(unique_id))
     Makie.save(plotsdir(unique_id,fname), scene)
 end
+function save_figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Symbol,Symbol}, other_syms::Tuple{Symbol,Symbol}, 
+                                                         example_specs::Array{<:NamedTuple},
+                                     monotonic_fpath::AbstractString, 
+                                     blocking_fpath::AbstractString,
+                                     property_sym::Symbol,
+                                     unique_id::String="")
+    scene, _ = figure_example_contrast_monotonic_blocking_all((x_sym, y_sym), other_syms,
+                                               example_specs,
+                                               monotonic_fpath,
+                                               blocking_fpath,
+                                               property_sym)
+    fname = "figure_examples_contrast_monotonic_blocking_all_$(x_sym)_$(y_sym)_$(property_sym).png"
+    mkpath(plotsdir(unique_id))
+    Makie.save(plotsdir(unique_id,fname), scene)
+end
 function figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
                                                     example_specs::Array{<:NamedTuple},
                                      monotonic_fpath::AbstractString, 
@@ -149,6 +216,39 @@ function figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol
     scene_height = 450 * (2 + length(example_specs))
     scene_width = 450 * 4
     scene, layout = figure_contrast_monotonic_blocking((x_sym, y_sym), monotonic_fpath, blocking_fpath, property_sym; scene_resolution=(scene_width, scene_height))
+
+    for spec in example_specs
+        _, monotonic_example_exec = execute_single_modification(monotonic_prototype, merge(monotonic_spec, pairs(spec)))
+        _, blocking_example_exec = execute_single_modification(blocking_prototype, merge(blocking_spec, pairs(spec)))
+        
+        examples_layout = GridLayout()
+        examples_layout[2,1] = monotonic_ax = exec_heatmap!(scene, monotonic_example_exec)
+        examples_layout[2,2] = blocking_ax = exec_heatmap!(scene, blocking_example_exec)
+        examples_layout[1,:] = LText(scene, "$(spec)", tellwidth=false)
+        
+        layout[end+1, 1:4] = examples_layout
+    end
+    return scene, layout
+
+
+end
+
+function figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
+                                                        other_syms::Tuple{Symbol,Symbol},
+                                                        example_specs::Array{<:NamedTuple},
+                                     monotonic_fpath::AbstractString, 
+                                     blocking_fpath::AbstractString,
+                                     property_sym::Symbol)
+    monotonic_prototype_name, monotonic_spec = _fpath_params(monotonic_fpath)
+    blocking_prototype_name, blocking_spec = _fpath_params(blocking_fpath)
+    @assert monotonic_prototype_name == blocking_prototype_name
+
+    @show monotonic_spec
+    monotonic_prototype, blocking_prototype = get_prototype.((monotonic_prototype_name, blocking_prototype_name))
+
+    scene_height = 450 * (2 + length(example_specs))
+    scene_width = 450 * 4
+    scene, layout = figure_contrast_monotonic_blocking_all((x_sym, y_sym), other_syms, monotonic_fpath, blocking_fpath, property_sym; scene_resolution=(scene_width, scene_height))
 
     for spec in example_specs
         _, monotonic_example_exec = execute_single_modification(monotonic_prototype, merge(monotonic_spec, pairs(spec)))

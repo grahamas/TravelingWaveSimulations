@@ -1,7 +1,7 @@
 include("figure_contrast_monotonic_blocking_propagation.jl")
 
 # Definitely propagating
-save_figure_example_contrast_monotonic_blocking((:Aei, :Aee), [
+save_figure_example_contrast_monotonic_blocking_all((:Aei, :Aee), (:Aie, :Aii), [
                           (Aee=200.0, Aei=50.0, Aii=200, Aie=50.0),
                           (Aee=150.0, Aei=150.0, Aii=50, Aie=115.0),
                           (Aee=50.0, Aei=200.0, Aii=200, Aie=50.0)
