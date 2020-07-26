@@ -5,8 +5,10 @@
 #fcmb_monotonic_S_fpath = joinpath(homedir(), "data/ring_monotonic/report2/2020-07-26T17:16:51.735_v1.0-241-g8392d24")
 #fcmb_blocking_S_fpath = joinpath(homedir(), "data/ring_blocking/report2/2020-07-26T17:17:24.569_v1.0-241-g8392d24")
 
-fcmb_monotonic_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2"))
-fcmb_blocking_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2"))
+fcmb_monotonic_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2_S_sweep"))
+fcmb_blocking_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2_S_sweep"))
+
+@show fcmb_monotonic_S_fpath
 
 using DrWatson
 include(projectdir("repl", "setup", "basic.jl"))
