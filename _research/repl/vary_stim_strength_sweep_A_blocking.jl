@@ -7,5 +7,5 @@ iterate_prototype("dos_ring",
                          "step_reduction=nothing",
 						 "velocity_threshold=1e-6",
 						 "n_traveling_frames_threshold=10"],
-                        example_name="vary_stim",
+                        prototype_name="vary_stim",
                         data_root=data_root)
