@@ -5,7 +5,7 @@ iterate_prototype("ring_monotonic",
                          "θI=7.0",
                          "save_everystep=false",
 						 "velocity_threshold=1e-6",
-						 "n_traveling_frames_threshold=10"],
+						 "n_traveling_frames_threshold=60"],
                         experiment_name="report2_S_sweep",
                         data_root=data_root)
 # FIXME step_reduction is broken so reverting to "nothing"
