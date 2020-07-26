@@ -1,15 +1,12 @@
 
-#fcmb_monotonic_A_fpath = "/home/graham/data/dos_ring/Aee=40.0:12.0:250.0;Aei=20.0:16.0:250.0;Aie=15.0:16.0:250.0;Aii=1.0:20.0:250.0;blocking_θE=25.0;blocking_θI=25.0;firing_θE=6.0;firing_θI=7.0;step_reduction=nothing_2020-07-08T21:24:38.395_v1.0-208-gc225329_dirty"
-#fcmb_blocking_A_fpath = "/home/graham/data/dos_ring/Aee=40.0:12.0:250.0;Aei=20.0:16.0:250.0;Aie=15.0:16.0:250.0;Aii=1.0:20.0:250.0;blocking_θE=25.0;blocking_θI=10.0;firing_θE=6.0;firing_θI=7.0;step_reduction=nothing_2020-07-06T11:27:29.306_v1.0-205-g3f85b45_dirty"
+#fcmb_monotonic_A_fpath = joinpath(homedir(), "data/ring_monotonic/report2/2020-07-26T15:53:11.486_v1.0-239-ga150dd3_dirty")
+#fcmb_blocking_A_fpath = joinpath(homedir(), "data/ring_blocking/report2/2020-07-26T16:29:43.140_v1.0-239-ga150dd3_dirty")
 #
-#fcmb_monotonic_S_fpath = "/home/graham/data/dos_ring/See=14.0:5.0:100.0;Sei=14.0:5.0:100.0;Sie=14.0:5.0:100.0;Sii=14.0:5.0:100.0;blocking_θE=25.0;blocking_θI=25.0;firing_θE=6.0;firing_θI=7.0;save_everystep=false_2020-07-09T08:35:00.708_v1.0-210-g00df749_dirty"
-#fcmb_blocking_S_fpath = "/home/graham/data/dos_ring/See=14.0:5.0:100.0;Sei=14.0:5.0:100.0;Sie=14.0:5.0:100.0;Sii=14.0:5.0:100.0;blocking_θE=25.0;blocking_θI=10.0;firing_θE=6.0;firing_θI=7.0;save_everystep=false_2020-07-09T08:04:38.231_v1.0-210-g00df749_dirty"
+#fcmb_monotonic_S_fpath = joinpath(homedir(), "data/ring_monotonic/report2/2020-07-26T17:16:51.735_v1.0-241-g8392d24")
+#fcmb_blocking_S_fpath = joinpath(homedir(), "data/ring_blocking/report2/2020-07-26T17:17:24.569_v1.0-241-g8392d24")
 
-fcmb_monotonic_A_fpath = joinpath(homedir(), "data/ring_monotonic/report2/2020-07-26T15:53:11.486_v1.0-239-ga150dd3_dirty")
-fcmb_blocking_A_fpath = joinpath(homedir(), "data/ring_blocking/report2/2020-07-26T16:29:43.140_v1.0-239-ga150dd3_dirty")
-
-fcmb_monotonic_S_fpath = joinpath(homedir(), "data/ring_monotonic/report2/2020-07-26T17:16:51.735_v1.0-241-g8392d24")
-fcmb_blocking_S_fpath = joinpath(homedir(), "data/ring_blocking/report2/2020-07-26T17:17:24.569_v1.0-241-g8392d24")
+fcmb_monotonic_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2"))
+fcmb_blocking_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2"))
 
 using DrWatson
 include(projectdir("repl", "setup", "basic.jl"))
