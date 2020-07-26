@@ -5,8 +5,11 @@
 #fcmb_monotonic_S_fpath = joinpath(homedir(), "data/ring_monotonic/report2/2020-07-26T17:16:51.735_v1.0-241-g8392d24")
 #fcmb_blocking_S_fpath = joinpath(homedir(), "data/ring_blocking/report2/2020-07-26T17:17:24.569_v1.0-241-g8392d24")
 
+fcmb_monotonic_A_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2_A_sweep"))
+fcmb_blocking_A_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_blocking", "report2_A_sweep"))
+
 fcmb_monotonic_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2_S_sweep"))
-fcmb_blocking_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2_S_sweep"))
+fcmb_blocking_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_blocking", "report2_S_sweep"))
 
 @show fcmb_monotonic_S_fpath
 
@@ -227,6 +230,7 @@ function figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol
     scene_width = 450 * 4
     scene, layout = figure_contrast_monotonic_blocking((x_sym, y_sym), monotonic_fpath, blocking_fpath, property_sym; scene_resolution=(scene_width, scene_height))
 
+    @show "HELLO THERE"
     for spec in example_specs
         _, monotonic_example_exec = execute_single_modification(monotonic_prototype, merge(monotonic_spec, pairs(spec)))
         _, blocking_example_exec = execute_single_modification(blocking_prototype, merge(blocking_spec, pairs(spec)))
@@ -251,6 +255,7 @@ function figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Sy
                                      property_sym::Symbol)
     monotonic_prototype_name, monotonic_spec = _fpath_params(monotonic_fpath)
     blocking_prototype_name, blocking_spec = _fpath_params(blocking_fpath)
+    @show blocking_spec
 
     @show monotonic_spec
     monotonic_prototype, blocking_prototype = get_prototype.((monotonic_prototype_name, blocking_prototype_name))
@@ -259,11 +264,12 @@ function figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Sy
     scene_width = 450 * 4
     scene, layout = figure_contrast_monotonic_blocking_all((x_sym, y_sym), other_syms, monotonic_fpath, blocking_fpath, property_sym; scene_resolution=(scene_width, scene_height))
 
+    @show merge(blocking_spec, pairs(example_specs[2]))
     for spec in example_specs
         _, monotonic_example_exec = execute_single_modification(monotonic_prototype, merge(monotonic_spec, pairs(spec), Dict(:save_everystep => true)))
-        @show ExecutionClassifications(monotonic_example_exec).has_propagation
+        @show ExecutionClassifications(monotonic_example_exec, n_traveling_frames_threshold=60).has_propagation
         _, blocking_example_exec = execute_single_modification(blocking_prototype, merge(blocking_spec, pairs(spec), Dict(:save_everystep => true)))
-        @show ExecutionClassifications(blocking_example_exec).has_propagation
+        @show ExecutionClassifications(blocking_example_exec, n_traveling_frames_threshold=60).has_propagation
         
         examples_layout = GridLayout()
         examples_layout[2,1] = monotonic_ax = exec_heatmap!(scene, monotonic_example_exec)
