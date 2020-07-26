@@ -7,7 +7,7 @@ iterate_prototype("ring_blocking",
                          "save_everystep=false",
 						 "velocity_threshold=1e-6",
 						 "n_traveling_frames_threshold=10"],
-                        experiment_name="report2",
+                        experiment_name="report2_S_sweep",
                         data_root=data_root)
 # FIXME step_reduction is broken so reverting to "nothing"
 # This may be fine since I'm only saving the global reduction anyway

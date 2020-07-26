@@ -5,5 +5,5 @@ iterate_prototype("ring_monotonic",
                          "step_reduction=nothing",
 						 "velocity_threshold=1e-6",
 						 "n_traveling_frames_threshold=10"],
-                        experiment_name="report2",
+                        experiment_name="report2_A_sweep",
                         data_root=data_root)
