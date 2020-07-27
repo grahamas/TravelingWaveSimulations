@@ -9,7 +9,7 @@ save_figure_example_contrast_monotonic_blocking_all((:Aei, :Aee), (:Aie, :Aii), 
 
 save_figure_example_contrast_monotonic_blocking_all((:Sei, :See), (:Sie, :Sii), [
                           (See=14.0, Sei=110.0, Sii=14., Sie=110.0),
-                          (See=20.0, Sei=50.0, Sii=20., Sie=27.0),
+                          (See=14.0, Sei=14.0, Sii=110., Sie=14.0),
                           #(See=30.0, Sei=50.0, Sii=50., Sie=90.0),
                           (See=50.0, Sei=40.0, Sii=40., Sie=50.0)
                          ],  fcmb_monotonic_S_fpath, fcmb_blocking_S_fpath, :has_propagation, "contrast_monotonic_blocking_S")
