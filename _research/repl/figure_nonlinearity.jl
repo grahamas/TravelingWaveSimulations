@@ -2,7 +2,7 @@
 TOL = 0.001
 
 function _bounds_fns(nonl::SigmoidNonlinearity, tol=TOL)
-    left = (xs) -> findfirst(x .> tol)
+    left = (xs) -> findfirst(xs .> tol)
     right = (xs) -> findfirst(xs .> (1.0 - tol))
     return (left, right)
 end
@@ -52,15 +52,16 @@ function AbstractPlotting.convert_arguments(P::Type{<:AbstractPlot}, pops::Simul
     return _auto_range(Simulation73.array(pops))
 end
 
-function nonlinearity_plot!(scene::Scene, simulation::Simulation; save_dir=nothing)
+function nonlinearity_plot!(scene::Scene, simulation::Simulation; save_dir=nothing,
+                                                                  title="Population activation functions")
     layout = GridLayout()
 
     pop_names = simulation.model.pop_names
     nonl_xs, nonl_ys = _auto_range(simulation.model.nonlinearity |> Simulation73.array)
-    ax = layout[1,1] = LAxis(scene, xlabel="input (a.u.)", ylabel="pop. activity (proportion)", title="Population activation functions")
+    ax = layout[1,1] = LAxis(scene, xlabel="input (a.u.)", ylabel="pop. activity (proportion)", title=title)
     @show parse(Colorant, ax.attributes[:backgroundcolor][])
     colors = distinguishable_colors(length(pop_names), parse(Colorant, ax.attributes[:backgroundcolor][]), dropseed=true)
-    plots = [plot!(ax, xs, ys, linestyle=:dash, linewidth=3, color=color) 
+    plots = [plot!(ax, xs, ys, linewidth=3, color=color) 
         for (xs, ys, color) in zip(nonl_xs, nonl_ys, colors)]
     legend_names = ["$(pop)" for pop in pop_names]
     leg = LLegend(scene, plots, legend_names,

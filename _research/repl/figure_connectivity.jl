@@ -2,12 +2,13 @@ using Colors
 
 function connectivity_plot!(scene::Scene, 
                             simulation::Simulation73.Simulation; 
-                            xlimits=nothing, save_dir=nothing)
+                            xlimits=nothing, save_dir=nothing,
+                            title="Connectivity kernels")
     layout = GridLayout()
     ax = LAxis(scene, 
                xlabel="distance (μm)", 
                ylabel="connectivity strength (a.u.)",
-               title="Connectivity kernels")
+               title=title)
     
     pop_names = simulation.model.pop_names
     n_pops = length(pop_names)
