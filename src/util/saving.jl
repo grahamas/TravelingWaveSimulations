@@ -1,3 +1,35 @@
+const modifications_prefix_filename = "modifications_prefix.txt"
+
+function init_data_path(modifications; data_root, prototype_name, 
+                                       experiment_name="",
+                                       unique_id="$(Dates.now())_$(gitdescribe())")
+    data_path = joinpath(data_root, prototype_name, experiment_name,
+                               unique_id)
+    mkpath(data_path)
+    open(joinpath(data_path, modifications_prefix_filename), "w") do io
+        println.(Ref(io), modifications)
+    end
+    return data_path
+end
+
+export read_modifications_from_data_path
+function read_modifications_from_data_path(data_path)
+    mod_txt_fn = joinpath(data_path, modifications_prefix_filename) 
+    if isfile(mod_txt_fn)
+        @info "Found modifications text file"
+        modifications_dict = Dict{Symbol,Any}()
+        open(mod_txt_fn, "r") do io
+            for modification_line in readlines(io)
+                parse_modification_to_dict!(modifications_dict, modification_line)
+            end
+        end
+        return modifications_dict
+    else
+        @warn "DEPRECATED: reading modifications from filename"
+        return parse_modifications_filename(basename(data_path))
+    end
+end
+
 
 function mods_to_pkeys(modifications)::Array{Symbol,1}
     pkeys = keys(modifications[1]) |> collect

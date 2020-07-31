@@ -39,12 +39,13 @@ end
 last_quartile_dxs(fin) = ((3*fin)÷4):fin
 
 function WaveClassifications(measurements::SpatiotemporalWaveMeasurements; 
-                              kwargs...)
+                                 velocity_threshold=1e-8,
+                                 n_traveling_frames_threshold=5)
     if length(measurements.maxes) < 4
         # not long enough to be classified
         return WaveClassifications(false, false, false, false, false, false, false)
     end
-    traveling = is_traveling(measurements.velocities; kwargs...)
+    traveling = is_traveling(measurements.velocities, velocity_threshold, n_traveling_frames_threshold)
     unidirectional_travel = all(measurements.velocities .>= 0) || all(measurements.velocities .<= 0)
     decaying = is_decaying(measurements.maxes)
     growing = is_growing(measurements.maxes)
@@ -62,8 +63,9 @@ function WaveClassifications(measurements::SpatiotemporalWaveMeasurements;
     )
 end
 
-function is_traveling(velocities::Vector{<:AbstractFloat};
-                       velocity_threshold=1e-8, n_traveling_frames_threshold=5, kwargs...)
+function is_traveling(velocities::Vector{<:AbstractFloat}, 
+                                 velocity_threshold=1e-8,
+                                 n_traveling_frames_threshold=5)
     sum(abs.(velocities) .> velocity_threshold) > n_traveling_frames_threshold
 end
 function is_decaying(maxes::Vector{<:AbstractFloat})
@@ -109,7 +111,7 @@ function ExecutionClassifications(wavefronts::WS,
                                  final_frame::AbstractArray{T};
                                  max_resting=5e-2,
                                  origin_radius=20.0,
-                                 kwargs...) where {T,
+                                 wave_kwargs...) where {T,
                                     WS <: AbstractVector{<:AbstractVector{<:Wavefront}},
                                     TS <: AbstractVector{T},
                                     XS <: AbstractVector{T}
@@ -117,7 +119,7 @@ function ExecutionClassifications(wavefronts::WS,
     @assert origin_radius < xs[end]
     persistent_fronts = link_persistent_fronts(wavefronts, ts)
     pf_measurements = SpatiotemporalWaveMeasurements.(persistent_fronts)
-    pf_classifications = pf_measurements .|> (x) -> WaveClassifications(x; kwargs...)
+    pf_classifications = WaveClassifications.(pf_measurements; wave_kwargs...)
 
     # TODO calculate first four bools with regard to propagation
     has_propagation = any(map((cls) -> cls.traveling, pf_classifications))

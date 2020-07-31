@@ -59,28 +59,14 @@ function parse_mod(str)
     mod_name, mod_range = split(str, "=")
     return (Symbol(mod_name), parse_mod_val(split(mod_range,":")...))
 end
-function get_sim_name(fn::String)
-    splitpath(fn)[end-1]
+function get_sim_name(mdb::MultiDB)
+    splitpath(mdb.fns[1])[end-1]
 end
-function get_prototype_name(fn::String)
-    splitpath(fn)[end-2]
-end
-function get_mods(fn::String)
-    sim_name = get_sim_name(fn)
-    @warn "Working on $sim_name..."
-    if sim_name[1:4] ∈ ["2019", "2020"] 
-        # No mods
-        return []
-    end
-    mods_str = split(sim_name, "_20")[1]
-    mods_str_arr = split(mods_str, ";")
-    mod_tuples = map(parse_mod, mods_str_arr)
-    mod_dict = Dict(map((x) -> Pair(x...), mod_tuples)...)   
-    return mod_dict
+function get_prototype_name(mdb::MultiDB)
+    splitpath(mdb.fns[2])[end-2]
 end
 function get_mods(mdb::MultiDB)
-    @assert all(map((path) -> splitpath(path)[end-1], mdb.fns) .== splitpath(mdb.fns[1])[end-1])
-    get_mods(mdb.fns[1])
+    read_modifications_from_data_path(joinpath(splitpath(mdb.fns[begin])[begin:end-1]...)) 
 end
 
 function equals_str(key,val)
@@ -186,106 +172,78 @@ function mod_idx(particular_keys, particular_values, range_keys, range_values)
     end
     return CartesianIndex(idxs...)
 end
+
+function get_recent_simulation_data_paths(prototype_path, max_n)
+    sims = readdir(prototype_path)
+    sorted_sims = sort(joinpath.(Ref(prototype_path), sims), by=mtime)
+    return join(sorted_sims[end:-1:end-max_n+1], "\n")
+end
     
 
-"Load most recent simulation"
-#function load_data_recent(data_root, prototype_name)
-#    nsims = length(readdir(joinpath(data_root, prototype_name)))
-#    load_data(data_root, prototype_name, nsims)
-#end
-"Load nth simulation, ordered by time"
-function load_data_recent(data_root, prototype_name, nth::Int=0)
-    ex_path = joinpath(data_root, prototype_name)
-    sims = readdir(ex_path)
-    sorted_sims = sort(joinpath.(Ref(ex_path), sims), by=mtime)
+function get_recent_simulation_data_path(prototype_path, nth::Int=0)
+    sims = readdir(prototype_path)
+    sorted_sims = sort(joinpath.(Ref(prototype_path), sims), by=mtime)
     sim_path = if nth > 0
         sorted_sims[nth]
     else
         sorted_sims[end+nth]
     end
-    return (get_prototype(prototype_name), MultiDB(joinpath.(Ref(sim_path), readdir(sim_path))))
+    return sim_path
 end
 
-function load_ExecutionClassifications_recent(::Type{<:AbstractArray}, prototype_name, offset_from_current=0; data_root = datadir())
-    (prototype, mdb) = load_data_recent(data_root, prototype_name, offset_from_current)
-    sim_name = get_sim_name(mdb.fns[1])
+function load_simulation_data(path)
+    return MultiDB(joinpath.(Ref(path), readdir(path)))
+end
 
+"Load nth simulation, ordered by time"
+function load_simulation_data_recent(data_root, prototype_name, nth::Int=0)
+    prototype_path = joinpath(data_root, prototype_name)
+    sim_path = get_recent_simulation_data_path(prototype_path, nth) 
+    return load_simulation_data(sim_path)
+end
+
+
+function load_ExecutionClassifications_recent(type::Type, prototype_name, offset_from_current=0; data_root = datadir(), kwargs...)
+    recent_path = get_recent_simulation_data_path(joinpath(data_root, prototype_name), offset_from_current)
+    #sim_name = splitpath(recent_path)[end] # SIM NAME UNHELPFUL FIXME
+    return (load_ExecutionClassifications(type, recent_path; kwargs...), nothing) 
+end
+
+_is_varying(x::Nothing) = false
+_is_varying(x::AbstractArray) = true
+_is_varying(x::Number) = false
+
+# FIXME type can be either <:AbstractArray or DataFrame -- should impact return type
+# not sure why it was necessary... never actually implemented
+function load_ExecutionClassifications(type::Type, data_path)
+    mdb = load_simulation_data(data_path)
     mods = get_mods(mdb)
+    @show mods
 
-    is_range(x::Nothing) = false
-    is_range(x::AbstractRange) = true
-    is_range(x::Number) = false
-    
-    all_mod_names = keys(mods) |> collect
-    all_mod_values = values(mods) |> collect
-    varied_mods = is_range.(all_mod_values)
-    fixed_mods = .!varied_mods
-    fixed_mods_dict = Dict(name => mods[name] for name in all_mod_names[fixed_mods])
-    
-    mod_names = all_mod_names[varied_mods] |> sort
-    mod_values = [mods[name] for name in mod_names]
-    init_mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
-    mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
+    fixed_names = [name for name in keys(mods) if !_is_varying(mods[name])]
+    varying_names = [name for name in keys(mods) if _is_varying(mods[name])]
+    fixed_mods = NamedTuple{Tuple(fixed_names)}([mods[key] for key in fixed_names])
+    varying_mods = NamedTuple{Tuple(varying_names)}([mods[key] for key in varying_names])
+
+    init_mod_array(T) = NamedAxisArray{keys(varying_mods)}(Array{Union{Bool,Missing}}(undef, length.(values(varying_mods))...), values(varying_mods))
+    #mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
     
     
-    first_result = MultiDBRowIter(mdb) |> first
     classification_names = fieldnames(ExecutionClassifications)
     classifications_A = Dict(name => init_mod_array(Bool) for name in classification_names) 
 
     for (this_mod, this_result) in MultiDBRowIter(mdb)
         exec_classification = this_result[:wave_properties]
-        classifications_A_idx = this_mod[mod_names]
+        A_idx = this_mod[varying_names]
         if exec_classification === missing
             for name in classification_names
-                classifications_A[name][classifications_A_idx...] = missing
+                classifications_A[name][A_idx...] = missing
             end
         else
             for name in classification_names
-                classifications_A[name][classifications_A_idx...] = getproperty(exec_classification, name)
+                classifications_A[name][A_idx...] = getproperty(exec_classification, name)
             end
         end
     end
-    return classifications_A, sim_name
-end
-
-function load_ExecutionClassifications_recent(::Type{<:DataFrame}, prototype_name, offset_from_current=0; data_root = datadir())
-    (prototype, mdb) = load_data_recent(data_root, prototype_name, offset_from_current)
-    sim_name = get_sim_name(mdb.fns[1])
-
-    mods = get_mods(mdb)
-
-    is_range(x::Nothing) = false
-    is_range(x::AbstractRange) = true
-    is_range(x::Number) = false
-    
-    all_mod_names = keys(mods) |> collect
-    all_mod_values = values(mods) |> collect
-    varied_mods = is_range.(all_mod_values)
-    fixed_mods = .!varied_mods
-    fixed_mods_dict = Dict(name => mods[name] for name in all_mod_names[fixed_mods])
-    
-    mod_names = all_mod_names[varied_mods] |> sort
-    mod_values = [mods[name] for name in mod_names]
-    init_mod_array(T) = NamedAxisArray{Tuple(mod_names)}(Array{Union{Bool,Missing}}(undef, length.(mod_values)...), Tuple(mod_values))
-    mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
-    
-    
-    first_result = MultiDBRowIter(mdb) |> first
-    classification_names = fieldnames(ExecutionClassifications)
-    classifications_A = Dict(name => init_mod_array(Bool) for name in classification_names) 
-
-    for (this_mod, this_result) in MultiDBRowIter(mdb)
-        exec_classification = this_result[:wave_properties]
-        classifications_A_idx = this_mod[mod_names]
-        if exec_classification === missing
-            for name in classification_names
-                classifications_A[name][classifications_A_idx...] = missing
-            end
-        else
-            for name in classification_names
-                classifications_A[name][classifications_A_idx...] = getproperty(exec_classification, name)
-            end
-        end
-    end
-    return classifications_A, sim_name
+    return classifications_A
 end

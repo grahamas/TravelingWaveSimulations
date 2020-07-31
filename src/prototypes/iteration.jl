@@ -40,13 +40,14 @@ end
 function iterate_prototype(prototype::Function, 
                            modifications_specification; 
                            kwargs...)
-    modifications, modifications_prefix = parse_modifications_specification(modifications_specification)
-    iterate_prototype(prototype, modifications, modifications_prefix; kwargs...)
+    modifications, modification_strs = parse_modifications_argument(modifications_specification)
+    iterate_prototype(prototype, modifications, modification_strs; kwargs...)
 end
 function iterate_prototype(prototype::Function,
                            modifications::AbstractArray,
-                           modifications_prefix::AbstractString; 
+                           modification_strs::Vector{<:AbstractString}; 
                            prototype_name,
+                           experiment_name="",
                            data_root::AbstractString=datadir(), 
                            max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^20))#, 
                            # Assuming a sim will never be larger than a MiB   ^^^
@@ -58,7 +59,9 @@ function iterate_prototype(prototype::Function,
     @warn "# of mods: $(length(modifications))"
 
     # Initialize saving paths
-    data_path = joinpath(data_root, prototype_name, modifications_prefix)
+    data_path = init_data_path(modification_strs; data_root=data_root, 
+                                                  prototype_name=prototype_name,
+                                                  experiment_name=experiment_name)
 
     # Initialize prototype
     @show prototype_name
@@ -103,7 +106,6 @@ function iterate_prototype(prototype::Function,
 
     # TODO: only works for namedtuple u
     @warn """saving $(joinpath(data_path, "ensemble_solution.jdb"))""" 
-    mkpath(data_path)
     JuliaDB.save(table(ensemble_solution.u, pkey=pkeys), joinpath(data_path, "ensemble_solution.jdb"))
     return ensemble_solution
     # for backup_path in backup_paths

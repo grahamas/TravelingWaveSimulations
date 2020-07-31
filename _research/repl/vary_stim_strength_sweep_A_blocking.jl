@@ -1,0 +1,11 @@
+iterate_prototype("dos_ring",
+                        ["Aee=40.0:12.0:250.0", "Aei=20.0:16.0:250.0",
+                         "Aie=15.0:16.0:250.0", "Aii=1.0:20.0:250.0",
+                         "firing_θE=6.0", "firing_θI=7.0",
+                         "blocking_θE=25.0", "blocking_θI=10.0",
+                         "stim_strength=[3.0,9.0,12.0]",
+                         "step_reduction=nothing",
+						 "velocity_threshold=1e-6",
+						 "n_traveling_frames_threshold=10"],
+                        prototype_name="vary_stim",
+                        data_root=data_root)
