@@ -54,6 +54,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 WilsonCowanModel = "bdbc91b4-201b-11e9-2b98-89611552dcef"
 
 [compat]
+AxisIndices = ">= 0.4"
 NeuralModels = "2"
 Simulation73 = "2"
 WilsonCowanModel = "2"
