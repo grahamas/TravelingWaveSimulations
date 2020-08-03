@@ -16,6 +16,7 @@ fcmb_blocking_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "dat
 using DrWatson
 include(projectdir("repl", "setup", "basic.jl"))
 include(projectdir("repl", "setup", "plot.jl"))
+include(projectdir("repl", "phase_space_analysis.jl"))
 
 
 function calc_binary_segmentation(arr)
@@ -51,18 +52,19 @@ function save_figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Sy
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 
-l2(x,y) = sqrt(sum((x .- y) .^ 2))
-using Interpolations
-function diagonal_slice(x_axis, y_axis, data::Matrix, y_intercept, slope, dx=1)
-    interp = LinearInterpolation((x_axis, y_axis), data')
-    calc_y(x) = slope * x + y_intercept
-    sample_points = [(x, calc_y(x)) for x in x_axis if y_axis[begin] <= calc_y(x) <= y_axis[end]]
-    @show first(sample_points)
-    sample_values = sample_points .|> (x) -> interp(x...)
-    @show (sample_points[begin], sample_points[end])
-    distance_along_line = l2.(Ref(sample_points[begin]), sample_points)
-    return (distance_along_line, sample_points, sample_values)
+
+function save_slice_2d_and_steepest_line_and_histogram!((x_sym, y_sym),
+                                                        property_sym, 
+                                                        unique_id=""; kwargs...)
+    scene, layout = layout, scene()
+    layout[1,1] = slice_2d_and_steepest_line_and_histogram!(scene,
+                                                            (x_sym, y_sym),
+                                                            property_sym; kwargs...)
+    fname = "slice_2d_and_steepest_line_and_histogram_$(x_sym)_$(y_sym).png"
+    mkpath(plotsdir(unique_id))
+    Makie.save(plotsdir(unique_id,fname), scene)
 end
+
 
 function slice_2d_and_steepest_line_and_histogram!(scene::Scene, 
                                                    (x_sym, y_sym)::Tuple{Symbol,Symbol},
