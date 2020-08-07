@@ -342,7 +342,7 @@ prototypes_dict["harris_ermentrout_pure_sigmoid"] = (
                   Aii=0.25, Sii=sigma,
                   Aie=1.0, Sie=1.0,
                   Aei=1.5, Sei=sigma,
-                  n_lattice=512, x_lattice=1400.0, 
+                  n_lattice=512, x_lattice=512.0, 
                   firing_θE=6.0,
                   firing_θI=11.4,
                   blocking_θE=30.0,
