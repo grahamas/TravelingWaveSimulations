@@ -13,65 +13,83 @@ function diagonal_slice(x_axis, y_axis, data::Matrix, y_intercept, slope, dx=1)
     return (distance_along_line, sample_points, sample_values)
 end
 
-function move_left_boundary!(queue, new_left)
-    removed_val = 0
-    while !isempty(queue) && first(queue)[1] < new_left
-        removed_elt = dequeue!(queue)
-        removed_val += removed_elt[2]
-    end
-    return removed_val
-end
-
-function move_right_boundary!(queue, new_right, elements, next_elt)
-    added_val = 0
-    while next_elt <= length(elements) && elements[next_elt][1] <= new_right
-        new_elt = elements[next_elt]
-        enqueue!(queue, new_elt)
-        added_val += new_elt[2]
-        next_elt += 1
-    end
-    return (added_val, next_elt)
-end
-
-function moving_average(data_pairs::Vector{TT}, window_proportion=0.05, step_proportion=0.01,
-                        extent::T1=data_pairs[end][1], 
-                        window::T1=window_proportion*extent, 
-                        step::T1=step_proportion*extent) where {T1 <: Number, T2 <: Number, TT<:Tuple{T1,T2}} 
-    start = data_pairs[begin][1]
-    stop = data_pairs[end][1]
-    locs = start+(window/2):step:stop-(window/2)
-    @assert length(locs) > 10
-    next_pair = 1
-    cur_sum = 0
-    pairs_in_window = Queue{TT}()
-    vals = map(locs) do loc
-        left, right = loc-window/2, loc+window/2 
-        cur_sum -= move_left_boundary!(pairs_in_window, left)
-        inc, next_pair = move_right_boundary!(pairs_in_window, right, data_pairs, next_pair)
-        cur_sum += inc
-        cur_sum / length(pairs_in_window)
-    end
-    return locs, vals
-end
-
 function project(coord::C, line::C, line_point::C) where {N, C <: SVector{N}}
     projection = (line * line') / (line' * line)
     return projection * coord + (I - projection) * line_point
 end
 
 line_dist_to_coord(dist, line, origin) = (dist * line) + origin 
+#axes_vals(data::AbstractAxisArray) = keys.(axes(data))
+function Interpolations.interpolate(data::AbstractAxisArray, opts...)
+    axs = axes_keys(data)
+    interpolate(axs..., data, opts...)
+end
 
-squish(data::NamedDimsArray, args...) = squish(data.data, args...)
-function squish(data::AbstractAxisArray, target_line, target_line_origin)
-    coordinates = SVector.(get_coordinates(data))
-    # project coordinates onto line and convert into distance along line from y-intercept
-    projected_coords = project.(coordinates, Ref(target_line), Ref(target_line_origin))
-    projected_data_pairs = [(l2(coord, target_line_origin), datum) for (coord, datum) in zip(projected_coords, data)][:]
-    sort!(projected_data_pairs)
-    squished_line_dists, squished_line_vals = moving_average(projected_data_pairs)
-    squished_line_coords = line_dist_to_coord.(squished_line_dists, Ref(target_line), Ref(target_line_origin))
-    nan_filter = .!isnan.(squished_line_vals)
-    return (squished_line_dists[nan_filter], 
-            squished_line_vals[nan_filter], 
-            squished_line_coords[nan_filter])
+struct Line{N,T,S<:SVector{N,T}}
+    point::S
+    vector::S
+end
+slope(line::Line{2}) = line.vector[2] / line.vector[1]
+y_intercept(line::Line{2}) = line.point[2] - slope(line) * line.point[1]
+y_from_x(line::Line{2}, x::Number) = slope(line) * x + y_intercept(line)
+point_from_distance(line::Line, dist::Number) = line.vector .* dist .+ line.point
+
+function originate_from_left(line, xs, ys)
+    x_min, x_max = extrema(xs)
+    y_min, y_max = extrema(ys)
+
+    # need increasing x
+    new_vector = line.vector[1] > 0 ? line.vector : -line.vector
+
+    if y_min <= y_from_x(line, x_min) <= y_max
+        return Line(SA[x_min, y_from_x(line, x_min)], new_vector)
+    elseif y_min <= y_from_x(line, x_max) <= y_max
+        return Line(SA[x_max, y_from_x(line, x_max)], new_vector)
+    else
+        error("Line does not fall within axes")
+    end
+end
+
+slice(data::NamedDimsArray, args...) = squish(data.data, args...)
+function slice(data::AbstractAxisArray{T,2}, target_line::Line{2,T,S}, step_fineness=5) where {T,S}
+    xs, ys = axes_keys(data)
+    interpolation = LinearInterpolation(data, extrapolation_bc=NaN)
+    return slice(interpolation, target_line, xs, ys, step_fineness)
+end
+
+function slice(interpolation::AbstractInterpolation, target_line::Line{2,T,S}, xs, ys, step_fineness=5) where {T,S}
+    # We want this line to proceed from its point through the grid (left to right for convention's and plotting's sake) 
+    line = originate_from_left(target_line, xs, ys)
+
+    # Calculate a reasonable step
+    dx = abs(xs[begin+1] - xs[begin])
+    dy = abs(xs[begin+1] - xs[begin])
+    step = sqrt(dx^2 + dy^2) / step_fineness
+
+    # Step along line until
+    distance_along_line = 0
+    dists = T[]; points = S[]; values = T[];
+    next_point = point_from_distance(line, distance_along_line)
+    next_value = interpolation(next_point)
+    while next_value != NaN
+        push!(dists, distance_along_line)
+        push!(points, next_point)
+        push!(values, next_value)
+        distance_along_line += step
+        next_point = point_from_distance(line, distance_along_line)
+        next_value = interpolation(next_point)
+    end
+    return (dists, values, points) 
+end
+
+function squish(data::AbstractAxisArray{T,2}, target_line::Line{2,T,S}, line_fineness=5, squish_fineness=2) where {T,S}
+    xs, ys = axes_keys(data)
+    interpolation = LinearInterpolation(data, extrapolation_bc=NaN)
+    squished_dists, _, squished_points = slice(interpolation, target_line, xs, ys, line_fineness)
+    orthogonal_vec = get_orthogonal_vector(target_line)
+    squished_vals = map(squished_points) do point
+        _, crosscut_vals, _ = slice(interpolation, Line(point, orthogonal_vec), xs, ys, squish_fineness)
+        mean(crosscut_vals)
+    end
+    return squished_dists, squished_vals, squished_points
 end
