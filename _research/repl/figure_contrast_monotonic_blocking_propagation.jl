@@ -60,6 +60,7 @@ function save_squish_2d_and_steepest_line_and_histogram!((x_sym, y_sym),
                                                             property_sym; kwargs...)
     fname = "squish_2d_and_steepest_line_and_histogram_$(x_sym)_$(y_sym).png"
     mkpath(plotsdir(unique_id))
+    @info "saving $(plotsdir(unique_id,fname))"
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 
@@ -87,7 +88,7 @@ function squish_2d_and_steepest_line_and_histogram!(scene::Scene,
 
     sweep_ax = LAxis(scene) 
     heatmap = heatmap!(sweep_ax, x,y,data.data.parent, colorrange=(0,1))
-    tightlimits!(sweep_ax)
+    #tightlimits!(sweep_ax)
     sweep_ax.xlabel = string(x_sym)
     if hide_y
         hideydecorations!(sweep_ax)
@@ -109,7 +110,7 @@ function squish_2d_and_steepest_line_and_histogram!(scene::Scene,
     diagonal_squish_ax.xticks = ([squish_dist[begin], squish_dist[end]], 
                                 string.([floor.(Ref(Int), squish_loc[begin]), 
                                          floor.(Int, squish_loc[end])]))
-    tightlimits!(diagonal_squish_ax)
+    #tightlimits!(diagonal_squish_ax)
     ylims!(diagonal_squish_ax, 0, 1)
 
     title_facet = layout[1,1] = LText(scene, title, textsize=titlesize, tellwidth=false)
@@ -229,6 +230,7 @@ function save_figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{S
                                                property_sym; kwargs...)
     fname = "figure_examples_contrast_monotonic_blocking_$(x_sym)_$(y_sym)_$(property_sym).png"
     mkpath(plotsdir(unique_id))
+    @info "saving $(plotsdir(unique_id,fname))"
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 function save_figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Symbol,Symbol}, other_syms::Tuple{Symbol,Symbol}, 
@@ -244,6 +246,7 @@ function save_figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tup
                                                property_sym; kwargs...)
     fname = "figure_examples_contrast_monotonic_blocking_all_$(x_sym)_$(y_sym)_$(property_sym).png"
     mkpath(plotsdir(unique_id))
+    @info "saving $(plotsdir(unique_id,fname))"
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 #function figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 

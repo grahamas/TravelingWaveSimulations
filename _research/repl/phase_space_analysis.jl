@@ -59,6 +59,8 @@ function project(coord::C, line::C, line_point::C) where {N, C <: SVector{N}}
     return projection * coord + (I - projection) * line_point
 end
 
+line_dist_to_coord(dist, line, origin) = (dist * line) + origin 
+
 squish(data::NamedDimsArray, args...) = squish(data.data, args...)
 function squish(data::AbstractAxisArray, target_line, target_line_origin)
     coordinates = SVector.(get_coordinates(data))
@@ -67,5 +69,9 @@ function squish(data::AbstractAxisArray, target_line, target_line_origin)
     projected_data_pairs = [(l2(coord, target_line_origin), datum) for (coord, datum) in zip(projected_coords, data)][:]
     sort!(projected_data_pairs)
     squished_line_dists, squished_line_vals = moving_average(projected_data_pairs)
-    return (squished_line_dists, squished_line_vals, projected_coords)
+    squished_line_coords = line_dist_to_coord.(squished_line_dists, Ref(target_line), Ref(target_line_origin))
+    nan_filter = .!isnan.(squished_line_vals)
+    return (squished_line_dists[nan_filter], 
+            squished_line_vals[nan_filter], 
+            squished_line_coords[nan_filter])
 end
