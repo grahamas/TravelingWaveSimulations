@@ -8,10 +8,10 @@ save_figure_example_contrast_monotonic_blocking_all((:Aei, :Aee), (:Aie, :Aii), 
                          ],  
                             fcmb_monotonic_A_fpath, fcmb_blocking_A_fpath, 
                             :has_propagation, "contrast_monotonic_blocking_A";
-                            primary_slice_y_intersect = 244.0,
-                            primary_slice_slope = -(1 / 0.8125),
-                            secondary_slice_y_intersect = 244.0,
-                            secondary_slice_slope = -(1 / 0.8125)
+                            primary_squish_origin = SA[0.0, 244.0],
+                            primary_squish_line = SA[-0.8125, 1.],
+                            secondary_squish_origin = SA[0.0, 244.0],
+                            secondary_squish_line = SA[-0.8125, 1.]
                              )
 
 save_figure_example_contrast_monotonic_blocking_all((:Sei, :See), (:Sie, :Sii), [
@@ -22,10 +22,10 @@ save_figure_example_contrast_monotonic_blocking_all((:Sei, :See), (:Sie, :Sii), 
                          ],  
                             fcmb_monotonic_S_fpath, fcmb_blocking_S_fpath, 
                             :has_propagation, "contrast_monotonic_blocking_S",
-                            primary_slice_y_intersect = 110.0,
-                            primary_slice_slope = -2.0,
-                            secondary_slice_y_intersect = 110.0,
-                            secondary_slice_slope = -2.0
+                            primary_squish_origin = SA[0.0, 110.0],
+                            primary_squish_line = SA[1., -2.0],
+                            secondary_squish_origin = SA[0.0, 110.0],
+                            secondary_squish_line = SA[1., -2.0]
                            )
 #save_figure_contrast_monotonic_blocking((:Aie, :Aee), fcmb_monotonic_A_fpath, fcmb_blocking_A_fpath, :has_propagation, "contrast_monotonic_blocking_A")
 #save_figure_contrast_monotonic_blocking((:Aei, :Aie), fcmb_monotonic_A_fpath, fcmb_blocking_A_fpath, :has_propagation, "contrast_monotonic_blocking_A")
