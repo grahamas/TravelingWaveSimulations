@@ -218,7 +218,6 @@ _is_varying(x::Number) = false
 function load_ExecutionClassifications(type::Type, data_path)
     mdb = load_simulation_data(data_path)
     mods = get_mods(mdb)
-    @show mods
 
     fixed_names = [name for name in keys(mods) if !_is_varying(mods[name])]
     varying_names = [name for name in keys(mods) if _is_varying(mods[name])]

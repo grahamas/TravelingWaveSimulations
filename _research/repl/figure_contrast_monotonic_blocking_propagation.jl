@@ -11,11 +11,10 @@ fcmb_blocking_A_fpath = get_recent_simulation_data_path(joinpath(homedir(), "dat
 fcmb_monotonic_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_monotonic", "report2_S_sweep"))
 fcmb_blocking_S_fpath = get_recent_simulation_data_path(joinpath(homedir(), "data", "ring_blocking", "report2_S_sweep"))
 
-@show fcmb_monotonic_S_fpath
-
 using DrWatson
 include(projectdir("repl", "setup", "basic.jl"))
 include(projectdir("repl", "setup", "plot.jl"))
+include(projectdir("repl", "phase_space_analysis.jl"))
 
 
 function calc_binary_segmentation(arr)
@@ -41,57 +40,78 @@ function save_figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Sy
                                      monotonic_fpath::AbstractString, 
                                      blocking_fpath::AbstractString,
                                      property_sym::Symbol,
-                                     unique_id::String="")
+                                     unique_id::String=""; kwargs...)
     scene, _ = figure_contrast_monotonic_blocking((x_sym, y_sym),
                                                monotonic_fpath,
                                                blocking_fpath,
-                                               property_sym)
+                                               property_sym; kwargs...)
     fname = "figure_contrast_monotonic_blocking_$(x_sym)_$(y_sym)_$(property_sym).png"
     mkpath(plotsdir(unique_id))
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 
-l2(x,y) = sqrt(sum((x .- y) .^ 2))
-using Interpolations
-function diagonal_slice(x_axis, y_axis, data::Matrix, y_intercept, slope, dx=1)
-    interp = LinearInterpolation((x_axis, y_axis), data')
-    calc_y(x) = slope * x + y_intercept
-    sample_points = [(x, calc_y(x)) for x in x_axis if y_axis[begin] <= calc_y(x) <= y_axis[end]]
-    @show first(sample_points)
-    sample_values = sample_points .|> (x) -> interp(x...)
-    @show (sample_points[begin], sample_points[end])
-    distance_along_line = l2.(Ref(sample_points[begin]), sample_points)
-    return (distance_along_line, sample_points, sample_values)
+
+function save_reduce_2d_and_steepest_line_and_histogram!((x_sym, y_sym),
+                                                        property_sym, 
+                                                        unique_id=""; kwargs...)
+    scene, layout = layout, scene()
+    layout[1,1] = reduce_2d_and_steepest_line_and_histogram!(scene,
+                                                            (x_sym, y_sym),
+                                                            property_sym; kwargs...)
+    fname = "reduce_2d_and_steepest_line_and_histogram_$(x_sym)_$(y_sym).png"
+    mkpath(plotsdir(unique_id))
+    @info "saving $(plotsdir(unique_id,fname))"
+    Makie.save(plotsdir(unique_id,fname), scene)
 end
 
-function slice_2d_and_steepest_line_and_histogram!(scene::Scene, 
+
+function reduce_2d_and_steepest_line_and_histogram!(scene::Scene, 
                                                    (x_sym, y_sym)::Tuple{Symbol,Symbol},
                                                    fpath::String,
                                                    property_sym::Symbol; 
-                                                   title, titlesize=20, hide_y=false,
+                                                   facet_title, titlesize=20, hide_y=false,
                                                    colorbar_width=nothing,
-                                                   slice_y_intersect,
-                                                   slice_slope)
+                                                   reduction_line::PointVectorLine)
     prototype_name, sim_params = _fpath_params(fpath)
 
     A = TravelingWaveSimulations.load_ExecutionClassifications(AbstractArray, fpath)[property_sym]
     name_syms = _namedaxisarray_names(A)
     collapsed_syms = Tuple(setdiff(name_syms, (y_sym, x_sym)))
-    @assert length(collapsed_syms) == length(name_syms) - 2
-    reduced_data = Simulation73.avg_across_dims(A, collapsed_syms)
     x, y = _getaxis(A, (x_sym, y_sym)) .|> ax -> ax.keys
     data = if findfirst(name_syms .== y_sym) < findfirst(name_syms .== x_sym)
-        reduced_data'
+        Simulation73.avg_across_dims(A, collapsed_syms)'
     else
-        reduced_data
+        Simulation73.avg_across_dims(A, collapsed_syms)
     end
 
     layout = GridLayout()
-    title_facet = layout[1,1] = LText(scene, title, textsize=titlesize, tellwidth=false)
+
+    max_grad_layout = GridLayout()
+    slice_dist, slice_val, slice_loc, slice_line = reduce_along_max_central_gradient(data, slice)
+    max_grad_ax = LAxis(scene)
+    plot!(max_grad_ax, slice_dist, slice_val)
+    fitted_sigmoid = fit_sigmoid(slice_val, slice_dist)
+    max_grad_title = if fitted_sigmoid != nothing
+        sigmoid_val = fitted_sigmoid.(slice_dist)
+        plot!(max_grad_ax, slice_dist, sigmoid_val, color=:green) 
+        LText(scene, "a=$(round(fitted_sigmoid.slope,sigdigits=3)); θ=$(round.(point_from_distance(slice_line, fitted_sigmoid.threshold),sigdigits=3))", tellwidth=false)
+    else
+        LText(scene, "no fit", tellwidth=false)
+    end
+    max_grad_ax.xticks = ([slice_dist[begin], slice_dist[end]], 
+                                string.([floor.(Ref(Int), slice_loc[begin]), 
+                                         floor.(Int, slice_loc[end])]))
+    #tightlimits!(max_grad_ax)
+    ylims!(max_grad_ax, 0, 1)
+    max_grad_layout[:v] = [max_grad_title, max_grad_ax]
+
 
     sweep_ax = LAxis(scene) 
-    heatmap = heatmap!(sweep_ax, x,y,data, colorrange=(0,1))
-    tightlimits!(sweep_ax)
+    heatmap = heatmap!(sweep_ax, x,y,data.data.parent, colorrange=(0,1))
+    slice_xs = [loc[1] for loc in slice_loc]
+    slice_ys = [loc[2] for loc in slice_loc]
+    plot!(sweep_ax, slice_xs, slice_ys, color=:red) 
+    #tightlimits!(sweep_ax)
     sweep_ax.xlabel = string(x_sym)
     if hide_y
         hideydecorations!(sweep_ax)
@@ -107,18 +127,9 @@ function slice_2d_and_steepest_line_and_histogram!(scene::Scene,
     segmented_ax.xticks =( 1:3, segment_names)
     segmented_ax.xticklabelrotation = 0.0
 
-    slice_x, slice_sample_points, slice_val = diagonal_slice(x, y, reduced_data, slice_y_intersect,
-                                                            slice_slope)
-    diagonal_slice_ax = LAxis(scene)
-    plot!(diagonal_slice_ax, slice_x, slice_val)
-    diagonal_slice_ax.xticks = ([slice_x[begin], slice_x[end-1]], 
-                                string.([floor.(Ref(Int), slice_sample_points[begin]), 
-                                         floor.(Int, slice_sample_points[end])]))
-    tightlimits!(diagonal_slice_ax)
-    ylims!(diagonal_slice_ax, 0, 1)
 
-
-    if colorbar_width === nothing
+    title_facet = layout[1,1] = LText(scene, facet_title, textsize=titlesize, tellwidth=false)
+    if colorbar_width === nothing || abs(-(extrema(data)...)) == 0
         layout[2,1] = sweep_ax
     else
         sweep_layout = GridLayout()
@@ -127,11 +138,10 @@ function slice_2d_and_steepest_line_and_histogram!(scene::Scene,
     end
     
     summary_layout = GridLayout()
-    summary_layout[:v] = [segmented_ax, diagonal_slice_ax]
+    summary_layout[:v] = [segmented_ax, max_grad_layout]
     layout[3,1] = summary_layout
 
     return layout
-
 end
 
 
@@ -140,24 +150,22 @@ function figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}
                                      blocking_fpath::AbstractString,
                                      property_sym::Symbol;
                                      scene_resolution=(800,1200),
-                                     slice_y_intersect, slice_slope)
+                                     reduction_line::PointVectorLine)
     
     scene, layout = layoutscene(resolution=scene_resolution)
 
-    layout[1,1] = monotonic_sweep_ax = slice_2d_and_steepest_line_and_histogram!(scene, 
+    layout[1,1] = monotonic_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(scene, 
                                                             (x_sym, y_sym),
                                                             monotonic_fpath,
                                                             property_sym; 
-                                                            slice_y_intersect=slice_y_intersect,
-                                                            slice_slope=slice_slope,
-                                                            title="Monotonic")
-    layout[1,2] = blocking_sweep_ax = slice_2d_and_steepest_line_and_histogram!(scene, 
+                                                            reduction_line=reduction_line,
+                                                            facet_title="Monotonic")
+    layout[1,2] = blocking_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(scene, 
                                                             (x_sym, y_sym),
                                                             blocking_fpath,
                                                             property_sym; 
-                                                            slice_y_intersect=slice_y_intersect,
-                                                            slice_slope=slice_slope,
-                                                            title="Blocking", hide_y=true)
+                                                            reduction_line=reduction_line,
+                                                            facet_title="Blocking", hide_y=true)
 
     return scene, layout
     
@@ -169,45 +177,40 @@ function figure_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Symbol,Sym
                                      blocking_fpath::AbstractString,
                                      property_sym::Symbol;
                                      scene_resolution=(1200,1200),
-                                     primary_slice_y_intersect, primary_slice_slope,
-                                     secondary_slice_y_intersect, secondary_slice_slope)
-    
+                                     primary_reduction_line,
+                                     secondary_reduction_line)    
     scene, layout = layoutscene(resolution=scene_resolution)
 
 
-    layout[1:3,1] = monotonic_sweep_ax = slice_2d_and_steepest_line_and_histogram!(
+    layout[1:3,1] = monotonic_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(
                                                             scene, 
                                                             (x_sym, y_sym),
                                                             monotonic_fpath,
                                                             property_sym; 
-                                                            slice_y_intersect = primary_slice_y_intersect,
-                                                            slice_slope= primary_slice_slope,
-                                                            title="Monotonic")
-    layout[1:3,2] = blocking_sweep_ax = slice_2d_and_steepest_line_and_histogram!(
+                                                            reduction_line=primary_reduction_line,
+                                                            facet_title="Monotonic")
+    layout[1:3,2] = blocking_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(
                                                             scene, 
                                                             (x_sym, y_sym),
                                                             blocking_fpath,
                                                             property_sym; 
-                                                            slice_y_intersect = primary_slice_y_intersect,
-                                                            slice_slope= primary_slice_slope,
-                                                            title="Blocking", 
+                                                            reduction_line=primary_reduction_line,
+                                                            facet_title="Blocking", 
                                                             hide_y=true)
-    layout[1:3,3] = other_monotonic_sweep_ax = slice_2d_and_steepest_line_and_histogram!(
+    layout[1:3,3] = other_monotonic_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(
                                                            scene, 
                                                            (other_x_sym, other_y_sym),
                                                            monotonic_fpath,
                                                            property_sym; 
-                                                           slice_y_intersect = secondary_slice_y_intersect,
-                                                           slice_slope= secondary_slice_slope,
-                                                           title="Monotonic")
-    layout[1:3,4] = other_blocking_sweep_ax = slice_2d_and_steepest_line_and_histogram!(
+                                                           reduction_line=secondary_reduction_line,
+                                                           facet_title="Monotonic")
+    layout[1:3,4] = other_blocking_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(
                                                           scene, 
                                                           (other_x_sym, other_y_sym),
                                                           blocking_fpath,
                                                           property_sym; 
-                                                          slice_y_intersect = secondary_slice_y_intersect,
-                                                          slice_slope= secondary_slice_slope,
-                                                          title="Blocking",
+                                                          reduction_line=secondary_reduction_line,
+                                                          facet_title="Blocking",
                                                           hide_y=true,
                                                           colorbar_width=25)
     layout[end+1, 1] = LText(scene, "($(x_sym), $(y_sym))", tellwidth=false)
@@ -234,6 +237,7 @@ function save_figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{S
                                                property_sym; kwargs...)
     fname = "figure_examples_contrast_monotonic_blocking_$(x_sym)_$(y_sym)_$(property_sym).png"
     mkpath(plotsdir(unique_id))
+    @info "saving $(plotsdir(unique_id,fname))"
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 function save_figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Symbol,Symbol}, other_syms::Tuple{Symbol,Symbol}, 
@@ -249,6 +253,7 @@ function save_figure_example_contrast_monotonic_blocking_all((x_sym, y_sym)::Tup
                                                property_sym; kwargs...)
     fname = "figure_examples_contrast_monotonic_blocking_all_$(x_sym)_$(y_sym)_$(property_sym).png"
     mkpath(plotsdir(unique_id))
+    @info "saving $(plotsdir(unique_id,fname))"
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 #function figure_example_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}, 
