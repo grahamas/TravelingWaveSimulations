@@ -49,12 +49,8 @@ function iterate_prototype(prototype::Function,
                            prototype_name,
                            experiment_name="",
                            data_root::AbstractString=datadir(), 
-                           max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^20))#, 
-                           # Assuming a sim will never be larger than a MiB   ^^^
-                           #no_save_raw::Bool=false,
-                           #backup_paths=[],
-                           #progress::Bool=false,
-                           #delete_original::Bool=false)
+                           max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^20),
+                           save=true, parallelize_if_possible=true) 
 
     @warn "# of mods: $(length(modifications))"
 
@@ -64,9 +60,7 @@ function iterate_prototype(prototype::Function,
                                                   experiment_name=experiment_name)
 
     # Initialize prototype
-    @show prototype_name
     prototype = get_prototype(prototype_name)
-    @show prototype
     
     pkeys = mods_to_pkeys(modifications)
    
@@ -83,13 +77,17 @@ function iterate_prototype(prototype::Function,
     sample_data = initial_simulation.global_reduction(sample_execution.solution)
     u_init = init_results_tuple(pkeys, sample_data)
     
-    ensemble_solver, batch_size = if nprocs() == 1
-        @warn "Not parallelizing..."
-        (EnsembleSerial(), length(modifications))
+    (ensemble_solver, batch_size) = if parallelize_if_possible
+        if nprocs() == 1
+            @warn "Not parallelizing..."
+            (EnsembleSerial(), length(modifications))
+        else
+            @warn "Parallelizing over $(nworkers()) workers"
+            (EnsembleDistributed(),
+             min(max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1))))
+        end
     else
-        @warn "Parallelizing over $(nworkers()) workers"
-        (EnsembleDistributed(),
-         min(max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1))))
+        (EnsembleSerial(), length(modifications))
     end
     ensemble_solution = solve(initial_simulation, ensemble_solver; 
                               prob_func=prob_function, 
@@ -105,13 +103,9 @@ function iterate_prototype(prototype::Function,
     end
 
     # TODO: only works for namedtuple u
-    @warn """saving $(joinpath(data_path, "ensemble_solution.jdb"))""" 
-    JuliaDB.save(table(ensemble_solution.u, pkey=pkeys), joinpath(data_path, "ensemble_solution.jdb"))
+    if save == true
+        @warn """saving $(joinpath(data_path, "ensemble_solution.jdb"))""" 
+        JuliaDB.save(table(ensemble_solution.u, pkey=pkeys), joinpath(data_path, "ensemble_solution.jdb"))
+    end
     return ensemble_solution
-    # for backup_path in backup_paths
-    #     run(`scp -r $data_path $backup_path`)
-    # end
-    # if delete_original
-    #     run(`rm -rf $data_path`)
-    # end
 end

@@ -64,6 +64,17 @@ function save_reduce_2d_and_steepest_line_and_histogram!((x_sym, y_sym),
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 
+function _collapse_to_axes(A, x_sym, y_sym)
+    name_syms = _namedaxisarray_names(A)
+    collapsed_syms = Tuple(setdiff(name_syms, (y_sym, x_sym)))
+    x, y = _getaxis(A, (x_sym, y_sym)) .|> ax -> ax.keys
+    data = if findfirst(name_syms .== y_sym) < findfirst(name_syms .== x_sym)
+        Simulation73.avg_across_dims(A, collapsed_syms)'
+    else
+        Simulation73.avg_across_dims(A, collapsed_syms)
+    end
+    return (x, y, data)
+end
 
 function reduce_2d_and_steepest_line_and_histogram!(scene::Scene, 
                                                    (x_sym, y_sym)::Tuple{Symbol,Symbol},
@@ -73,16 +84,9 @@ function reduce_2d_and_steepest_line_and_histogram!(scene::Scene,
                                                    colorbar_width=nothing,
                                                    reduction_line::PointVectorLine)
     prototype_name, sim_params = _fpath_params(fpath)
+    whole_ensemble_data = TravelingWaveSimulations.load_ExecutionClassifications(AbstractArray, fpath)[property_sym]
 
-    A = TravelingWaveSimulations.load_ExecutionClassifications(AbstractArray, fpath)[property_sym]
-    name_syms = _namedaxisarray_names(A)
-    collapsed_syms = Tuple(setdiff(name_syms, (y_sym, x_sym)))
-    x, y = _getaxis(A, (x_sym, y_sym)) .|> ax -> ax.keys
-    data = if findfirst(name_syms .== y_sym) < findfirst(name_syms .== x_sym)
-        Simulation73.avg_across_dims(A, collapsed_syms)'
-    else
-        Simulation73.avg_across_dims(A, collapsed_syms)
-    end
+    x, y, data = _collapse_to_axes(whole_ensemble_data, x_sym, y_sym)
 
     layout = GridLayout()
 
