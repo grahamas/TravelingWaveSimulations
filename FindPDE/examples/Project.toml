@@ -1,0 +1,5 @@
+[deps]
+AbstractPlotting = "537997a7-5e4e-5d89-9595-2241ea00577e"
+FindPDE = "3e0cd23a-f1a8-4163-9a0f-a74d8db2c91f"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"

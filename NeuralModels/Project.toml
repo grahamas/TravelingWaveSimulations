@@ -1,0 +1,33 @@
+name = "NeuralModels"
+uuid = "a199b2c4-7a51-11e9-2fe1-b9a1a5fe2912"
+authors = ["Graham Smith <grahamas@gmail.com>"]
+version = "2.0.0"
+
+[deps]
+AxisIndices = "f52c9ee2-1b1c-4fd8-8546-6350938c7f11"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
+RecursiveArrayTools = "731186ca-8d62-57ce-b412-fbd966d074cd"
+Simulation73 = "310cc8c8-1ffe-11e9-399c-c5a008d6bdcc"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
+
+[compat]
+Simulation73 = "2"
+julia = "1.3"
+
+[extras]
+BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
+DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
+
+[targets]
+test = ["Test", "UnicodePlots", "SpecialFunctions", "DSP", "Plots", "BandedMatrices"]
