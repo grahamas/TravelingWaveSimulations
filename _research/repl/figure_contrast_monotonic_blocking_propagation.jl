@@ -51,27 +51,27 @@ function save_figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Sy
 end
 
 
-function save_squish_2d_and_steepest_line_and_histogram!((x_sym, y_sym),
+function save_reduce_2d_and_steepest_line_and_histogram!((x_sym, y_sym),
                                                         property_sym, 
                                                         unique_id=""; kwargs...)
     scene, layout = layout, scene()
-    layout[1,1] = squish_2d_and_steepest_line_and_histogram!(scene,
+    layout[1,1] = reduce_2d_and_steepest_line_and_histogram!(scene,
                                                             (x_sym, y_sym),
                                                             property_sym; kwargs...)
-    fname = "squish_2d_and_steepest_line_and_histogram_$(x_sym)_$(y_sym).png"
+    fname = "reduce_2d_and_steepest_line_and_histogram_$(x_sym)_$(y_sym).png"
     mkpath(plotsdir(unique_id))
     @info "saving $(plotsdir(unique_id,fname))"
     Makie.save(plotsdir(unique_id,fname), scene)
 end
 
 
-function squish_2d_and_steepest_line_and_histogram!(scene::Scene, 
+function reduce_2d_and_steepest_line_and_histogram!(scene::Scene, 
                                                    (x_sym, y_sym)::Tuple{Symbol,Symbol},
                                                    fpath::String,
                                                    property_sym::Symbol; 
-                                                   title, titlesize=20, hide_y=false,
+                                                   facet_title, titlesize=20, hide_y=false,
                                                    colorbar_width=nothing,
-                                                   squish_line, squish_origin)
+                                                   reduction_line::PointVectorLine)
     prototype_name, sim_params = _fpath_params(fpath)
 
     A = TravelingWaveSimulations.load_ExecutionClassifications(AbstractArray, fpath)[property_sym]
@@ -86,8 +86,31 @@ function squish_2d_and_steepest_line_and_histogram!(scene::Scene,
 
     layout = GridLayout()
 
+    max_grad_layout = GridLayout()
+    slice_dist, slice_val, slice_loc, slice_line = reduce_along_max_central_gradient(data, slice)
+    max_grad_ax = LAxis(scene)
+    plot!(max_grad_ax, slice_dist, slice_val)
+    fitted_sigmoid = fit_sigmoid(slice_val, slice_dist)
+    max_grad_title = if fitted_sigmoid != nothing
+        sigmoid_val = fitted_sigmoid.(slice_dist)
+        plot!(max_grad_ax, slice_dist, sigmoid_val, color=:green) 
+        LText(scene, "a=$(round(fitted_sigmoid.slope,sigdigits=3)); θ=$(round.(point_from_distance(slice_line, fitted_sigmoid.threshold),sigdigits=3))", tellwidth=false)
+    else
+        LText(scene, "no fit", tellwidth=false)
+    end
+    max_grad_ax.xticks = ([slice_dist[begin], slice_dist[end]], 
+                                string.([floor.(Ref(Int), slice_loc[begin]), 
+                                         floor.(Int, slice_loc[end])]))
+    #tightlimits!(max_grad_ax)
+    ylims!(max_grad_ax, 0, 1)
+    max_grad_layout[:v] = [max_grad_title, max_grad_ax]
+
+
     sweep_ax = LAxis(scene) 
     heatmap = heatmap!(sweep_ax, x,y,data.data.parent, colorrange=(0,1))
+    slice_xs = [loc[1] for loc in slice_loc]
+    slice_ys = [loc[2] for loc in slice_loc]
+    plot!(sweep_ax, slice_xs, slice_ys, color=:red) 
     #tightlimits!(sweep_ax)
     sweep_ax.xlabel = string(x_sym)
     if hide_y
@@ -104,16 +127,8 @@ function squish_2d_and_steepest_line_and_histogram!(scene::Scene,
     segmented_ax.xticks =( 1:3, segment_names)
     segmented_ax.xticklabelrotation = 0.0
 
-    squish_dist, squish_val, squish_loc = squish(data, squish_line, squish_origin)
-    diagonal_squish_ax = LAxis(scene)
-    plot!(diagonal_squish_ax, squish_dist, squish_val)
-    diagonal_squish_ax.xticks = ([squish_dist[begin], squish_dist[end]], 
-                                string.([floor.(Ref(Int), squish_loc[begin]), 
-                                         floor.(Int, squish_loc[end])]))
-    #tightlimits!(diagonal_squish_ax)
-    ylims!(diagonal_squish_ax, 0, 1)
 
-    title_facet = layout[1,1] = LText(scene, title, textsize=titlesize, tellwidth=false)
+    title_facet = layout[1,1] = LText(scene, facet_title, textsize=titlesize, tellwidth=false)
     if colorbar_width === nothing || abs(-(extrema(data)...)) == 0
         layout[2,1] = sweep_ax
     else
@@ -123,11 +138,10 @@ function squish_2d_and_steepest_line_and_histogram!(scene::Scene,
     end
     
     summary_layout = GridLayout()
-    summary_layout[:v] = [segmented_ax, diagonal_squish_ax]
+    summary_layout[:v] = [segmented_ax, max_grad_layout]
     layout[3,1] = summary_layout
 
     return layout
-
 end
 
 
@@ -136,24 +150,22 @@ function figure_contrast_monotonic_blocking((x_sym, y_sym)::Tuple{Symbol,Symbol}
                                      blocking_fpath::AbstractString,
                                      property_sym::Symbol;
                                      scene_resolution=(800,1200),
-                                     squish_line, squish_origin)
+                                     reduction_line::PointVectorLine)
     
     scene, layout = layoutscene(resolution=scene_resolution)
 
-    layout[1,1] = monotonic_sweep_ax = squish_2d_and_steepest_line_and_histogram!(scene, 
+    layout[1,1] = monotonic_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(scene, 
                                                             (x_sym, y_sym),
                                                             monotonic_fpath,
                                                             property_sym; 
-                                                            squish_line=squish_line,
-                                                            squish_origin=squish_origin,
-                                                            title="Monotonic")
-    layout[1,2] = blocking_sweep_ax = squish_2d_and_steepest_line_and_histogram!(scene, 
+                                                            reduction_line=reduction_line,
+                                                            facet_title="Monotonic")
+    layout[1,2] = blocking_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(scene, 
                                                             (x_sym, y_sym),
                                                             blocking_fpath,
                                                             property_sym; 
-                                                            squish_line=squish_line,
-                                                            squish_origin=squish_origin,
-                                                            title="Blocking", hide_y=true)
+                                                            reduction_line=reduction_line,
+                                                            facet_title="Blocking", hide_y=true)
 
     return scene, layout
     
@@ -165,45 +177,40 @@ function figure_contrast_monotonic_blocking_all((x_sym, y_sym)::Tuple{Symbol,Sym
                                      blocking_fpath::AbstractString,
                                      property_sym::Symbol;
                                      scene_resolution=(1200,1200),
-                                     primary_squish_line, primary_squish_origin,
-                                     secondary_squish_line, secondary_squish_origin)
-    
+                                     primary_reduction_line,
+                                     secondary_reduction_line)    
     scene, layout = layoutscene(resolution=scene_resolution)
 
 
-    layout[1:3,1] = monotonic_sweep_ax = squish_2d_and_steepest_line_and_histogram!(
+    layout[1:3,1] = monotonic_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(
                                                             scene, 
                                                             (x_sym, y_sym),
                                                             monotonic_fpath,
                                                             property_sym; 
-                                                            squish_origin = primary_squish_origin,
-                                                            squish_line= primary_squish_line,
-                                                            title="Monotonic")
-    layout[1:3,2] = blocking_sweep_ax = squish_2d_and_steepest_line_and_histogram!(
+                                                            reduction_line=primary_reduction_line,
+                                                            facet_title="Monotonic")
+    layout[1:3,2] = blocking_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(
                                                             scene, 
                                                             (x_sym, y_sym),
                                                             blocking_fpath,
                                                             property_sym; 
-                                                            squish_origin = primary_squish_origin,
-                                                            squish_line= primary_squish_line,
-                                                            title="Blocking", 
+                                                            reduction_line=primary_reduction_line,
+                                                            facet_title="Blocking", 
                                                             hide_y=true)
-    layout[1:3,3] = other_monotonic_sweep_ax = squish_2d_and_steepest_line_and_histogram!(
+    layout[1:3,3] = other_monotonic_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(
                                                            scene, 
                                                            (other_x_sym, other_y_sym),
                                                            monotonic_fpath,
                                                            property_sym; 
-                                                           squish_origin = secondary_squish_origin,
-                                                           squish_line= secondary_squish_line,
-                                                           title="Monotonic")
-    layout[1:3,4] = other_blocking_sweep_ax = squish_2d_and_steepest_line_and_histogram!(
+                                                           reduction_line=secondary_reduction_line,
+                                                           facet_title="Monotonic")
+    layout[1:3,4] = other_blocking_sweep_ax = reduce_2d_and_steepest_line_and_histogram!(
                                                           scene, 
                                                           (other_x_sym, other_y_sym),
                                                           blocking_fpath,
                                                           property_sym; 
-                                                          squish_origin = secondary_squish_origin,
-                                                          squish_line= secondary_squish_line,
-                                                          title="Blocking",
+                                                          reduction_line=secondary_reduction_line,
+                                                          facet_title="Blocking",
                                                           hide_y=true,
                                                           colorbar_width=25)
     layout[end+1, 1] = LText(scene, "($(x_sym), $(y_sym))", tellwidth=false)
