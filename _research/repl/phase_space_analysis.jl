@@ -183,3 +183,12 @@ function fit_sigmoid(ys, xs)
                          error_fit
                         )
 end
+
+function phase_space_sigmoid_fit(uncollapsed_phase_space, (x_axis_name, y_axis_name), reduction::Function=squish)
+    (x_axis, y_axis, phase_space) = _collapse_to_axes(uncollapsed_phase_space, x_axis_name, y_axis_name)
+    line_dists, line_vals, line_locs, line = reduce_along_max_central_gradient(phase_space, reduction)
+    fit_sigmoid(line_vals, line_dists)
+end
+
+
+
