@@ -1,6 +1,4 @@
-using MakieLayout, Makie
 
-export heatmap_sweep_with_target
 function heatmap_sweep_with_target(sweep::AbstractArray,
 			target_mods_nt::NamedTuple{mod_names}, 
 			prototype_name,

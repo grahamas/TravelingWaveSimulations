@@ -38,11 +38,11 @@ export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB,
        load_simulation_data_recent, load_simulation_data, get_recent_simulation_data_path
        load_ExecutionClassifications_recent,
        load_ExecutionClassifications
-include("plot/plotting.jl")
-export custom_animate
 
 include("prototypes/iteration.jl")
 export iterate_prototype, execute_single_modification
 include("prototypes/replications.jl")
+
+include("../Plots/src/Plots.jl")
 
 end #module

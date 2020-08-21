@@ -1,0 +1,11 @@
+name = "Plots"
+uuid = "090ce58c-883b-45c9-8a81-7f2bda835033"
+authors = ["Graham Smith <grahamas@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+MakieLayout = "5a521ce4-ebb9-4793-b5b7-b334dfe8393c"
+NeuralModels = "a199b2c4-7a51-11e9-2fe1-b9a1a5fe2912"
+Simulation73 = "310cc8c8-1ffe-11e9-399c-c5a008d6bdcc"
+TravelingWaveSimulations = "b7a787de-74f3-11e9-2c3d-21bc6dc7d0e1"
