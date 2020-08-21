@@ -78,13 +78,25 @@ function iterate_prototype(prototype::Function,
     u_init = init_results_tuple(pkeys, sample_data)
     
     (ensemble_solver, batch_size) = if parallelize_if_possible
-        if nprocs() == 1
-            @warn "Not parallelizing..."
-            (EnsembleSerial(), length(modifications))
-        else
+        if nprocs() > 1
             @warn "Parallelizing over $(nworkers()) workers"
             (EnsembleDistributed(),
              min(max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1))))
+        elseif nthreads() > 1
+            @warn "Parallelizing over $(nthreads()) threads"
+            (EnsembleThreads(),
+             min(max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1))))
+        else
+            @warn "Not parallelizing..."
+            (EnsembleSerial(), length(modifications))
+        end
+    else
+        (EnsembleSerial(), length(modifications))
+    end
+            (EnsembleThreads
+        else
+            @warn "Not parallelizing..."
+            (EnsembleSerial(), length(modifications))
         end
     else
         (EnsembleSerial(), length(modifications))

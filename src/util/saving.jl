@@ -5,7 +5,9 @@ function init_data_path(modifications; data_root, prototype_name,
                                        unique_id="$(Dates.now())_$(gitdescribe())")
     data_path = joinpath(data_root, prototype_name, experiment_name,
                                unique_id)
-    mkpath(data_path)
+    if !isdir(data_path)
+        mkpath(data_path)
+    end
     open(joinpath(data_path, modifications_prefix_filename), "w") do io
         println.(Ref(io), modifications)
     end

@@ -24,7 +24,7 @@ prototypes_dict["ring_monotonic"] = (
                   α = (1.0, 1.0),
                   β = (1.0, 1.0),
                   τ = (3.0, 3.0),
-                  nonlinearity = pops(SigmoidNonlinearity;
+                  nonlinearity = pops(RectifiedSigmoidNonlinearity;
                       θ = [θE, θI],
                       a = [aE, aI]
                   ),
@@ -86,7 +86,7 @@ prototypes_dict["ring_blocking"] = (args...;
                   θE=6.0,
                   aE=1.2,
                   nonlinearity = PopulationActionsParameters(
-                                     SigmoidNonlinearity(a=aE, θ=θE),
+                                     RectifiedSigmoidNonlinearity(a=aE, θ=θE),
                                      DifferenceOfSigmoids(
                                         firing_θ = firing_θI,
                                         firing_a = firing_aI,
@@ -143,8 +143,8 @@ prototypes_dict["oscillating_pulse_monotonic"] = (
                   β = (1.1, 1.1),
                   τ = (10.0, 18.0),
                   nonlinearity = PopulationActionsParameters(
-                                     ZeroedSigmoidNonlinearity(a=aE, θ=θE), 
-                                     SigmoidNonlinearity(a=aI, θ=θI)
+                                     RectifiedZeroedSigmoidNonlinearity(a=aE, θ=θE), 
+                                     RectifiedSigmoidNonlinearity(a=aI, θ=θI)
                   ),
                   stimulus = pops(CircleStimulusParameter;
                       strength = [stim_strength, stim_strength],
@@ -211,8 +211,8 @@ prototypes_dict["propagating_torus_monotonic"] = (
                   β = (1.0, 1.0),
                   τ = (3.0, 3.0),
                   nonlinearity = PopulationActionsParameters(
-                                     ZeroedSigmoidNonlinearity(a=aE, θ=θE), 
-                                     SigmoidNonlinearity(a=aI, θ=θI)
+                                     RectifiedZeroedSigmoidNonlinearity(a=aE, θ=θE), 
+                                     RectifiedSigmoidNonlinearity(a=aI, θ=θI)
                   ),
                   stimulus = pops(CircleStimulusParameter;
                       strength = [stim_strength, stim_strength],
@@ -284,8 +284,8 @@ prototypes_dict["orientation_torus_monotonic"] = (
                   β = (1.1, 1.1),
                   τ = (10.0, 18.0),
                   nonlinearity = PopulationActionsParameters(
-                                     ZeroedSigmoidNonlinearity(a=aE, θ=θE), 
-                                     SigmoidNonlinearity(a=aI, θ=θI)
+                                     RectifiedZeroedSigmoidNonlinearity(a=aE, θ=θE), 
+                                     RectifiedSigmoidNonlinearity(a=aI, θ=θI)
                   ),
                   stimulus = pops(RectangleStimulusParameter;
                       strength = [stim_strength, stim_strength],
@@ -354,7 +354,7 @@ prototypes_dict["harris_ermentrout_pure_sigmoid"] = (
                   α = (1.0, 1.0),
                   β = (1.0, 1.0),
                   τ = (1.0, tau),
-                  nonlinearity = pops(UnrectifiedSigmoidNonlinearity;
+                  nonlinearity = pops(SimpleSigmoidNonlinearity;
                       θ = [0.125, 0.4],
                       a = [50.0, 50.0],
                   ),

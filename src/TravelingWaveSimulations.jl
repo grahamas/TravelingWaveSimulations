@@ -43,6 +43,4 @@ include("prototypes/iteration.jl")
 export iterate_prototype, execute_single_modification
 include("prototypes/replications.jl")
 
-include("../Plots/src/Plots.jl")
-
 end #module
