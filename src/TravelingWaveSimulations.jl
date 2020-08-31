@@ -11,6 +11,7 @@ using IterTools
 using Statistics, LinearAlgebra, Distances, GLM
 using RecipesBase
 using AxisIndices
+using Roots
 
 using JuliaDB, CSV, DataFrames
 

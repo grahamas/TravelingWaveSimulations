@@ -180,7 +180,7 @@ function ExecutionClassifications(exec::Execution; kwargs...)
     l_frames = exec.solution.u
     ts = timepoints(exec)
     xs = frame_xs(exec)
-    l_frame_fronts = substantial_fronts.(l_frames, Ref(xs)) #arr of arrs of fronts
+    l_frame_fronts = substantial_fronts.(l_frames) #arr of arrs of fronts
     final_frame = l_frames[end]
     ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
 end
@@ -210,7 +210,7 @@ function ExecutionClassifications(sol::DiffEqBase.AbstractTimeseriesSolution; kw
     xs = keys.(axes(l_frames[1]))
     @assert length(xs) == 2
     xs = xs[1]
-    l_frame_fronts = substantial_fronts.(l_frames, Ref(xs)) #arr of arrs of fronts
+    l_frame_fronts = substantial_fronts.(l_frames) #arr of arrs of fronts
     final_frame = l_frames[end]
     ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
 end

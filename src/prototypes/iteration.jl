@@ -82,18 +82,10 @@ function iterate_prototype(prototype::Function,
             @warn "Parallelizing over $(nworkers()) workers"
             (EnsembleDistributed(),
              min(max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1))))
-        elseif nthreads() > 1
-            @warn "Parallelizing over $(nthreads()) threads"
+        elseif Threads.nthreads() > 1
+            @warn "Parallelizing over $(Threads.nthreads()) threads"
             (EnsembleThreads(),
-             min(max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1))))
-        else
-            @warn "Not parallelizing..."
-            (EnsembleSerial(), length(modifications))
-        end
-    else
-        (EnsembleSerial(), length(modifications))
-    end
-            (EnsembleThreads
+             min(max_sims_in_mem, ceil(Int, length(modifications) / (Threads.nthreads() - 1))))
         else
             @warn "Not parallelizing..."
             (EnsembleSerial(), length(modifications))
