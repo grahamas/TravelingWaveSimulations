@@ -8,12 +8,12 @@ struct SpatiotemporalWaveMeasurements{T}
     distance::T
     duration::T
 end
-function SpatiotemporalWaveMeasurements(pf::Persistent{W,T}) where {W,T}
-    SpatiotemporalWaveMeasurements{T}(
+function SpatiotemporalWaveMeasurements(pf::Persistent{T}) where {T}
+    SpatiotemporalWaveMeasurements{T}( # FIXME had {T} before
         get_velocities(pf),
-        [wave.slope.val for wave in pf.waveforms],
-        [max(wave).val for wave in pf.waveforms],
-        pf.waveforms[end].slope.loc - pf.waveforms[begin].slope.loc,
+        [slope_val(wave) for wave in pf.waveforms],
+        [max(wave) for wave in pf.waveforms],
+        slope_loc(pf.waveforms[end]) - slope_loc(pf.waveforms[begin]),
         pf.t[end] - pf.t[begin]
        )
 end
@@ -156,11 +156,11 @@ function ExecutionClassifications(wavefronts::WS,
 end
 
 function implies_origin_activity(wavefront, max_resting, radius)
-    left, slope, right = points = wavefront.left, wavefront.slope, wavefront.right
+    left, slope, right = points = left(wavefront), slope(wavefront), right(wavefront)
     active_point_near_origin = any(map(points) do point
-        point.val > max_resting && (-radius <= point.loc <= radius)
+        _val(point) > max_resting && (-radius <= _loc(point) <= radius)
     end)
-    elevated_spanning_front = left.loc < -radius && right.loc > radius && left.val > max_resting && right.val > max_resting
+    elevated_spanning_front = _loc(left) < -radius && _loc(right) > radius && _val(left) > max_resting && _val(right) > max_resting
     return active_point_near_origin || elevated_spanning_front
 end
 
@@ -180,7 +180,7 @@ function ExecutionClassifications(exec::Execution; kwargs...)
     l_frames = exec.solution.u
     ts = timepoints(exec)
     xs = frame_xs(exec)
-    l_frame_fronts = substantial_fronts.(l_frames) #arr of arrs of fronts
+    l_frame_fronts = Vector{<:Wavefront{Float64}}[substantial_fronts(frame) for frame in l_frames] #arr of arrs of fronts
     final_frame = l_frames[end]
     ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
 end

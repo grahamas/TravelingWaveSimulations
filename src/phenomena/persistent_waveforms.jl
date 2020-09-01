@@ -2,19 +2,19 @@
 ### Persistent Waveform ###
 ############################
 
-struct Persistent#{WAVE<:TravelingWaveSimulations.AbstractWaveform,T,ARR_WAVE<:AbstractArray{WAVE,1},ARR_TIME<:AbstractArray{T,1}}
+struct Persistent{T,AT<:AbstractVector{T}}#{WAVE<:TravelingWaveSimulations.AbstractWaveform,T,ARR_WAVE<:AbstractArray{WAVE,1},ARR_TIME<:AbstractArray{T,1}}
     waveforms
-    t
+    t::AT
 end
 approx_sign(x, eps=1e-5) = abs(x) > eps ? sign(x) : 0
-get_stop_place(p::Persistent) = p.waveforms[end].slope.loc
+get_stop_place(p::Persistent) = slope_loc(p.waveforms[end])
 get_start_time(p::Persistent) = p.t[1]
 get_stop_time(p::Persistent) = p.t[end]
-get_slope_sign(p::Persistent) = approx_sign(p.waveforms[1].slope.val)
+get_slope_sign(p::Persistent) = approx_sign(slope_val(p.waveforms[1]))
 Base.length(p::Persistent) = length(p.waveforms)
 function get_velocities(p::Persistent)
     # Discard the last frame because it's a repeat
-    dxs = diff([wf.slope.loc for wf in p.waveforms])[1:end-1]
+    dxs = diff([slope_loc(wf) for wf in p.waveforms])[1:end-1]
     dts = diff(p.t)[1:end-1]
     return dxs ./ dts
 end
@@ -25,16 +25,16 @@ function estimate_velocity(p::Persistent)
     err = mean(abs.(vels .- est))
     return (est, err)
 end
-function Base.push!(persistent::Persistent{WAVE,T}, (wf, t)::Tuple{WAVE,T}) where {WAVE,T}
+function Base.push!(persistent::Persistent, (wf, t)::Tuple{WAVE,T}) where {WAVE,T}
     push!(persistent.waveforms, wf) 
     push!(persistent.t, t)
 end
 
 function waveform_identity_distance(front1::WF, front2::WF) where {WF <: TravelingWaveSimulations.Wavefront}
-    if sign(front1.slope.val) != sign(front2.slope.val)
+    if sign(slope_val(front1)) != sign(slope_val(front2))
         return Inf
     end
-    abs(TravelingWaveSimulations.slope_loc(front1) - TravelingWaveSimulations.slope_loc(front2))
+    abs(slope_loc(front1) - slope_loc(front2))
 end
 
 # Constructs list of all persistent fronts within array of arrays of fronts

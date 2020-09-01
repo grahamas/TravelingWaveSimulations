@@ -69,9 +69,9 @@ function _collapse_to_axes(A, x_sym, y_sym)
     collapsed_syms = Tuple(setdiff(name_syms, (y_sym, x_sym)))
     x, y = _getaxis(A, (x_sym, y_sym)) .|> ax -> ax.keys
     data = if findfirst(name_syms .== y_sym) < findfirst(name_syms .== x_sym)
-        Simulation73.avg_across_dims(A, collapsed_syms)'
+        Simulation73Plotting.avg_across_dims(A, collapsed_syms)'
     else
-        Simulation73.avg_across_dims(A, collapsed_syms)
+        Simulation73Plotting.avg_across_dims(A, collapsed_syms)
     end
     return (x, y, data)
 end

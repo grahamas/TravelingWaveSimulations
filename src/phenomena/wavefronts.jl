@@ -10,9 +10,14 @@ end
 left(wf::Wavefront) = wf.left
 slope(wf::Wavefront) = wf.slope
 right(wf::Wavefront) = wf.right
-left_val(wf::Wavefront) = left(wf) |> only
-slope_val(wf::Wavefront) = slope(wf) |> only
-right_val(wf::Wavefront) = right(wf) |> only
+_val(aa::AbstractAxisArray) = only(aa)
+_loc(aa::AbstractAxisArray) = aa |> axes_keys |> only |> only
+left_val(wf::Wavefront) = left(wf) |> _val
+slope_val(wf::Wavefront) = slope(wf) |> _val
+right_val(wf::Wavefront) = right(wf) |> _val
+left_loc(wf::Wavefront) = left(wf) |> _loc
+slope_loc(wf::Wavefront) = slope(wf) |> _loc
+right_loc(wf::Wavefront) = right(wf) |> _loc
 Base.max(wf::Wavefront) = max(left_val(wf), right_val(wf))
 
 # Center on peaks of first derivative
@@ -33,14 +38,14 @@ function detect_all_fronts(values_arr::AA) where {T, AA<:AbstractAxisArray{T,1}}
     d_values = interpolate(d_values_arr, Gridded(Linear()))
     dd_values = interpolate(dd_values_arr, Gridded(Linear()))
     ax_begin, ax_end = only(axes_keys(values_arr))[[begin, end]]
-    ax_value_extrema = find_zeros(d_values, only(axes_keys(d_values_arr))[begin], only(axes_keys(d_values_arr))[end])
-    ax_slope_extrema = find_zeros(dd_values, only(axes_keys(dd_values_arr))[begin], only(axes_keys(dd_values_arr))[end])
+    ax_value_extrema = linear_find_zeros(d_values_arr)
+    ax_slope_extrema = linear_find_zeros(dd_values_arr)
     slope_idx = 1
     no_inflection_point = 0
     # Should be able to assume slope extremum in every interval except first and last
     ax_left = ax_value_extrema[begin]
     wavefronts = map(ax_value_extrema[begin+1:end]) do ax_right
-        ax_slope_maybe = ax_slope_extrema[slope_idx]
+        ax_slope_maybe = slope_idx <= length(ax_slope_extrema) ? ax_slope_extrema[slope_idx] : NaN
         ax_slope = if ax_left <= ax_slope_maybe <= ax_right
             slope_idx += 1
             ax_slope_maybe
