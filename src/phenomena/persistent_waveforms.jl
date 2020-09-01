@@ -2,10 +2,9 @@
 ### Persistent Waveform ###
 ############################
 
-struct Persistent{WAVE<:TravelingWaveSimulations.AbstractWaveform,
-        T,ARR_WAVE<:AbstractArray{WAVE,1},ARR_TIME<:AbstractArray{T,1}}
-    waveforms::ARR_WAVE
-    t::ARR_TIME
+struct Persistent#{WAVE<:TravelingWaveSimulations.AbstractWaveform,T,ARR_WAVE<:AbstractArray{WAVE,1},ARR_TIME<:AbstractArray{T,1}}
+    waveforms
+    t
 end
 approx_sign(x, eps=1e-5) = abs(x) > eps ? sign(x) : 0
 get_stop_place(p::Persistent) = p.waveforms[end].slope.loc
@@ -40,8 +39,8 @@ end
 
 # Constructs list of all persistent fronts within array of arrays of fronts
 # How to handle when new front appears near old front?
-function link_persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray{WF}}, ts::AbstractArray{T}, max_vel=200) where {T<:Number, WF<:TravelingWaveSimulations.Wavefront{T,T,Value{T,T}}}
-    PARRTYPE = Persistent{WF,T,Array{WF,1},Array{T,1}}
+function link_persistent_fronts(frame_fronts::AbstractArray{<:AbstractArray}, ts::AbstractArray{T}, max_vel=200) where {T<:Number}#, WF<:TravelingWaveSimulations.Wavefront{T}}
+    PARRTYPE = Persistent
     prev_fronts = frame_fronts[1]
     prev_t = ts[1]
     inactive_travelers = PARRTYPE[]

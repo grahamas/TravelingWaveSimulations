@@ -12,12 +12,15 @@ using Statistics, LinearAlgebra, Distances, GLM
 using RecipesBase
 using AxisIndices
 using Roots
+using Interpolations
 
 using JuliaDB, CSV, DataFrames
 
-include("util/valued_space.jl")
+include("util/axisarray.jl")
 
-include("phenomena/fronts.jl")
+include("phenomena/waveforms.jl")
+include("phenomena/wavefronts.jl")
+include("phenomena/persistent_waveforms.jl")
 include("phenomena/classifications.jl")
 export ExecutionClassifications
 

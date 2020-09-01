@@ -4,8 +4,8 @@ parent_diff(ax_arr::AbstractAxisArray) = parent_diff(parent(ax_arr))
 function Base.diff(ax_arr::AA) where {T, AA <: AbstractAxisArray{T,1}}
     ax_vals = only(axes_keys(ax_arr))
     coord_diff_1d = diff(ax_vals)
-    ax_midpoints = all_but_last(ax_vals) .+ (0.5 .* coord_diff_1d)
-    AA(parent_diff(ax_arr) ./ coord_diff_1d, ax_midpoints)
+    ax_midpoints = ax_vals[begin:end-1] .+ (0.5 .* coord_diff_1d)
+    AxisArray(parent_diff(ax_arr) ./ coord_diff_1d, ax_midpoints)
 end
 
 function zero_crossing(A::AbstractAxisArray, i, j, atol=1e-4)
@@ -21,4 +21,8 @@ end
 function Interpolations.interpolate(data::AbstractAxisArray, args...; kwargs...)
     axs = axes_keys(data)
     interpolate(axs, data, args...; kwargs...)
+end
+
+function point(val::Number, coord::Number)
+    AxisArray([val], [coord])
 end

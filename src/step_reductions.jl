@@ -1,5 +1,5 @@
 
-const front_array_type = Array{Wavefront{Float64,Float64,Value{Float64,Float64}},1}
+const front_array_type = Array{Wavefront{Float64,AxisArray{Float64,1,Array{Float64,1},Tuple{Axis{Float64,Int64,Array{Float64,1},OneToMRange{Int64}}}}}, 1}
 
 function reduce_to_fronts(save_idxs, space)
     #error("FIXME: this function does not agree with manual reduction.")

@@ -210,7 +210,7 @@ function ExecutionClassifications(sol::DiffEqBase.AbstractTimeseriesSolution; kw
     xs = keys.(axes(l_frames[1]))
     @assert length(xs) == 2
     xs = xs[1]
-    l_frame_fronts = substantial_fronts.(l_frames) #arr of arrs of fronts
+    l_frame_fronts = Vector{<:Wavefront{Float64}}[substantial_fronts(frame) for frame in l_frames]
     final_frame = l_frames[end]
     ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
 end
