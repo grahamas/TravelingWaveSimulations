@@ -36,6 +36,7 @@ export get_prototype
 
 include("util/parsing.jl")
 export parse_modifications_argument, parse_analyses_argument
+include("util/io.jl")
 include("util/saving.jl")
 include("util/loading.jl")
 export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, 
