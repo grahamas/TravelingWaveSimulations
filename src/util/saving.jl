@@ -35,9 +35,6 @@ function merge_ddb(ddb::JuliaDB.DNDSparse, tbl::NDSparse)
     @error "Sparse unsupported"
     return merge(ddb, tbl)
 end
-function merge_ddb(ddb::JuliaDB.DIndexedTable, tbl::IndexedTable)
-    return merge(ddb, tbl)
-end
 
 function push_namedtuple!(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
     arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}
