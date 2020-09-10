@@ -76,9 +76,9 @@ function figure_models(monotonic_prototype::Function, monotonic_modifications,
 end
 
 function figure_models(mono_fpath::String, blk_fpath, fixing_mods; kwargs...)
-    mono_prototype_name, mono_sim_params = _fpath_params(mono_fpath)
+    mono_prototype_name, mono_sim_params = read_params_from_data_path(mono_fpath)
     mono_prototype = get_prototype(mono_prototype_name)
-    blk_prototype_name, blk_sim_params = _fpath_params(blk_fpath)
+    blk_prototype_name, blk_sim_params = read_params_from_data_path(blk_fpath)
     blk_prototype = get_prototype(blk_prototype_name)
     figure_models(mono_prototype, 
         merge(mono_sim_params, Dict(pairs(fixing_mods)...)), 

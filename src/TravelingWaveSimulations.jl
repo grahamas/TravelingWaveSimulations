@@ -3,18 +3,18 @@ using DrWatson
 
 using Distributed
 
-using Lazy, Dates, BSON, Logging
+using Lazy 
+using Dates
+using Logging
 using Simulation73, NeuralModels, WilsonCowanModel
 using DifferentialEquations
 using ArgParse
 using IterTools
-using Statistics, LinearAlgebra, Distances, GLM
-using RecipesBase
+using Statistics, LinearAlgebra
 using AxisIndices
-using Roots
 using Interpolations
 
-using JuliaDB, CSV, DataFrames
+using JuliaDB
 
 include("util/axisarray.jl")
 
