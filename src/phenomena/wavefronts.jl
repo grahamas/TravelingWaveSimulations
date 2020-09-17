@@ -36,9 +36,8 @@ function detect_all_fronts(values_arr::AA) where {T, AA<:AbstractAxisArray{T,1}}
     dd_values_arr = diff(d_values_arr)
     values = interpolate(values_arr, Gridded(Linear()))
     d_values = interpolate(d_values_arr, Gridded(Linear()))
-    dd_values = interpolate(dd_values_arr, Gridded(Linear()))
-    values_begin_loc, values_end_loc = only(axes_keys(values_arr))[[begin, end]]
-    slope_zero_locs = [values_begin_loc, linear_find_zeros(d_values_arr), values_end_loc]
+    slopes_begin_loc, slopes_end_loc = only(axes_keys(d_values_arr))[[begin, end]]
+    slope_zero_locs = [slopes_begin_loc, linear_find_zeros(d_values_arr)..., slopes_end_loc]
     slope_extrema_locs = linear_find_zeros(dd_values_arr)
     slope_idx = 1
     no_inflection_point = 0
@@ -48,7 +47,7 @@ function detect_all_fronts(values_arr::AA) where {T, AA<:AbstractAxisArray{T,1}}
     front_left_loc = slope_zero_locs[begin]
     wavefronts = map(slope_zero_locs[begin+1:end]) do front_right_loc
         slope_extremum_loc_maybe = slope_idx <= length(slope_extrema_locs) ? slope_extrema_locs[slope_idx] : NaN
-        ax_slope_loc = if !isnan(slope_extremum_loc_maybe) && front_left_loc <= slope_extremum_loc_maybe <= front_right_loc
+        slope_extremum_loc = if !isnan(slope_extremum_loc_maybe) && front_left_loc <= slope_extremum_loc_maybe <= front_right_loc
             slope_idx += 1
             slope_extremum_loc_maybe
         else
@@ -56,7 +55,7 @@ function detect_all_fronts(values_arr::AA) where {T, AA<:AbstractAxisArray{T,1}}
             #@warn "Inflection point not found within putative wavefront: $(no_inflection_point)"
             [front_left_loc, front_right_loc][argmax(d_values.([front_left_loc, front_right_loc]))]
         end
-        Wavefront(point(values(front_left_loc), front_left_loc), point(d_values(ax_slope_loc), ax_slope_loc), point(values(ax_right_loc), ax_right_loc))
+        Wavefront(point(values(front_left_loc), front_left_loc), point(d_values(slope_extremum_loc), slope_extremum_loc), point(values(front_right_loc), front_right_loc))
     end
     return wavefronts
 end
