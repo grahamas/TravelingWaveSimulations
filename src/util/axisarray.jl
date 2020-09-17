@@ -7,10 +7,10 @@ coordinates(ax_arr::AbstractAxisArray) = product(axes_keys(ax_arr)...)
 parent_diff(arr::AbstractArray) = diff(arr)
 parent_diff(ax_arr::AbstractAxisArray) = parent_diff(parent(ax_arr))
 function Base.diff(ax_arr::AA) where {T, AA <: AbstractAxisArray{T,1}}
-    ax_vals = only(axes_keys(ax_arr))
-    coord_diff_1d = diff(ax_vals)
-    ax_midpoints = ax_vals[begin:end-1] .+ (0.5 .* coord_diff_1d)
-    AxisArray(parent_diff(ax_arr) ./ coord_diff_1d, ax_midpoints)
+    ax_coord_1d = only(axes_keys(ax_arr))
+    ax_coord_diff_1d = diff(ax_coord_1d)
+    ax_midpoints = ax_coord_1d[begin:end-1] .+ (0.5 .* ax_coord_diff_1d)
+    AxisArray(parent_diff(ax_arr) ./ ax_coord_diff_1d, ax_midpoints)
 end
 
 function linear_interpolate((x1,x2), (y1,y2), x)
@@ -36,7 +36,8 @@ function linear_find_zeros(A::AbstractAxisArray)
     zero_axs = Float64[]
     for (ax, val) in remaining_ax_val_pairs
         if val ≈ prev_val ≈ 0
-            push!(zero_axs, mean([ax, prev_ax]))
+            push!(zero_axs, prev_ax)
+            push!(zero_axs, ax)
         elseif sign(val) != sign(prev_val)
             push!(zero_axs, linear_interpolate((prev_val, val), (prev_ax, ax), 0.0))
         end

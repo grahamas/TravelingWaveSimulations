@@ -37,24 +37,26 @@ function detect_all_fronts(values_arr::AA) where {T, AA<:AbstractAxisArray{T,1}}
     values = interpolate(values_arr, Gridded(Linear()))
     d_values = interpolate(d_values_arr, Gridded(Linear()))
     dd_values = interpolate(dd_values_arr, Gridded(Linear()))
-    ax_begin, ax_end = only(axes_keys(values_arr))[[begin, end]]
-    ax_value_extrema = linear_find_zeros(d_values_arr)
-    ax_slope_extrema = linear_find_zeros(dd_values_arr)
+    values_begin_loc, values_end_loc = only(axes_keys(values_arr))[[begin, end]]
+    slope_zero_locs = [values_begin_loc, linear_find_zeros(d_values_arr), values_end_loc]
+    slope_extrema_locs = linear_find_zeros(dd_values_arr)
     slope_idx = 1
     no_inflection_point = 0
     # Should be able to assume slope extremum in every interval except first and last
-    ax_left = ax_value_extrema[begin]
-    wavefronts = map(ax_value_extrema[begin+1:end]) do ax_right
-        ax_slope_maybe = slope_idx <= length(ax_slope_extrema) ? ax_slope_extrema[slope_idx] : NaN
-        ax_slope = if ax_left <= ax_slope_maybe <= ax_right
+    # Partition on slope_zero_locs, beginning and ending with boundaries
+    # Need maximum slope between
+    front_left_loc = slope_zero_locs[begin]
+    wavefronts = map(slope_zero_locs[begin+1:end]) do front_right_loc
+        slope_extremum_loc_maybe = slope_idx <= length(slope_extrema_locs) ? slope_extrema_locs[slope_idx] : NaN
+        ax_slope_loc = if !isnan(slope_extremum_loc_maybe) && front_left_loc <= slope_extremum_loc_maybe <= front_right_loc
             slope_idx += 1
-            ax_slope_maybe
+            slope_extremum_loc_maybe
         else
             no_inflection_point += 1
             #@warn "Inflection point not found within putative wavefront: $(no_inflection_point)"
-            [ax_left, ax_right][argmax(d_values.([ax_left, ax_right]))]
+            [front_left_loc, front_right_loc][argmax(d_values.([front_left_loc, front_right_loc]))]
         end
-        Wavefront(point(values(ax_left), ax_left), point(d_values(ax_slope), ax_slope), point(values(ax_right), ax_right))
+        Wavefront(point(values(front_left_loc), front_left_loc), point(d_values(ax_slope_loc), ax_slope_loc), point(values(ax_right_loc), ax_right_loc))
     end
     return wavefronts
 end
