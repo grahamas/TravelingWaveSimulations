@@ -257,11 +257,11 @@ function load_ExecutionClassifications(type::Type, data_path)
         A_idx = this_mod[varying_names]
         if exec_classification === missing
             for name in classification_names
-                classifications_A[name][A_idx...] = missing
+                classifications_A[name][A_idx] = missing
             end
         else
             for name in classification_names
-                classifications_A[name][A_idx...] = getproperty(exec_classification, name)
+                classifications_A[name][A_idx] = getproperty(exec_classification, name)
             end
         end
     end
