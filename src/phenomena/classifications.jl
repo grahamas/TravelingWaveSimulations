@@ -39,7 +39,7 @@ end
 last_quartile_dxs(fin) = ((3*fin)÷4):fin
 
 function WaveClassifications(measurements::SpatiotemporalWaveMeasurements; 
-                                 velocity_threshold=1e-8,
+                                 velocity_threshold=1e-5,
                                  n_traveling_frames_threshold=5)
     if length(measurements.maxes) < 4
         # not long enough to be classified
@@ -64,8 +64,8 @@ function WaveClassifications(measurements::SpatiotemporalWaveMeasurements;
 end
 
 function is_traveling(velocities::Vector{<:AbstractFloat}, 
-                                 velocity_threshold=1e-8,
-                                 n_traveling_frames_threshold=5)
+                                 velocity_threshold,
+                                 n_traveling_frames_threshold)
     sum(abs.(velocities) .> velocity_threshold) > n_traveling_frames_threshold
 end
 function is_decaying(maxes::Vector{<:AbstractFloat})
@@ -151,7 +151,6 @@ function ExecutionClassifications(wavefronts::WS,
         persistently_active_near_origin,
         reaches_steady_state
     )
-
 
 end
 
