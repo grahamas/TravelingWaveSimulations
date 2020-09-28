@@ -1,7 +1,11 @@
 using Pkg
+using GitCommand
 
+devdir(dirs...) = joinpath(homedir(), ".julia", "dev", dirs...)
 rel_path(dirs...) = joinpath(@__DIR__, dirs...)
-git_pull(path) = run(`git -C $(path) pull`)
+function git_pull(git, path) = 
+    run(`$git -C $(path) pull`)
+end
 function init_julia_git(path)
     Pkg.activate(path)
     Pkg.update()
@@ -18,8 +22,10 @@ wcm_path = rel_path("..", "WilsonCowanModel")
 pde_path = ""# rel_path("..", "FindPDE")
 s73_plot_path = rel_path("..", "Simulation73Plotting")
 tws_plot_path = rel_path("..", "TravelingWaveSimulationsPlotting")
+git() do git
+    
+end
 tws_path = rel_path(".")
-
 all_paths = filter(!=(""), [s73_path, nm_path, wcm_path, pde_path, tws_path, s73_plot_path, tws_plot_path])
 
 for path in all_paths
@@ -28,7 +34,9 @@ for path in all_paths
 	end
 end
 
-git_pull.(all_paths)
+git() do git
+    git_pull.(Ref(git), all_paths)
+end
 
 #init_julia_git(pde_path)
 init_julia_git(s73_path)
@@ -37,6 +45,9 @@ init_julia_git(wcm_path, [s73_path, nm_path])
 init_julia_git(tws_path, [s73_path, nm_path, wcm_path])
 init_julia_git(s73_plot_path, [s73_path])
 init_julia_git(tws_plot_path, [s73_plot_path, s73_path, nm_path, wcm_path, tws_path])
+git() do git
+    
+end
 init_julia_git(rel_path("_research"), [s73_path, nm_path, wcm_path, pde_path, tws_path, s73_plot_path, tws_plot_path])
 
 Pkg.build()
