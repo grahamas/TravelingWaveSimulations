@@ -69,7 +69,7 @@ function consolidate_fronts(fronts::AbstractVector{WF}, min_slope=1e-4)::Abstrac
     end
 
     fronts = filter(fronts) do front
-        slope_val(front) >= min_slope
+        abs(slope_val(front)) >= min_slope
     end
     if length(fronts) == 0
         return WF[]
