@@ -254,14 +254,15 @@ function load_ExecutionClassifications(type::Type, data_path)
 
     for (this_mod, this_result) in MultiDBRowIter(mdb)
         exec_classification = this_result[:wave_properties]
-        A_idx = this_mod[varying_names]
+        #A_idx = this_mod[varying_names]
+        A_idx = NamedTuple{Tuple(varying_names)}(this_mod[varying_names])
         if exec_classification === missing
             for name in classification_names
-                classifications_A[name][A_idx] = missing
+                setindex!(classifications_A[name], missing; A_idx...)
             end
         else
             for name in classification_names
-                classifications_A[name][A_idx] = getproperty(exec_classification, name)
+                setindex!(classifications_A[name], getproperty(exec_classification, name); A_idx...)
             end
         end
     end
