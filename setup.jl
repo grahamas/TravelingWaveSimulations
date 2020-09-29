@@ -46,6 +46,15 @@ for path in [s73_plot_path, s73_path, nm_path, tws_path, tws_plot_path]
     Pkg.activate(path)
     Pkg.develop("AxisIndices")
 end
+
+git() do git
+    axis_indices_dev_path = joinpath(homedir(), ".julia", "dev", "AxisIndices.jl")
+    run(`$git -C $(axis_indices_dev_path) remote add grahamas git@github.com:grahamas/AxisIndices.jl`)
+    run(`$git -C $(axis_indices_dev_path) fetch grahamas`)
+    run(`$git -C $(axis_indices_dev_path) checkout -b grahamas/logical_indexing`)
+end
+
 init_julia_git(rel_path("_research"), [s73_path, nm_path, wcm_path, pde_path, tws_path, s73_plot_path, tws_plot_path])
 
 Pkg.build()
+Pkg.resolve()
