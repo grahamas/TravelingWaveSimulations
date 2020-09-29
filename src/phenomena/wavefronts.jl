@@ -5,8 +5,6 @@ struct Wavefront{T,AA<:AbstractAxisArray{T,1}} <: AbstractWaveform{T,1}
     right::AA
 end
 
-
-
 left(wf::Wavefront) = wf.left
 slope(wf::Wavefront) = wf.slope
 right(wf::Wavefront) = wf.right
@@ -22,9 +20,17 @@ Base.max(wf::Wavefront) = max(left_val(wf), right_val(wf))
 
 # Center on peaks of first derivative
 
-
 function substantial_fronts(exec::AbstractFullExecution)
     substantial_fronts.(exec.solution.u, Ref([x[1] for x in space(exec).arr])) 
+end
+
+function deriv_periodic_bc(arr::AbstractAxisArray{T,1}, deriv_degree::Int, deriv_order::Int=deriv_degree+1) where T
+    axis = axes_keys(arr) |> only
+    step = axis[2] - axis[1]
+    n = length(axis)
+    D = CenteredDifference(deriv_degree, deriv_order, step, n)
+    Q = PeriodicBC(T)
+    return AxisArray(D*Q*arr, axis)
 end
 
 function detect_all_fronts(values_arr::AA) where {T, AA<:AbstractAxisArray{T,1}}
@@ -32,8 +38,8 @@ function detect_all_fronts(values_arr::AA) where {T, AA<:AbstractAxisArray{T,1}}
     if all(values_arr .== values_arr[begin])
         return Wavefront{T,AA}[]
     end
-    d_values_arr = diff(values_arr)
-    dd_values_arr = diff(d_values_arr)
+    d_values_arr = deriv_periodic_bc(values_arr, 1)
+    dd_values_arr = deriv_periodic_bc(values_arr, 2)
     values = interpolate(values_arr, Gridded(Linear()))
     d_values = interpolate(d_values_arr, Gridded(Linear()))
     slopes_begin_loc, slopes_end_loc = only(axes_keys(d_values_arr))[[begin, end]]
