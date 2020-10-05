@@ -35,10 +35,9 @@ function linear_find_zeros(A::AbstractAxisArray)
     ((prev_ax, prev_val), remaining_ax_val_pairs) = Iterators.peel(zip(only(axes_keys(A)), A))
     zero_axs = Float64[]
     for (ax, val) in remaining_ax_val_pairs
-        if val ≈ prev_val ≈ 0
-            push!(zero_axs, prev_ax)
+        if isapprox(val, 0, atol=sqrt(eps()))
             push!(zero_axs, ax)
-        elseif sign(val) != sign(prev_val)
+        elseif sign(val) != sign(prev_val) && !isapprox(prev_val, 0, atol=sqrt(eps()))
             push!(zero_axs, linear_interpolate((prev_val, val), (prev_ax, ax), 0.0))
         end
         prev_ax, prev_val = ax, val

@@ -24,46 +24,60 @@ function substantial_fronts(exec::AbstractFullExecution)
     substantial_fronts.(exec.solution.u, Ref([x[1] for x in space(exec).arr])) 
 end
 
-function deriv_periodic_bc(arr::AbstractAxisArray{T,1}, deriv_degree::Int, deriv_order::Int=deriv_degree+1) where T
+# TODO deal with multipop
+function substantial_fronts(multipop::AbstractMatrix, periodic::Bool, slope_min=1e-4)
+    substantial_fronts(population(multipop,1), periodic, slope_min)
+end
+
+periodic_or_neumann0_bc(T::DataType, ::Val{true}) = PeriodicBC(T)
+periodic_or_neumann0_bc(T::DataType, ::Val{false}) = Neumann0BC(zero(T))
+
+function deriv(arr::AbstractAxisArray{T,1}, deriv_degree::Int, periodic::Bool, deriv_order::Int=deriv_degree+1) where T
     axis = axes_keys(arr) |> only
     step = axis[2] - axis[1]
     n = length(axis)
     D = CenteredDifference(deriv_degree, deriv_order, step, n)
-    Q = PeriodicBC(T)
+    Q = periodic_or_neumann0_bc(T, Val(periodic))
     return AxisArray(D*Q*arr, axis)
 end
 
-function detect_all_fronts(values_arr::AA) where {T, AA<:AbstractAxisArray{T,1}}
+function detect_all_fronts(arr::AA, periodic) where {T, AA<:AbstractAxisArray{T,1}}
     "Partition space at extrema"
-    if all(values_arr .== values_arr[begin])
+    if all(arr .== arr[begin])
         return Wavefront{T,AA}[]
     end
-    d_values_arr = deriv_periodic_bc(values_arr, 1)
-    dd_values_arr = deriv_periodic_bc(values_arr, 2)
-    values = interpolate(values_arr, Gridded(Linear()))
-    d_values = interpolate(d_values_arr, Gridded(Linear()))
-    slopes_begin_loc, slopes_end_loc = only(axes_keys(d_values_arr))[[begin, end]]
-    slope_zero_locs = [slopes_begin_loc, linear_find_zeros(d_values_arr)..., slopes_end_loc]
-    slope_extrema_locs = linear_find_zeros(dd_values_arr)
-    slope_idx = 1
-    no_inflection_point = 0
-    # Should be able to assume slope extremum in every interval except first and last
-    # Partition on slope_zero_locs, beginning and ending with boundaries
-    # Need maximum slope between
-    front_left_loc = slope_zero_locs[begin]
-    wavefronts = map(slope_zero_locs[begin+1:end]) do front_right_loc
-        slope_extremum_loc_maybe = slope_idx <= length(slope_extrema_locs) ? slope_extrema_locs[slope_idx] : NaN
-        slope_extremum_loc = if !isnan(slope_extremum_loc_maybe) && front_left_loc <= slope_extremum_loc_maybe <= front_right_loc
-            slope_idx += 1
-            slope_extremum_loc_maybe
-        else
-            no_inflection_point += 1
-            #@warn "Inflection point not found within putative wavefront: $(no_inflection_point)"
-            [front_left_loc, front_right_loc][argmax(d_values.([front_left_loc, front_right_loc]))]
-        end
-        Wavefront(point(values(front_left_loc), front_left_loc), point(d_values(slope_extremum_loc), slope_extremum_loc), point(values(front_right_loc), front_right_loc))
+    locs = only(axes_keys(arr))
+    d1_arr = deriv(arr, 1, periodic)
+    d2_arr = deriv(arr, 2, periodic)
+    arr_interp = interpolate(arr, Gridded(Linear()))
+    slopes_begin_loc, slopes_end_loc = locs[[begin, end]]
+    
+    # For each slope extremum loc (already filtered for slope magnitude),
+    # search remaining slope zero locs for next greater than extremum loc
+    # If index by nothing, then two extrema locs greater than all zero locs
+    # (which is mathematically impossible)
+    prev_slope_zero_idx = 1
+    left_bdry = slopes_begin_loc
+    slope_zero_locs = [linear_find_zeros(d1_arr[begin+1:end-1])..., slopes_end_loc]
+    wavefronts = map(slope_zero_locs) do right_bdry
+        front = arr[left_bdry..right_bdry]
+        slope_front = d1_arr[left_bdry..right_bdry]
+        slope_extremum, slope_extremum_idx = findmax(abs.(slope_front))
+        slope_extremum_loc = only(axes_keys(front))[slope_extremum_idx]
+        left = point(arr_interp(left_bdry), left_bdry)
+        left_bdry = right_bdry
+        Wavefront(left,
+                  point(slope_extremum, slope_extremum_loc),
+                  point(arr_interp(right_bdry), right_bdry))
     end
     return wavefronts
+end
+
+
+function substantial_fronts(frame::AbstractAxisArray{T,1}, periodic, slope_min=1e-4) where T
+    all_fronts = detect_all_fronts(frame, periodic)
+    consolidated = consolidate_fronts(all_fronts, slope_min)
+    return consolidated
 end
 
 eat_left(left, right) = Wavefront(left.left, right.slope, right.right)
@@ -90,14 +104,4 @@ function consolidate_fronts(fronts::AbstractVector{WF}, min_slope=1e-4)::Abstrac
     end
     fronts[end] = Wavefront(left(fronts[end]), slope(fronts[end]), right(fronts[end]))
     return fronts
-end
-
-# TODO deal with multipop
-function substantial_fronts(multipop::AbstractMatrix, slope_min=1e-4)
-    substantial_fronts(population(multipop,1), slope_min)
-end
-function substantial_fronts(frame::AbstractAxisArray{T,1}, slope_min=1e-4) where T
-    all_fronts = detect_all_fronts(frame)
-    consolidated = consolidate_fronts(all_fronts, slope_min)
-    return consolidated
 end

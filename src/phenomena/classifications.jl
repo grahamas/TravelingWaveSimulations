@@ -1,4 +1,6 @@
 
+const DEFAULT_SLOPE_MIN = 1e-4
+
 ### Single wave measurements across time ###
 
 struct SpatiotemporalWaveMeasurements{T}
@@ -39,8 +41,9 @@ end
 last_quartile_dxs(fin) = ((3*fin)÷4):fin
 
 function WaveClassifications(measurements::SpatiotemporalWaveMeasurements; 
-                                 velocity_threshold=1e-5,
-                                 n_traveling_frames_threshold=5)
+                                 velocity_threshold,
+                                 n_traveling_frames_threshold)
+    
     if length(measurements.maxes) < 4
         # not long enough to be classified
         return WaveClassifications(false, false, false, false, false, false, false)
@@ -174,12 +177,12 @@ function check_has_activity_near_origin(frame::AbstractVector{T}, max_resting, x
     return any(frame[left_dx:right_dx] .> max_resting)
 end
 
-function ExecutionClassifications(exec::Execution; kwargs...)
+function ExecutionClassifications(exec::Execution; slope_min=DEFAULT_SLOPE_MIN, periodic=true, kwargs...)
     @warn "should dispatch to solution"
     l_frames = exec.solution.u
     ts = timepoints(exec)
     xs = frame_xs(exec)
-    l_frame_fronts = Vector{<:Wavefront{Float64}}[substantial_fronts(frame) for frame in l_frames] #arr of arrs of fronts
+    l_frame_fronts = Vector{<:Wavefront{Float64}}[substantial_fronts(frame, periodic, slope_min) for frame in l_frames] #arr of arrs of fronts
     final_frame = l_frames[end]
     ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
 end
@@ -202,14 +205,14 @@ function ExecutionClassifications(exec::ReducedExecution{T,W}; kwargs...) where 
 end
 
 using DiffEqBase
-function ExecutionClassifications(sol::DiffEqBase.AbstractTimeseriesSolution; kwargs...)
+function ExecutionClassifications(sol::DiffEqBase.AbstractTimeseriesSolution; slope_min=DEFAULT_SLOPE_MIN, periodic=true, kwargs...)
     l_frames = sol.u
     @assert l_frames[1] isa AxisArray
     ts = sol.t
     xs = keys.(axes(l_frames[1]))
     @assert length(xs) == 2
     xs = xs[1]
-    l_frame_fronts = Vector{<:Wavefront{Float64}}[substantial_fronts(frame) for frame in l_frames]
+    l_frame_fronts = Vector{<:Wavefront{Float64}}[substantial_fronts(frame, periodic, slope_min) for frame in l_frames]
     final_frame = l_frames[end]
     ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
 end

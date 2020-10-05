@@ -30,53 +30,43 @@ function make_traveling_wavefront_pair(;velocity, x_0, width, steepness, height)
     end
 end
 
-xs = -10.0:0.1:10.0
-ts = 0.0:0.1:1.0
-traveling_increasing_wavefront_fn = make_traveling_wavefront(; velocity=1., x_0=0., steepness=1., height=1.)
-traveling_decreasing_wavefront_fn = make_traveling_wavefront(; velocity=1., x_0=0., steepness=1., height=1., increasing=false)
-traveling_pair_fn = make_traveling_wavefront_pair(; velocity=1., x_0=-3., width=5., steepness=1., height=1.)
+xs = -20.0:0.1:20.0
+ts = 0.0:0.1:20.0
+front_steepness = 1.
+detection_slope_min = 1e-4
+traveling_increasing_wavefront_fn = make_traveling_wavefront(; velocity=1., x_0=0., steepness=front_steepness, height=1.)
+traveling_decreasing_wavefront_fn = make_traveling_wavefront(; velocity=1., x_0=0., steepness=front_steepness, height=1., increasing=false)
+traveling_pair_fn = make_traveling_wavefront_pair(; velocity=1., x_0=-3., width=5., steepness=front_steepness, height=1.)
 
 @testset "Static front detection" begin
     single_front_increasing = AxisArray(traveling_increasing_wavefront_fn.(xs, 0.0), xs)
     single_front_decreasing = AxisArray(traveling_decreasing_wavefront_fn.(xs, 0.0), xs)
+    trunc_front_loc = xs[end] - front_steepness
+    single_front_truncated = AxisArray(traveling_decreasing_wavefront_fn.(xs, trunc_front_loc), xs)
     pair_of_wavefronts = AxisArray(traveling_pair_fn.(xs, 0.0), xs)
 
-    @testset "Raw front detection" begin
-        sfi_detected_fronts = detect_all_fronts(single_front_increasing)
-        @test length(sfi_detected_fronts) == 1
-        @test slope_loc(sfi_detected_fronts[1]) == 0.0
-        @test slope_val(sfi_detected_fronts[1]) > 0.0
-
-        sfd_detected_fronts = detect_all_fronts(single_front_decreasing)
-        @test length(sfd_detected_fronts) == 1
-        @test slope_loc(sfd_detected_fronts[1]) == 0.0
-        @test slope_val(sfd_detected_fronts[1]) < 0.0
-    
-        pair_detected_fronts = detect_all_fronts(pair_of_wavefronts)
-        @test length(pair_detected_fronts) == 2
-        @test slope_loc(pair_detected_fronts[1]) < 0.0
-        @test slope_val(pair_detected_fronts[1]) > 0.0
-        @test slope_loc(pair_detected_fronts[2]) > 2.0
-        @test slope_val(pair_detected_fronts[2]) < 0.0
-    end
-
     @testset "Substantial front detection" begin
-        sfi_detected_fronts = substantial_fronts(single_front_increasing)
+        sfi_detected_fronts = substantial_fronts(single_front_increasing, false)
         @test length(sfi_detected_fronts) == 1
-        @test slope_loc(sfi_detected_fronts[1]) == 0.0
+        @test isapprox(slope_loc(sfi_detected_fronts[1]), 0.0; atol=sqrt(eps()))
         @test slope_val(sfi_detected_fronts[1]) > 0.0
 
-        sfd_detected_fronts = substantial_fronts(single_front_decreasing)
+        sfd_detected_fronts = substantial_fronts(single_front_decreasing, false)
         @test length(sfd_detected_fronts) == 1
-        @test slope_loc(sfd_detected_fronts[1]) == 0.0
+        @test isapprox(slope_loc(sfd_detected_fronts[1]), 0.0; atol=sqrt(eps()))
         @test slope_val(sfd_detected_fronts[1]) < 0.0
     
-        pair_detected_fronts = substantial_fronts(pair_of_wavefronts)
+        pair_detected_fronts = substantial_fronts(pair_of_wavefronts, false)
         @test length(pair_detected_fronts) == 2
         @test slope_loc(pair_detected_fronts[1]) < 0.0
         @test slope_val(pair_detected_fronts[1]) > 0.0
         @test slope_loc(pair_detected_fronts[2]) > 2.0
         @test slope_val(pair_detected_fronts[2]) < 0.0
+
+        trunc_detected_fronts = substantial_fronts(single_front_truncated, false)
+        @test length(trunc_detected_fronts) == 1
+        @test isapprox(slope_loc(trunc_detected_fronts[1]), trunc_front_loc; atol=sqrt(eps()))
+        @test slope_val(trunc_detected_fronts[1]) < 0.0
     end
 
 end
@@ -90,26 +80,29 @@ end
     motionless_decreasing_wavefront = [AxisArray(traveling_decreasing_wavefront_fn.(xs, 0.0), xs) for t in ts]
     motionless_pair = [AxisArray(traveling_pair_fn.(xs, 0.0), xs) for t in ts]
 
-    traveling_increasing_persistent_fronts = link_persistent_fronts(substantial_fronts.(traveling_increasing_wavefront), ts)
+    traveling_increasing_persistent_fronts = link_persistent_fronts(substantial_fronts.(traveling_increasing_wavefront, false, detection_slope_min), ts)
     @test length(traveling_increasing_persistent_fronts) == 1
+    @show maximum(get_velocities(traveling_increasing_persistent_fronts[1]))
     @test mean(get_velocities(traveling_increasing_persistent_fronts[1])) ≈ 1.
 
-    traveling_decreasing_persistent_fronts = link_persistent_fronts(substantial_fronts.(traveling_decreasing_wavefront), ts)
+    traveling_decreasing_persistent_fronts = link_persistent_fronts(substantial_fronts.(traveling_decreasing_wavefront, false, detection_slope_min), ts)
     @test length(traveling_decreasing_persistent_fronts) == 1
     @test mean(get_velocities(traveling_decreasing_persistent_fronts[1])) ≈ 1.
 
-    traveling_pair_persistent_fronts = link_persistent_fronts(substantial_fronts.(traveling_pair), ts)
+    traveling_pair_persistent_fronts = link_persistent_fronts(substantial_fronts.(traveling_pair, false, detection_slope_min), ts)
     @test length(traveling_pair_persistent_fronts) == 2
     @test mean(get_velocities(traveling_pair_persistent_fronts[1])) ≈ 1.
 
-    motionless_decreasing_persistent_fronts = link_persistent_fronts(substantial_fronts.(motionless_decreasing_wavefront), ts)
+    motionless_decreasing_persistent_fronts = link_persistent_fronts(substantial_fronts.(motionless_decreasing_wavefront, false, detection_slope_min), ts)
     @test length(motionless_decreasing_persistent_fronts) == 1
     @test mean(get_velocities(motionless_decreasing_persistent_fronts[1])) ≈ 0.
 
-    motionless_pair_persistent_fronts = link_persistent_fronts(substantial_fronts.(motionless_pair), ts)
+    motionless_pair_persistent_fronts = link_persistent_fronts(substantial_fronts.(motionless_pair, false, detection_slope_min), ts)
     @test length(motionless_pair_persistent_fronts) == 2
     @test mean(get_velocities(motionless_pair_persistent_fronts[1])) ≈ 0.
 end
+
+traveling_parameters = (velocity_threshold=1e-6, n_traveling_frames_threshold=50)
 
 @testset "Faux-execution classifications" begin
     traveling_increasing_wavefront = [population_repeat(AxisArray(traveling_increasing_wavefront_fn.(xs, t), xs), 2) for t in ts]
@@ -119,24 +112,34 @@ end
     motionless_decreasing_wavefront = [population_repeat(AxisArray(traveling_decreasing_wavefront_fn.(xs, 0.0), xs), 2) for t in ts]
     motionless_pair = [population_repeat(AxisArray(traveling_pair_fn.(xs, 0.0), xs), 2) for t in ts]
 
-    traveling_increasing_wavefront_classification = ExecutionClassifications(substantial_fronts.(traveling_increasing_wavefront), 
-                                                                            ts, xs, traveling_increasing_wavefront[end]; origin_radius=1.0)
+    traveling_increasing_wavefront_classification = ExecutionClassifications(substantial_fronts.(traveling_increasing_wavefront, false, detection_slope_min), 
+                                                                            ts, xs, traveling_increasing_wavefront[end]; 
+                                                                            origin_radius=1.0, 
+                                                                            traveling_parameters...)
     @test traveling_increasing_wavefront_classification.has_propagation == true
     
-    traveling_decreasing_wavefront_classification = ExecutionClassifications(substantial_fronts.(traveling_decreasing_wavefront), 
-                                                                            ts, xs, traveling_decreasing_wavefront[end]; origin_radius=1.0)
+    traveling_decreasing_wavefront_classification = ExecutionClassifications(substantial_fronts.(traveling_decreasing_wavefront, false, detection_slope_min), 
+                                                                            ts, xs, traveling_decreasing_wavefront[end]; 
+                                                                            origin_radius=1.0,
+                                                                            traveling_parameters...)
     @test traveling_decreasing_wavefront_classification.has_propagation == true
     
-    traveling_pair_classification = ExecutionClassifications(substantial_fronts.(traveling_pair), 
-                                                                            ts, xs, traveling_pair[end]; origin_radius=1.0)
+    traveling_pair_classification = ExecutionClassifications(substantial_fronts.(traveling_pair, false, detection_slope_min), 
+                                                                            ts, xs, traveling_pair[end]; 
+                                                                            origin_radius=1.0,
+                                                                            traveling_parameters...)
     @test traveling_pair_classification.has_propagation == true
     
-    motionless_decreasing_classification = ExecutionClassifications(substantial_fronts.(motionless_decreasing_wavefront), 
-                                                                            ts, xs, motionless_decreasing_wavefront[end]; origin_radius=1.0)
+    motionless_decreasing_classification = ExecutionClassifications(substantial_fronts.(motionless_decreasing_wavefront, false, detection_slope_min), 
+                                                                            ts, xs, motionless_decreasing_wavefront[end]; 
+                                                                            origin_radius=1.0,
+                                                                            traveling_parameters...)
     @test motionless_decreasing_classification.has_propagation == false
     
-    motionless_pair_classification = ExecutionClassifications(substantial_fronts.(motionless_pair), 
-                                                                            ts, xs, motionless_pair[end]; origin_radius=1.0)
+    motionless_pair_classification = ExecutionClassifications(substantial_fronts.(motionless_pair, false, detection_slope_min), 
+                                                                            ts, xs, motionless_pair[end]; 
+                                                                            origin_radius=1.0,
+                                                                            traveling_parameters...)
     @test motionless_pair_classification.has_propagation == false
 end
 
@@ -167,7 +170,7 @@ end
     #     end
     # end
 
-    localized_exec_cls = ExecutionClassifications(localized_exec)
+    localized_exec_cls = ExecutionClassifications(localized_exec, velocity_threshold=1e-7, n_traveling_frames_threshold=50)
     @test localized_exec_cls.has_propagation == false
 
     prototype_name = "ring_blocking"
@@ -178,7 +181,7 @@ end
         n_lattice=256, x_lattice=600.0,
         other_opts=Dict())
     (_, expanding_front_exec) = execute_single_modification(line_prototype, expanding_front_mods)   
-    expanding_front_exec_cls = ExecutionClassifications(expanding_front_exec)
+    expanding_front_exec_cls = ExecutionClassifications(expanding_front_exec, velocity_threshold=1e-7, n_traveling_frames_threshold=50)
     @test expanding_front_exec_cls.has_propagation == true
 
     # # This case is ambiguous
