@@ -62,8 +62,14 @@ function detect_all_fronts(arr::AA, periodic) where {T, AA<:AbstractAxisArray{T,
     wavefronts = map(slope_zero_locs) do right_bdry
         front = arr[left_bdry..right_bdry]
         slope_front = d1_arr[left_bdry..right_bdry]
-        slope_extremum, slope_extremum_idx = findmax(abs.(slope_front))
-        slope_extremum_loc = only(axes_keys(front))[slope_extremum_idx]
+        if length(slope_front) > 0
+            slope_extremum_idx = argmax(abs.(slope_front))
+            slope_extremum = slope_front[slope_extremum_idx]
+            slope_extremum_loc = only(axes_keys(front))[slope_extremum_idx]
+        else
+            slope_extremum = 0.
+            slope_extremum_loc = (left_bdry + right_bdry) / 2
+        end
         left = point(arr_interp(left_bdry), left_bdry)
         left_bdry = right_bdry
         Wavefront(left,

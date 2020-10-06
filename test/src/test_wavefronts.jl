@@ -30,6 +30,8 @@ function make_traveling_wavefront_pair(;velocity, x_0, width, steepness, height)
     end
 end
 
+traveling_parameters = (velocity_threshold=1e-4, n_traveling_frames_threshold=20)
+
 xs = -20.0:0.1:20.0
 ts = 0.0:0.1:20.0
 front_steepness = 1.
@@ -102,8 +104,6 @@ end
     @test mean(get_velocities(motionless_pair_persistent_fronts[1])) ≈ 0.
 end
 
-traveling_parameters = (velocity_threshold=1e-6, n_traveling_frames_threshold=50)
-
 @testset "Faux-execution classifications" begin
     traveling_increasing_wavefront = [population_repeat(AxisArray(traveling_increasing_wavefront_fn.(xs, t), xs), 2) for t in ts]
     traveling_decreasing_wavefront = [population_repeat(AxisArray(traveling_decreasing_wavefront_fn.(xs, t), xs), 2) for t in ts]
@@ -148,14 +148,15 @@ end
 
     # view with: Simulation73Plotting.animate_execution("$(tempname()).mp4", EXEC_VARIABLE)
 
+    general_mods = (n_lattice=512, x_lattice=1800.0)
+
     prototype_name = "ring_blocking"
     line_prototype = get_prototype(prototype_name)
     localized_mods = (Aee=40.0,Aei=200.0, Aie=73.0, 
         blocking_θI=25.0,
         θE=6.0,firing_θI=7.0, 
-        n_lattice=256, x_lattice=600.0,
         other_opts=Dict())
-    (_, localized_exec) = execute_single_modification(line_prototype, localized_mods)
+    (_, localized_exec) = execute_single_modification(line_prototype, merge(general_mods, localized_mods))
 
     # @testset "WaveClassification internals on localized WCM example" begin
     #     let exec = localized_exec
@@ -170,7 +171,7 @@ end
     #     end
     # end
 
-    localized_exec_cls = ExecutionClassifications(localized_exec, velocity_threshold=1e-7, n_traveling_frames_threshold=50)
+    localized_exec_cls = ExecutionClassifications(localized_exec; traveling_parameters...)
     @test localized_exec_cls.has_propagation == false
 
     prototype_name = "ring_blocking"
@@ -178,10 +179,9 @@ end
     expanding_front_mods = (Aee=150.0,Aei=50.0, Aie=73.0, 
         blocking_θI=25.0,
         θE=6.0,firing_θI=7.0, 
-        n_lattice=256, x_lattice=600.0,
         other_opts=Dict())
-    (_, expanding_front_exec) = execute_single_modification(line_prototype, expanding_front_mods)   
-    expanding_front_exec_cls = ExecutionClassifications(expanding_front_exec, velocity_threshold=1e-7, n_traveling_frames_threshold=50)
+    (_, expanding_front_exec) = execute_single_modification(line_prototype, merge(general_mods, expanding_front_mods))
+    expanding_front_exec_cls = ExecutionClassifications(expanding_front_exec; traveling_parameters...)
     @test expanding_front_exec_cls.has_propagation == true
 
     # # This case is ambiguous

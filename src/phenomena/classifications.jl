@@ -43,7 +43,6 @@ last_quartile_dxs(fin) = ((3*fin)÷4):fin
 function WaveClassifications(measurements::SpatiotemporalWaveMeasurements; 
                                  velocity_threshold,
                                  n_traveling_frames_threshold)
-    
     if length(measurements.maxes) < 4
         # not long enough to be classified
         return WaveClassifications(false, false, false, false, false, false, false)

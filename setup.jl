@@ -36,23 +36,26 @@ git() do git
 end
 
 #init_julia_git(pde_path)
+for path in [s73_plot_path, s73_path, nm_path, tws_path, tws_plot_path]
+    Pkg.activate(path)
+    Pkg.develop("AxisIndices")
+end
+git() do git
+    axisindices_path = joinpath(homedir(), ".julia", "dev", "AxisIndices")
+    try
+        run(`$git -C $axisindices_path remote add grahamas git@github.com:grahamas/AxisIndices.jl.git`)
+    catch e
+        @show e
+    end
+	run(`$git -C $axisindices_path fetch grahamas`)
+	run(`$git -C $axisindices_path checkout logical_indexing`)
+end
 init_julia_git(s73_path)
 init_julia_git(nm_path, [s73_path])
 init_julia_git(wcm_path, [s73_path, nm_path])
 init_julia_git(tws_path, [s73_path, nm_path, wcm_path])
 init_julia_git(s73_plot_path, [s73_path])
 init_julia_git(tws_plot_path, [s73_plot_path, s73_path, nm_path, wcm_path, tws_path])
-for path in [s73_plot_path, s73_path, nm_path, tws_path, tws_plot_path]
-    Pkg.activate(path)
-    Pkg.develop("AxisIndices")
-end
-
-git() do git
-    axis_indices_dev_path = joinpath(homedir(), ".julia", "dev", "AxisIndices.jl")
-    run(`$git -C $(axis_indices_dev_path) remote add grahamas git@github.com:grahamas/AxisIndices.jl`)
-    run(`$git -C $(axis_indices_dev_path) fetch grahamas`)
-    run(`$git -C $(axis_indices_dev_path) checkout -b grahamas/logical_indexing`)
-end
 
 init_julia_git(rel_path("_research"), [s73_path, nm_path, wcm_path, pde_path, tws_path, s73_plot_path, tws_plot_path])
 
