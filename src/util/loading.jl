@@ -9,15 +9,20 @@ macro ifsomething(ex)
 end
 
 function _load_data(sim_path)
+    @show sim_path
    JuliaDB.load(sim_path)
 end
 struct MultiDB
-    fns
+    fns::Array{String}
+    function MultiDB(fns::AbstractArray)
+        if isempty(fns)
+            @warn "Empty MultiDB initialized."
+        end
+        new(fns)
+    end
 end
-Base.length(mdb::MultiDB) = length(mdb.fns)
-
-is_valid_fn(::Nothing) = false
-function is_valid_fn(fn)
+is_valid_db_path(::Nothing) = false
+function is_valid_db_path(fn)
     splitted = splitext(fn)
     if length(splitted) == 1
         return false
@@ -29,10 +34,26 @@ function is_valid_fn(fn)
         return true
     end
 end
+function is_valid_mdb_path(path)
+    any(map(is_valid_db_path, joinpath.(Ref(path), readdir(path))))
+end
+function get_sorted_db_subpaths(path)
+    filter(is_valid_db_path, joinpath.(Ref(path), readdir(path)))
+end
+function get_sorted_mdb_subpaths(path)
+    @show path
+    mdb_subpaths = filter(is_valid_mdb_path, joinpath.(Ref(path), readdir(path)))
+    sorted_mdb_subpaths = sort(mdb_subpaths, by=mtime)
+    return sorted_mdb_subpaths
+end
+function MultiDB(path::AbstractString)
+    return MultiDB(get_sorted_db_subpaths(path))
+end
+Base.length(mdb::MultiDB) = length(mdb.fns)
 
 function Base.iterate(mdb::MultiDB, fns_state...)
     next_fn = nothing
-    while !is_valid_fn(next_fn)
+    while !is_valid_db_path(next_fn)
         (next_fn, fns_state) = @ifsomething iterate(mdb.fns, fns_state...)
     end
     (_load_data(next_fn), fns_state)
@@ -174,25 +195,25 @@ function mod_idx(particular_keys, particular_values, range_keys, range_values)
 end
 
 function get_recent_simulation_data_paths(prototype_path, max_n)
-    sims = readdir(prototype_path)
-    sorted_sims = sort(joinpath.(Ref(prototype_path), sims), by=mtime)
-    return join(sorted_sims[end:-1:end-max_n+1], "\n")
+    sorted_mdb_subpaths = get_sorted_mdb_subpaths(prototype_path)
+    return join(sorted_mdb_subpaths[end:-1:end-max_n+1], "\n")
 end
-    
 
 function get_recent_simulation_data_path(prototype_path, nth::Int=0)
-    sims = readdir(prototype_path)
-    sorted_sims = sort(joinpath.(Ref(prototype_path), sims), by=mtime)
-    sim_path = if nth > 0
-        sorted_sims[nth]
-    else
-        sorted_sims[end+nth]
+    sorted_mdb_subpaths = get_sorted_mdb_subpaths(prototype_path)
+    if isempty(sorted_mdb_subpaths)
+        error("no valid recent simulation data")
     end
-    return sim_path
+    mdb_path = if nth > 0
+        sorted_mdb_subpaths[nth]
+    else
+        sorted_mdb_subpaths[end+nth]
+    end
+    return mdb_path
 end
 
 function load_simulation_data(path)
-    return MultiDB(joinpath.(Ref(path), readdir(path)))
+    return MultiDB(path)
 end
 
 "Load nth simulation, ordered by time"
@@ -233,14 +254,15 @@ function load_ExecutionClassifications(type::Type, data_path)
 
     for (this_mod, this_result) in MultiDBRowIter(mdb)
         exec_classification = this_result[:wave_properties]
-        A_idx = this_mod[varying_names]
+        #A_idx = this_mod[varying_names]
+        A_idx = NamedTuple{Tuple(varying_names)}(this_mod[varying_names])
         if exec_classification === missing
             for name in classification_names
-                classifications_A[name][A_idx...] = missing
+                setindex!(classifications_A[name], missing; A_idx...)
             end
         else
             for name in classification_names
-                classifications_A[name][A_idx...] = getproperty(exec_classification, name)
+                setindex!(classifications_A[name], getproperty(exec_classification, name); A_idx...)
             end
         end
     end

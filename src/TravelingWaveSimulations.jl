@@ -3,20 +3,24 @@ using DrWatson
 
 using Distributed
 
-using Lazy, Dates, BSON, Logging
+using Lazy 
+using Dates
+using Logging
 using Simulation73, NeuralModels, WilsonCowanModel
-using DifferentialEquations
+using DifferentialEquations, DiffEqOperators
 using ArgParse
 using IterTools
-using Statistics, LinearAlgebra, Distances, GLM
-using RecipesBase
+using Statistics, LinearAlgebra
 using AxisIndices
+using Interpolations
 
-using JuliaDB, CSV, DataFrames
+using JuliaDB
 
-include("util/valued_space.jl")
+include("util/axisarray.jl")
 
-include("phenomena/fronts.jl")
+include("phenomena/waveforms.jl")
+include("phenomena/wavefronts.jl")
+include("phenomena/persistent_waveforms.jl")
 include("phenomena/classifications.jl")
 export ExecutionClassifications
 
@@ -32,14 +36,13 @@ export get_prototype
 
 include("util/parsing.jl")
 export parse_modifications_argument, parse_analyses_argument
+include("util/io.jl")
 include("util/saving.jl")
 include("util/loading.jl")
 export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, 
        load_simulation_data_recent, load_simulation_data, get_recent_simulation_data_path
        load_ExecutionClassifications_recent,
        load_ExecutionClassifications
-include("plot/plotting.jl")
-export custom_animate
 
 include("prototypes/iteration.jl")
 export iterate_prototype, execute_single_modification
