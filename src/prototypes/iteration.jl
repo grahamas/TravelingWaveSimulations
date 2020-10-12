@@ -49,7 +49,7 @@ function iterate_prototype(prototype::Function,
                            prototype_name,
                            experiment_name="",
                            data_root::AbstractString=datadir(), 
-                           max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^20),
+                           max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^16),
                            save=true, parallelize_if_possible=true) 
 
     @warn "# of mods: $(length(modifications))"
@@ -77,6 +77,7 @@ function iterate_prototype(prototype::Function,
     sample_data = initial_simulation.global_reduction(sample_execution.solution)
     u_init = init_results_tuple(pkeys, sample_data)
     
+    @show max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1))
     (ensemble_solver, batch_size) = if parallelize_if_possible
         if nprocs() > 1
             @warn "Parallelizing over $(nworkers()) workers"
@@ -93,6 +94,7 @@ function iterate_prototype(prototype::Function,
     else
         (EnsembleSerial(), length(modifications))
     end
+    @show batch_size
     ensemble_solution = solve(initial_simulation, ensemble_solver; 
                               prob_func=prob_function, 
                               # FIXME: consider trying setindex instead of append
