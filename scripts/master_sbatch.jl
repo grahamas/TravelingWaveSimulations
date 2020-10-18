@@ -31,29 +31,22 @@ function parse_commandline(args)
             help = "Email target for SLURM status updates"
         "--mail-type"
             help = "Types of mail to send user"
-        "--base-example", "-b"
-            help = "Name of predefined example to use as base"
+        "--job-name"
+            help = "Name of slurm job"
+            default = "julia-tws"
+        "--output-subdir"
+            help = "Subdir of _slurm/output for logs"
+            default = ""
         "--script-name", "-s"
             help = "Name of script to run (path in script dir)"
-        "--mod"
-            nargs = '*'
-            help = "Case specifying base model modifications"
         "--no-save-raw"
             help = "Don't save the raw simulation"
             action = :store_true
-        "--max-batch-size"
-            help = "Parallel batch size"
-            arg_type = Int
         "--nodes", "-N"
             help="minnodes[-maxnodes]"
-        "--max-sims-in-mem"
-            help="Limit the number of bare simulations held in memory by a single task"
         "--julia-exe"
             help="Julia to call"
             default="julia"
-        "--backup-paths"
-            nargs = '*'
-            help = "Locations to copy saved results via scp"
     end
     return parse_args(args, arg_settings; as_symbols = false)
 end
@@ -85,29 +78,19 @@ function sbatch_script(ARGS)
     ntasks = args["ntasks"] # Needed below
     
     project_root = pop!(args, "project-root")
-    base_example = pop!(args, "base-example")
+    output_subdir = pop!(args, "output-subdir")
+    job_name = pop!(args, "job-name")
     script_name = pop!(args, "script-name")
-    script_output_dir = joinpath(project_root, "_slurm", "output", base_example)
+    script_output_dir = joinpath(project_root, "_slurm", "output", output_subdir)
     mkpath(script_output_dir)
     sbatch_arg_names = ["nodes", "ntasks", "mem-per-cpu", "time", "partition", "workdir", "mail-user",  "mail-type"]
     sbatch_args = pop_args!(args, sbatch_arg_names)
     sbatch_args["output"] = joinpath(script_output_dir, "%j.stdout")
     sbatch_args["error"] = joinpath(script_output_dir, "%j.stderr")
-    sbatch_args["job-name"] = base_example
+    sbatch_args["job-name"] = job_name 
 
-    script_arg_names = ["mod", "data-root", "max-batch-size", "max-sims-in-mem", "backup-paths"]
-    script_args = pop_args!(args, script_arg_names)
-    remaining_args = args
-    @show remaining_args
-    script_args["example-name"] = base_example
-    if args["no-save-raw"]
-        script_args["no-save-raw"] = args["no-save-raw"]
-    end
-    if ntasks > 1
-        p_args = "-p $ntasks"
-    else
-        p_args = ""
-    end
+    script_args = args
+    script_args["n-tasks"] = ntasks
 
     script_path = joinpath(scriptsdir(), script_name)
 
