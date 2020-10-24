@@ -51,7 +51,9 @@ function iterate_prototype(prototype::Function,
                            experiment_name="",
                            data_root::AbstractString=datadir(), 
                            max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^16),
-                           save=true, parallelize_if_possible=true) 
+                           save=true, 
+                           parallelize_if_possible=true,
+                           progress=true) 
 
     @warn "# of mods: $(length(modifications))"
 
@@ -64,13 +66,6 @@ function iterate_prototype(prototype::Function,
     prototype = get_prototype(prototype_name)
     
     pkeys = mods_to_pkeys(modifications)
-   
-    function prob_function(prob, i, repeat)
-        these_mods = modifications[i]
-        new_sim = prototype(; these_mods...)        
-        pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
-        remake(prob, p=pkeys_nt, f=convert(ODEFunction{true},make_system_mutator(new_sim)))
-    end
 
     # Run simulation for every modification
     initial_simulation = prototype()
@@ -78,7 +73,6 @@ function iterate_prototype(prototype::Function,
     sample_data = initial_simulation.global_reduction(sample_execution.solution)
     u_init = init_results_tuple(pkeys, sample_data)
     
-    @show max_sims_in_mem, ceil(Int, length(modifications) / (nprocs() - 1))
     (ensemble_solver, batch_size) = if parallelize_if_possible
         if nprocs() > 1
             @warn "Parallelizing over $(nworkers()) workers"
@@ -95,11 +89,21 @@ function iterate_prototype(prototype::Function,
     else
         (EnsembleSerial(), length(modifications))
     end
-    @show batch_size
+
+    n_batches = ceil(Int, length(modifications) / batch_size)
+    function prob_function(prob, i, repeat)
+        i % batch_size == 0 && @info "Batch $(div(i, batch_size)) / $(n_batches) ($i)"
+        these_mods = modifications[i]
+        new_sim = prototype(; these_mods...)        
+        pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
+        remake(prob, p=pkeys_nt, f=convert(ODEFunction{true},make_system_mutator(new_sim)))
+    end
     ensemble_solution = solve(initial_simulation, ensemble_solver; 
                               prob_func=prob_function, 
                               # FIXME: consider trying setindex instead of append
-                              reduction=(u,data,i) -> (append_namedtuple_arr!(u,data), false),
+                              reduction=(u,data,i) -> begin
+                                (append_namedtuple_arr!(u,data), false)
+                              end,
                               u_init=u_init, 
                               trajectories=length(modifications), 
                               batch_size=batch_size)
