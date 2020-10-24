@@ -7,5 +7,5 @@ iterate_prototype("ring_blocking",
 						 "velocity_threshold=1e-4",
                          "n_traveling_frames_threshold=30",
                          "x_lattice=2800.0", "n_lattice=512"],
-                        experiment_name="dep_threshold_A",
+                        experiment_name="reduced_depthreshold_A",
                         data_root=data_root)

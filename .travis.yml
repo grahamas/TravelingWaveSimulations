@@ -1,7 +1,6 @@
 language: julia
 julia: 
     - 1.5
-    - nightly
 os:
     - linux
 install:
@@ -9,8 +8,11 @@ install:
     - git clone https://github.com/grahamas/NeuralModels.git
     - git clone https://github.com/grahamas/WilsonCowanModel.git
     - git clone https://github.com/grahamas/FindPDE.git
+    - git clone https://github.com/grahamas/AxisIndices.jl.git
+    - git clone https://github.com/SciML/DiffEqOperators.jl.git
+    - git -C AxisIndices.jl checkout old_logical_indexing
     - julia --project -e 'using Pkg; 
-      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE"]]; 
+      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE", "AxisIndices.jl", "DiffEqOperators.jl"]]; 
       Pkg.develop(deps);
       Pkg.build()'
 script:

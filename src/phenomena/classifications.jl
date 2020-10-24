@@ -113,47 +113,59 @@ function ExecutionClassifications(wavefronts::WS,
                                  final_frame::AbstractArray{T};
                                  max_resting=5e-2,
                                  origin_radius=20.0,
-                                 wave_kwargs...) where {T,
+                                 velocity_threshold,
+                                 n_traveling_frames_threshold) where {T,
                                     WS <: AbstractVector{<:AbstractVector{<:Wavefront}},
                                     TS <: AbstractVector{T},
                                     XS <: AbstractVector{T}
                                  }
     @assert origin_radius < xs[end]
     persistent_fronts = link_persistent_fronts(wavefronts, ts)
-    pf_measurements = SpatiotemporalWaveMeasurements.(persistent_fronts)
-    pf_classifications = WaveClassifications.(pf_measurements; wave_kwargs...)
+    all_fronts_velocities = get_velocities.(persistent_fronts)
+    all_fronts_is_traveling = is_traveling.(all_fronts_velocities, velocity_threshold, n_traveling_frames_threshold)
+    has_propagation = any(all_fronts_is_traveling)
 
-    # TODO calculate first four bools with regard to propagation
-    has_propagation = any(map((cls) -> cls.traveling, pf_classifications))
-    has_oscillation = any(map((cls) -> cls.oscillating, pf_classifications))
-    farthest_propagation_is_decaying, farthest_propagation_is_oscillating = if has_propagation
-        _, max_dx = findmax(map(x -> abs(x.distance), pf_measurements))
-        (pf_classifications[max_dx].decaying, pf_classifications[max_dx].oscillating)
-    else
-        (false, false)
-    end
-    persistently_active_near_origin = check_has_activity_near_origin(population(final_frame, 1),
-                                                               #FIXME: E population assumption
-                                                               max_resting,
-                                                               xs,
-                                                              origin_radius)
-    reaches_steady_state = if length(wavefronts[end]) == 0
-        true 
-        #FIXME: invalid if moving plateau... but that's fundamentally a steady state
-        # could also check ts... if it ends before cutoff, then it had to have reached
-        # steady state
-    else
-        length(wavefronts[end]) == length(wavefronts[end-1]) && all(wavefronts[end] .== wavefronts[end-1]) 
-    end
+    # pf_measurements = SpatiotemporalWaveMeasurements.(persistent_fronts)
+    # pf_classifications = WaveClassifications.(pf_measurements; wave_kwargs...)
+
+    # # TODO calculate first four bools with regard to propagation
+    # has_propagation = any(map((cls) -> cls.traveling, pf_classifications))
+    # has_oscillation = any(map((cls) -> cls.oscillating, pf_classifications))
+    # farthest_propagation_is_decaying, farthest_propagation_is_oscillating = if has_propagation
+    #     _, max_dx = findmax(map(x -> abs(x.distance), pf_measurements))
+    #     (pf_classifications[max_dx].decaying, pf_classifications[max_dx].oscillating)
+    # else
+    #     (false, false)
+    # end
+    # persistently_active_near_origin = check_has_activity_near_origin(population(final_frame, 1),
+    #                                                            #FIXME: E population assumption
+    #                                                            max_resting,
+    #                                                            xs,
+    #                                                           origin_radius)
+    # reaches_steady_state = if length(wavefronts[end]) == 0
+    #     true 
+    #     #FIXME: invalid if moving plateau... but that's fundamentally a steady state
+    #     # could also check ts... if it ends before cutoff, then it had to have reached
+    #     # steady state
+    # else
+    #     length(wavefronts[end]) == length(wavefronts[end-1]) && all(wavefronts[end] .== wavefronts[end-1]) 
+    # end
+    # ExecutionClassifications(
+    #     has_propagation,
+    #     has_oscillation,
+    #     farthest_propagation_is_decaying,
+    #     farthest_propagation_is_oscillating,
+    #     persistently_active_near_origin,
+    #     reaches_steady_state
+    # )
     ExecutionClassifications(
         has_propagation,
-        has_oscillation,
-        farthest_propagation_is_decaying,
-        farthest_propagation_is_oscillating,
-        persistently_active_near_origin,
-        reaches_steady_state
+        false,
+        false,
+        false,
+        false,
+        false
     )
-
 end
 
 function implies_origin_activity(wavefront, max_resting, radius)

@@ -33,6 +33,7 @@ Run simulation based on prototype named `prototype_name` described in `src/proto
 
 `data_root` defines the root of the data saving directory tree.
 """
+iterate_prototype(; prototype_name, modifications, kwargs...) = iterate_prototype(prototype_name, modifications; kwargs...)
 function iterate_prototype(prototype_name::AbstractString, args...; kwargs...)
     prototype = get_prototype(prototype_name)
     iterate_prototype(prototype, args...; kwargs..., prototype_name=prototype_name)
@@ -49,8 +50,10 @@ function iterate_prototype(prototype::Function,
                            prototype_name,
                            experiment_name="",
                            data_root::AbstractString=datadir(), 
-                           max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^20),
-                           save=true, parallelize_if_possible=true) 
+                           max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^16),
+                           save=true, 
+                           parallelize_if_possible=true,
+                           progress=true) 
 
     @warn "# of mods: $(length(modifications))"
 
@@ -63,13 +66,6 @@ function iterate_prototype(prototype::Function,
     prototype = get_prototype(prototype_name)
     
     pkeys = mods_to_pkeys(modifications)
-   
-    function prob_function(prob, i, repeat)
-        these_mods = modifications[i]
-        new_sim = prototype(; these_mods...)        
-        pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
-        remake(prob, p=pkeys_nt, f=convert(ODEFunction{true},make_system_mutator(new_sim)))
-    end
 
     # Run simulation for every modification
     initial_simulation = prototype()
@@ -93,10 +89,21 @@ function iterate_prototype(prototype::Function,
     else
         (EnsembleSerial(), length(modifications))
     end
+
+    n_batches = ceil(Int, length(modifications) / batch_size)
+    function prob_function(prob, i, repeat)
+        i % batch_size == 0 && @info "Batch $(div(i, batch_size)) / $(n_batches) ($i)"
+        these_mods = modifications[i]
+        new_sim = prototype(; these_mods...)        
+        pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
+        remake(prob, p=pkeys_nt, f=convert(ODEFunction{true},make_system_mutator(new_sim)))
+    end
     ensemble_solution = solve(initial_simulation, ensemble_solver; 
                               prob_func=prob_function, 
                               # FIXME: consider trying setindex instead of append
-                              reduction=(u,data,i) -> (append_namedtuple_arr!(u,data), false),
+                              reduction=(u,data,i) -> begin
+                                (append_namedtuple_arr!(u,data), false)
+                              end,
                               u_init=u_init, 
                               trajectories=length(modifications), 
                               batch_size=batch_size)
