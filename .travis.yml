@@ -12,7 +12,7 @@ install:
     - git clone https://github.com/grahamas/AxisIndices.jl.git
     - git checkout -C AxisIndices logical_indexing
     - julia --project -e 'using Pkg; 
-      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE", "AxisIndices"]]; 
+      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE", "AxisIndices.jl"]]; 
       Pkg.develop(deps);
       Pkg.build()'
 script:
