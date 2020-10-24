@@ -10,7 +10,7 @@ install:
     - git clone https://github.com/grahamas/WilsonCowanModel.git
     - git clone https://github.com/grahamas/FindPDE.git
     - git clone https://github.com/grahamas/AxisIndices.jl.git
-    - git checkout -C AxisIndices logical_indexing
+    - git -C AxisIndices checkout logical_indexing
     - julia --project -e 'using Pkg; 
       deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE", "AxisIndices.jl"]]; 
       Pkg.develop(deps);
