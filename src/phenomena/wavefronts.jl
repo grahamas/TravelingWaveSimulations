@@ -32,16 +32,25 @@ end
 periodic_or_neumann0_bc(T::DataType, ::Val{true}) = PeriodicBC(T)
 periodic_or_neumann0_bc(T::DataType, ::Val{false}) = Neumann0BC(zero(T))
 
-function deriv(arr::AbstractAxisArray{T,1}, deriv_degree::Int, periodic::Bool, deriv_order::Int=deriv_degree+1) where T
-    axis = axes_keys(arr) |> only
+function make_ghost_op(T, axis, 
+        deriv_degree::Int, periodic::Bool, deriv_order::Int=deriv_degree+1)
     step = axis[2] - axis[1]
     n = length(axis)
     D = CenteredDifference(deriv_degree, deriv_order, step, n)
     Q = periodic_or_neumann0_bc(T, Val(periodic))
-    return AxisArray(D*Q*arr, axis)
+    return D*Q
 end
 
-function detect_all_fronts(arr::AA, periodic) where {T, AA<:AbstractAxisArray{T,1}}
+function deriv(arr::AbstractAxisVector{T}, deriv_degree::Int, periodic::Bool, deriv_order::Int=deriv_degree+1) where T
+    axis = axes_keys(arr) |> only
+    return AxisArray(make_ghost_op(T, axis, deriv_degree, periodic, deriv_order) * arr, axis)
+end
+
+function deriv!(darr::AbstractAxisVector, arr::AbstractAxisVector, ghost_op::GhostDerivativeOperator)
+    LinearAlgebra.mul!(darr.parent, ghost_op.L, ghost_op.Q * arr.parent)
+end
+
+function detect_all_fronts(arr::AA, periodic) where {T, AA<:AbstractAxisVector{T}}
     "Partition space at extrema"
     if all(arr .== arr[begin])
         return Wavefront{T,AA}[]
