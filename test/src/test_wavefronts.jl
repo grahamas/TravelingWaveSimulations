@@ -112,34 +112,36 @@ end
     motionless_decreasing_wavefront = [population_repeat(AxisArray(traveling_decreasing_wavefront_fn.(xs, 0.0), xs), 2) for t in ts]
     motionless_pair = [population_repeat(AxisArray(traveling_pair_fn.(xs, 0.0), xs), 2) for t in ts]
 
-    traveling_increasing_wavefront_classification = ExecutionClassifications(substantial_fronts.(traveling_increasing_wavefront, false, detection_slope_min), 
-                                                                            ts, xs, traveling_increasing_wavefront[end]; 
-                                                                            origin_radius=1.0, 
-                                                                            traveling_parameters...)
+    traveling_increasing_wavefront_classification = ExecutionClassifications(
+        substantial_fronts.(traveling_increasing_wavefront, false,
+                            detection_slope_min),
+        ts, xs, traveling_increasing_wavefront[end]; 
+        origin_radius=1.0, traveling_parameters...)
     @test traveling_increasing_wavefront_classification.has_propagation == true
     
-    traveling_decreasing_wavefront_classification = ExecutionClassifications(substantial_fronts.(traveling_decreasing_wavefront, false, detection_slope_min), 
-                                                                            ts, xs, traveling_decreasing_wavefront[end]; 
-                                                                            origin_radius=1.0,
-                                                                            traveling_parameters...)
+    traveling_decreasing_wavefront_classification = ExecutionClassifications(
+        substantial_fronts.(traveling_decreasing_wavefront, false, 
+                            detection_slope_min), 
+        ts, xs, traveling_decreasing_wavefront[end];
+        origin_radius=1.0, traveling_parameters...)
     @test traveling_decreasing_wavefront_classification.has_propagation == true
     
-    traveling_pair_classification = ExecutionClassifications(substantial_fronts.(traveling_pair, false, detection_slope_min), 
-                                                                            ts, xs, traveling_pair[end]; 
-                                                                            origin_radius=1.0,
-                                                                            traveling_parameters...)
+    traveling_pair_classification = ExecutionClassifications(
+        substantial_fronts.(traveling_pair, false, detection_slope_min),
+        ts, xs, traveling_pair[end]; 
+        origin_radius=1.0, traveling_parameters...)
     @test traveling_pair_classification.has_propagation == true
     
-    motionless_decreasing_classification = ExecutionClassifications(substantial_fronts.(motionless_decreasing_wavefront, false, detection_slope_min), 
-                                                                            ts, xs, motionless_decreasing_wavefront[end]; 
-                                                                            origin_radius=1.0,
-                                                                            traveling_parameters...)
+    motionless_decreasing_classification = ExecutionClassifications(
+        substantial_fronts.(motionless_decreasing_wavefront, false, detection_slope_min),
+        ts, xs, motionless_decreasing_wavefront[end];
+        origin_radius=1.0, traveling_parameters...)
     @test motionless_decreasing_classification.has_propagation == false
     
-    motionless_pair_classification = ExecutionClassifications(substantial_fronts.(motionless_pair, false, detection_slope_min), 
-                                                                            ts, xs, motionless_pair[end]; 
-                                                                            origin_radius=1.0,
-                                                                            traveling_parameters...)
+    motionless_pair_classification = ExecutionClassifications(
+        substantial_fronts.(motionless_pair, false, detection_slope_min),
+        ts, xs, motionless_pair[end]; 
+        origin_radius=1.0, traveling_parameters...)
     @test motionless_pair_classification.has_propagation == false
 end
 
