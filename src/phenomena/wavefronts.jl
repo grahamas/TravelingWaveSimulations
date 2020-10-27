@@ -1,4 +1,4 @@
-struct Wavefront{T,AA<:AbstractAxisArray{T,1}} <: AbstractWaveform{T,1}
+struct Wavefront{T,AA<:AxisArray{T,1}} <: AbstractWaveform{T,1}
 # RIGHT WAVEFRONT FIXME -- It doesn't look like it's only right-side?
     left::AA
     slope::AA
@@ -8,8 +8,8 @@ end
 left(wf::Wavefront) = wf.left
 slope(wf::Wavefront) = wf.slope
 right(wf::Wavefront) = wf.right
-_val(aa::AbstractAxisArray) = only(aa)
-_loc(aa::AbstractAxisArray) = aa |> axes_keys |> only |> only
+_val(aa::AxisArray) = only(aa)
+_loc(aa::AxisArray) = aa |> axes_keys |> only |> only
 left_val(wf::Wavefront) = left(wf) |> _val
 slope_val(wf::Wavefront) = slope(wf) |> _val
 right_val(wf::Wavefront) = right(wf) |> _val
@@ -41,16 +41,16 @@ function make_ghost_op(T, axis,
     return D*Q
 end
 
-function deriv(arr::AbstractAxisVector{T}, deriv_degree::Int, periodic::Bool, deriv_order::Int=deriv_degree+1) where T
+function deriv(arr::AxisVector{T}, deriv_degree::Int, periodic::Bool, deriv_order::Int=deriv_degree+1) where T
     axis = axes_keys(arr) |> only
     return AxisArray(make_ghost_op(T, axis, deriv_degree, periodic, deriv_order) * arr, axis)
 end
 
-function deriv!(darr::AbstractAxisVector, arr::AbstractAxisVector, ghost_op::GhostDerivativeOperator)
+function deriv!(darr::AxisVector, arr::AxisVector, ghost_op::GhostDerivativeOperator)
     LinearAlgebra.mul!(darr.parent, ghost_op.L, ghost_op.Q * arr.parent)
 end
 
-function detect_all_fronts(arr::AA, periodic) where {T, AA<:AbstractAxisVector{T}}
+function detect_all_fronts(arr::AA, periodic) where {T, AA<:AxisVector{T}}
     "Partition space at extrema"
     if all(arr .== arr[begin])
         return Wavefront{T,AA}[]
@@ -89,7 +89,7 @@ function detect_all_fronts(arr::AA, periodic) where {T, AA<:AbstractAxisVector{T
 end
 
 
-function substantial_fronts(frame::AbstractAxisArray{T,1}, periodic, slope_min=1e-4) where T
+function substantial_fronts(frame::AxisArray{T,1}, periodic, slope_min=1e-4) where T
     all_fronts = detect_all_fronts(frame, periodic)
     consolidated = consolidate_fronts(all_fronts, slope_min)
     return consolidated

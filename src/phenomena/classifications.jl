@@ -1,6 +1,7 @@
 
 const DEFAULT_SLOPE_MIN = 1e-4
-const DEFAULT_MAX_JITTER = 10.
+const DEFAULT_CONST_JITTER = 10.
+const DEFAULT_VEL_JITTER = 0.5
 
 ### Single wave measurements across time ###
 
@@ -249,28 +250,32 @@ _front_loc(front::AxisArray) = axes_keys(front) |> only |> only
 _front_slope(front::AxisArray) = only(front)
 predict_location(rf::RunningFront{T,T}) where T = rf.previous_location + rf.previous_velocity
 predict_location(rf::RunningFront{T,Missing}) where T = rf.previous_location
+calc_jitter(rf::RunningFront{T,T}, const_jitter, vel_jitter) where T = const_jitter + abs(rf.previous_velocity) * vel_jitter
+calc_jitter(rf::RunningFront{T,Missing}, const_jitter, vel_jitter) where T = const_jitter
 function start_running_front(front::AxisArray)
     # Must be axisarray with only the slope at its location
     loc = _front_loc(front)
     val = _front_slope(front)
+    #@info "Start at $loc"
     RunningFront(loc, loc, missing, val)
 end
 function extend_running_front(rf::RunningFront, front::AxisArray)
     loc = _front_loc(front)
     val = _front_slope(front)
+    #@info "Continue to $(loc): dist of $(rf.starting_location - loc)"
     RunningFront(
         rf.starting_location,
         loc,
-        rf.previous_location - loc,
+        loc - rf.previous_location,
         val
     )
 end
 
-function front_continues_rf(front, running_front, max_jitter)
+function front_continues_rf(front, running_front, const_jitter, vel_jitter)
     """Return true if front can continue running_front.
         Needs:
             1. slope has same sign
-            2. projected location is within max_jitter
+            2. projected location is within const_jitter, vel_jitter
     """
     slope = _front_slope(front)
     rf_slope = running_front.slope
@@ -280,7 +285,8 @@ function front_continues_rf(front, running_front, max_jitter)
 
     loc = _front_loc(front)
     predicted_loc = predict_location(running_front)
-    if !(predicted_loc - max_jitter <= loc <= predicted_loc + max_jitter)
+    jitter = calc_jitter(running_front, const_jitter, vel_jitter)
+    if !(predicted_loc - jitter <= loc <= predicted_loc + jitter)
         return false
     end
 
@@ -300,7 +306,7 @@ end
 function reconcile_running_front!(running_fronts, new_running_front::Nothing,
                                     frame, unresolved_front_idx,
                                     preceding_running_front,
-                                    max_jitter)
+                                    const_jitter, vel_jitter)
     # haven't come across RF2
     return (preceding_running_front, unresolved_front_idx, nothing)    
 end
@@ -308,7 +314,7 @@ function reconcile_running_front!(running_fronts,
                                   new_running_front::RunningFront,
                                   frame, unresolved_front_idx,
                                   preceding_running_front::Nothing,
-                                  max_jitter)
+                                  const_jitter, vel_jitter)
     # there's no RF1
     return (new_running_front, unresolved_front_idx, nothing)
 end
@@ -316,7 +322,7 @@ function reconcile_running_front!(running_fronts,
                                     new_running_front::RunningFront,
                                     frame, unresolved_front_idx::Nothing,
                                     preceding_running_front::RunningFront,
-                                    max_jitter)
+                                    const_jitter, vel_jitter)
     # There's no F in RF1 F RF2, so just set RF2 as the new preceding front.
     # (also note there can't be F RF1 RF2... RF1 is just orphaned)
     return (new_running_front, unresolved_front_idx, nothing)
@@ -325,21 +331,27 @@ function reconcile_running_front!(running_fronts,
                                     rf2::RunningFront,
                                     frame, front_idx::Int,
                                     rf1::RunningFront,
-                                    max_jitter)::Tuple{Union{RF,RFM},Union{Int,Nothing},Union{RF,RFM,Nothing}}
+                                    const_jitter, vel_jitter)::Tuple{Union{RF,RFM,Nothing},Union{Int,Nothing},Union{RF,RFM,Nothing}}
     # Now we have RF1 F RF2  (actually! could be F RF1 RF2, but works anyway)
     @assert rf1 != rf2
     f = frame[[front_idx]]
-    f_continues_rf1 = front_continues_rf(f, rf1, max_jitter)
-    f_continues_rf2 = front_continues_rf(f, rf2, max_jitter)
+    f_continues_rf1 = front_continues_rf(f, rf1, const_jitter, vel_jitter)
+    f_continues_rf2 = front_continues_rf(f, rf2, const_jitter, vel_jitter)
     if f_continues_rf1 && !f_continues_rf2
         running_fronts[front_idx] = extend_running_front(rf1, f)
         return (rf2, nothing, running_fronts[front_idx])
     elseif !f_continues_rf1 && f_continues_rf2
         return (rf2, front_idx, nothing)
     elseif f_continues_rf1 && f_continues_rf2
-        #@warn "Ambiguous front continuation!"
-        running_fronts[front_idx] = extend_running_front(rf1, f)
-        return (rf2, nothing, running_fronts[front_idx])
+        # @warn "Ambiguous front continuation! reconciling RF"
+        # @show rf1, rf2, f
+        if abs(predict_location(rf1) - _front_loc(f)) <= abs(predict_location(rf2) - _front_loc(f))
+            running_fronts[front_idx] = extend_running_front(rf1, f)
+            return (rf2, nothing, running_fronts[front_idx])
+        else
+            running_fronts[front_idx] = extend_running_front(rf2, f)
+            return (nothing, nothing, running_fronts[front_idx])
+        end
     else
         running_fronts[front_idx] = start_running_front(f)
         return (rf2, nothing, running_fronts[front_idx])
@@ -354,14 +366,14 @@ end
 function reconcile_front!(running_fronts, front_idx, 
             frame, unresolved_front_idx::Nothing, 
             preceding_running_front, 
-            max_jitter)
+            const_jitter, vel_jitter)
     # don't have F1, so just set unresolved_front_idx to be that next time
     return (preceding_running_front, front_idx, nothing)
 end
 function reconcile_front!(running_fronts, front_idx, 
         frame, unresolved_front_idx::Int, 
         preceding_running_front::Nothing, 
-        max_jitter)
+        const_jitter, vel_jitter)
     # have F1 but no RF, so F1 is orphaned.
     running_fronts[unresolved_front_idx] = start_running_front(frame[[unresolved_front_idx]])
     return (preceding_running_front, front_idx, running_fronts[unresolved_front_idx])
@@ -369,12 +381,12 @@ end
 function reconcile_front!(running_fronts, f2_idx, 
         frame, f1_idx::Int, 
         rf::RunningFront, 
-        max_jitter)::Tuple{RF_RFM_NOTHING,Int,Union{RF,RFM}}
+        const_jitter, vel_jitter)::Tuple{RF_RFM_NOTHING,Union{Int,Nothing},Union{RF,RFM}}
     @assert f1_idx != f2_idx
     f1 = frame[[f1_idx]]
     f2 = frame[[f2_idx]]
-    f1_continues_rf = front_continues_rf(f1, rf, max_jitter)
-    f2_continues_rf = front_continues_rf(f2, rf, max_jitter)
+    f1_continues_rf = front_continues_rf(f1, rf, const_jitter, vel_jitter)
+    f2_continues_rf = front_continues_rf(f2, rf, const_jitter, vel_jitter)
     if f1_continues_rf && !f2_continues_rf
         running_fronts[f1_idx] = extend_running_front(rf, f1)
         return (nothing, f2_idx, running_fronts[f1_idx])
@@ -382,9 +394,16 @@ function reconcile_front!(running_fronts, f2_idx,
         running_fronts[f1_idx] = start_running_front(f1)
         return (rf, f2_idx, running_fronts[f1_idx])
     elseif f1_continues_rf && f2_continues_rf
-        #@warn "Ambiguous front continuation!"
-        running_fronts[f1_idx] = extend_running_front(rf, f1)
-        return (nothing, f2_idx, running_fronts[f1_idx])
+        @warn "Ambiguous front continuation! reconciling F"
+        # @show f1, f2, rf
+        if abs(predict_location(rf) - _front_loc(f1)) <= abs(predict_location(rf) - _front_loc(f2))
+            running_fronts[f1_idx] = extend_running_front(rf, f1)
+            return (nothing, f2_idx, running_fronts[f1_idx])
+        else
+            running_fronts[f1_idx] = start_running_front(f1)
+            running_fronts[f2_idx] = extend_running_front(rf, f2)
+            return (nothing, nothing, running_fronts[f2_idx])
+        end
     else
         running_fronts[f1_idx] = start_running_front(f1)
         return (nothing, f2_idx, running_fronts[f1_idx])
@@ -398,34 +417,34 @@ function continue_fronts!(running_fronts::AxisVector,
         frame::AxisVector, 
         return_fn::Function, 
         d1_ghost_op, slope_min, 
-        max_jitter)::Bool
+        const_jitter, vel_jitter)::Bool
     deriv!(dframe, frame, d1_ghost_op)
     locations = axes_keys(frame) |> only
     prev_slope = dframe[begin]
     preceding_running_front = nothing
     unresolved_front_idx = nothing
-    for idx in LinearIndices(locations)[begin+1:end-1]
+    for idx in LinearIndices(locations)[begin+2:end-2]
         this_running_front = running_fronts[idx]
         running_fronts[idx] = nothing
         preceding_running_front, unresolved_front_idx, new_rf = reconcile_running_front!(running_fronts, this_running_front, 
                  dframe, unresolved_front_idx, 
-                 preceding_running_front, max_jitter)
+                 preceding_running_front, const_jitter, vel_jitter)
         return_fn(new_rf) && return true
-        prev_slope, slope, next_slope = dframe[idx-1:idx+1]
+        p2_slope, prev_slope, slope, next_slope, n2_slope = dframe[idx-2:idx+2]
         if abs(slope) > slope_min &&
-                (prev_slope < slope >= next_slope) || 
-                (prev_slope > slope <= next_slope)
+                ((p2_slope <= prev_slope < slope >= next_slope >= n2_slope) || 
+                (p2_slope >= prev_slope > slope <= next_slope <= n2_slope))
             preceding_running_front, unresolved_front_idx, new_rf = reconcile_front!(running_fronts, idx, 
                     dframe, unresolved_front_idx,
                     preceding_running_front, 
-                    max_jitter
+                    const_jitter, vel_jitter
                 )
             return_fn(new_rf) && return true
         end
     end
     if !isnothing(unresolved_front_idx)
         if !isnothing(preceding_running_front) &&
-            front_continues_rf(dframe[[unresolved_front_idx]], preceding_running_front, max_jitter)
+            front_continues_rf(dframe[[unresolved_front_idx]], preceding_running_front, const_jitter, vel_jitter)
             running_fronts[unresolved_front_idx] = extend_running_front( preceding_running_front, dframe[[unresolved_front_idx]])
         else
             running_fronts[unresolved_front_idx] = start_running_front(dframe[[unresolved_front_idx]])
@@ -448,11 +467,16 @@ export MinimalPropagationClassification
 struct MinimalPropagationClassification <: AbstractExecutionClassifications
     has_propagation::Bool
 end
-MinimalPropagationClassification(::Union{AugmentedExecution,ReducedExecution}; kwargs...) = error("MinimalPropagationClassification should not be pre-reduced")
+MinimalPropagationClassification(::AbstractExecution; kwargs...) = error("MinimalPropagationClassification should not be pre-reduced")
+function MinimalPropagationClassification(exec::AbstractExecution{T,SIM}) where {T,M,S,IV,ALG,DT,SV_IDX,CB<:Tuple{typeof(is_propagated),<:NamedTuple},GR,SIM<:Simulation{T,M,S,IV,ALG,DT,SV_IDX,CB,GR}}
+    # callback saved propagation
+    return MinimalPropagationClassification(exec.solution.p.has_propagation[1])
+end
 function MinimalPropagationClassification(l_frames::AbstractArray{<:AxisVector{T}},
         xs::AbstractArray, periodic; 
         slope_min=DEFAULT_SLOPE_MIN,
-        max_jitter=DEFAULT_MAX_JITTER,
+        const_jitter=DEFAULT_CONST_JITTER,
+        vel_jitter=DEFAULT_VEL_JITTER,
         min_dist_for_propagation
     ) where T
     has_traveled_dist(rf::RunningFront) = abs(rf.previous_location - rf.starting_location) >= min_dist_for_propagation
@@ -462,10 +486,10 @@ function MinimalPropagationClassification(l_frames::AbstractArray{<:AxisVector{T
     dframe_cache = copy(l_frames[1])
     running_fronts = AxisVector{RF_RFM_NOTHING}(RF_RFM_NOTHING[nothing for _ in xs], collect(xs))
     continue_fronts!(running_fronts, dframe_cache, l_frames[1],
-        return_fn, d1_ghost_op, slope_min, max_jitter)
+        return_fn, d1_ghost_op, slope_min, const_jitter, vel_jitter)
     for frame in l_frames[begin+1:end]
         if continue_fronts!(running_fronts, dframe_cache, 
-                frame, return_fn, d1_ghost_op, slope_min, max_jitter) 
+                frame, return_fn, d1_ghost_op, slope_min, const_jitter, vel_jitter) 
             return MinimalPropagationClassification(true)
         end
     end

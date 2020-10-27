@@ -224,10 +224,10 @@ function load_simulation_data_recent(data_root, prototype_name, nth::Int=0)
 end
 
 
-function load_ExecutionClassifications_recent(type::Type, prototype_name, offset_from_current=0; data_root = datadir(), kwargs...)
+function load_classifications_recent(prototype_name, offset_from_current=0; data_root = datadir(), kwargs...)
     recent_path = get_recent_simulation_data_path(joinpath(data_root, prototype_name), offset_from_current)
     #sim_name = splitpath(recent_path)[end] # SIM NAME UNHELPFUL FIXME
-    return (load_ExecutionClassifications(type, recent_path; kwargs...), nothing) 
+    return (load_classifications(recent_path, cls_sym; kwargs...), nothing) 
 end
 
 _is_varying(x::Nothing) = false
@@ -236,7 +236,7 @@ _is_varying(x::Number) = false
 
 # FIXME type can be either <:AbstractArray or DataFrame -- should impact return type
 # not sure why it was necessary... never actually implemented
-function load_ExecutionClassifications(type::Type, data_path)
+function load_classifications(data_path)
     mdb = load_simulation_data(data_path)
     mods = get_mods(mdb)
 
@@ -248,12 +248,13 @@ function load_ExecutionClassifications(type::Type, data_path)
     init_mod_array(T) = NamedAxisArray{keys(varying_mods)}(Array{Union{Bool,Missing}}(undef, length.(values(varying_mods))...), values(varying_mods))
     #mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
     
-    
-    classification_names = fieldnames(ExecutionClassifications)
+    (first_mod, first_result) = first(MultiDBRowIter(mdb))
+    cls_sym, cls_type = get_cls_type(first_result)
+    classification_names = fieldnames(cls_type)
     classifications_A = Dict(name => init_mod_array(Bool) for name in classification_names) 
 
     for (this_mod, this_result) in MultiDBRowIter(mdb)
-        exec_classification = this_result[:wave_properties]
+        exec_classification = this_result[cls_sym]
         #A_idx = this_mod[varying_names]
         A_idx = NamedTuple{Tuple(varying_names)}(this_mod[varying_names])
         if exec_classification === missing
@@ -267,4 +268,14 @@ function load_ExecutionClassifications(type::Type, data_path)
         end
     end
     return classifications_A
+end
+
+function get_cls_type(example_result::NamedTuple{NAMES}) where NAMES
+    if :wave_properties ∈ NAMES
+        return (:wave_properties, ExecutionClassifications)
+    elseif :propagation ∈ NAMES
+        return (:propagation, MinimalPropagationClassification)
+    else
+        error("Unknown NamedTuple structure for execution classification")
+    end
 end

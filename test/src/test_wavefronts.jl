@@ -31,7 +31,6 @@ function make_traveling_wavefront_pair(;velocity, x_0, width, steepness, height)
 end
 
 traveling_parameters = (velocity_threshold=1e-4, n_traveling_frames_threshold=20)
-min_prop_parameters = (min_dist_for_propagation = 10.,)
 
 xs = -20.0:0.1:20.0
 ts = 0.0:0.1:20.0
@@ -76,6 +75,7 @@ end
 
 
 @testset "Toy traveling fronts detection (persistent fronts method)" begin
+
     traveling_increasing_wavefront = [AxisArray(traveling_increasing_wavefront_fn.(xs, t), xs) for t in ts]
     traveling_decreasing_wavefront = [AxisArray(traveling_decreasing_wavefront_fn.(xs, t), xs) for t in ts]
     traveling_pair = [AxisArray(traveling_pair_fn.(xs, t), xs) for t in ts]
@@ -117,7 +117,7 @@ end
 
     @testset "MinimalPropagationClassification" begin
         minprop(wavefront) = MinimalPropagationClassification(wavefront,
-                            xs, true; min_prop_parameters...).has_propagation
+                            xs, true;  min_dist_for_propagation = 10.).has_propagation
         
         @test minprop(traveling_increasing_wavefront) == true
         @test minprop(traveling_decreasing_wavefront) == true
@@ -163,14 +163,18 @@ end
 
 
 @testset "WCM execution classifications" begin
+    wcm_n_lattice = 512
+    wcm_x_lattice = 1800.0
+    wcm_dx = wcm_x_lattice / wcm_n_lattice
+    general_mods = (n_lattice=wcm_n_lattice, x_lattice=wcm_x_lattice, 
+        step_reduction=nothing)
+    wcm_dist_for_prop = wcm_x_lattice * 0.1
+    min_prop_parameters = (min_dist_for_propagation = wcm_dist_for_prop, const_jitter = wcm_dx * 2,
+            vel_jitter = 1.)
 
     # view with: Simulation73Plotting.animate_execution("$(tempname()).mp4", EXEC_VARIABLE)
 
     @testset "Localized parameterizations" begin
-        wcm_x_lattice = 1800.0
-        general_mods = (n_lattice=512, x_lattice=wcm_x_lattice, 
-             step_reduction=nothing)
-        wcm_dist_for_prop = wcm_x_lattice * 0.1
 
         prototype_name = "ring_blocking"
         line_prototype = get_prototype(prototype_name)
@@ -198,7 +202,7 @@ end
             @test localized_exec_cls.has_propagation == false
         end
         @testset "MinimalPropagationClassification" begin
-            min_prop_cls = MinimalPropagationClassification(localized_exec; min_dist_for_propagation = wcm_dist_for_prop)
+            min_prop_cls = MinimalPropagationClassification(localized_exec; min_prop_parameters...)
             @test min_prop_cls.has_propagation == false
         end
     end
@@ -219,8 +223,8 @@ end
         end
 
         @testset "MinimalPropagationClassification" begin
-            min_prop_cls = MinimalPropagationClassification(expanding_front_exec; min_prop_parameters...)
-            @test min_prop_cls.has_propagation == true
+            expanding_front_min_prop_cls = MinimalPropagationClassification(expanding_front_exec; min_prop_parameters...)
+            @test expanding_front_min_prop_cls.has_propagation == true
         end
 
         
