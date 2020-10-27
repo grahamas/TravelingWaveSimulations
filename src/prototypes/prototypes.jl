@@ -19,8 +19,10 @@ prototypes_dict["ring_monotonic"] = (
                   stim_radius=14.0,
                   stim_duration=7.0,
                   pop_names = ("E", "I"),
-                  velocity_threshold=1e-7,
-                  n_traveling_frames_threshold=50,
+                  min_dist_for_propagation=x_lattice * 0.4,
+                  const_jitter = (x_lattice / n_lattice) * 3,
+                  vel_jitter = 1.5,
+                  slope_min=1e-4,
                   α = (1.0, 1.0),
                   β = (1.0, 1.0),
                   τ = (3.0, 3.0),
@@ -46,14 +48,15 @@ prototypes_dict["ring_monotonic"] = (
                   tspan = (0.0,stop_time),
                   algorithm=Tsit5(),
                   save_idxs=nothing,
-				  dt=0.1,
-                  step_reduction=(reduce_to_fronts(save_idxs, space), front_array_type),
-                  global_reduction = (sol) -> reduce_to_wave_properties(sol; 
-                                                                        velocity_threshold = velocity_threshold,
-                                                                        n_traveling_frames_threshold = n_traveling_frames_threshold),
-                  callback=terminate_when_E_fully_propagates(save_idxs, 
-                                                             proportion_full=X_PROP, 
-                                                             min_time=0.1), 
+                  dt=0.1,
+                  callback = (
+                      is_propagated,
+                    (min_dist_for_propagation=min_dist_for_propagation,
+                     slope_min=slope_min, const_jitter=const_jitter,
+                     vel_jitter=vel_jitter)
+                  ),
+                  global_reduction = already_reduced_to_min_propagation_cls,
+                  save_on=false,
                   other_opts...
             ) -> begin
     Simulation(
@@ -71,9 +74,9 @@ prototypes_dict["ring_monotonic"] = (
         dt=dt,
         algorithm = algorithm,
         save_idxs = save_idxs,
-        step_reduction = step_reduction,
         global_reduction = global_reduction,
         callback = callback,
+        save_on=save_on,
         other_opts...
     )
 end

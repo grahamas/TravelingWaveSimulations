@@ -20,9 +20,11 @@ end
 
 function init_results_tuple(pkeys::Array{Symbol}, results::NamedTuple{NAMES,TYPES}, init_length=0) where {NAMES,TYPES}
     N = length(pkeys)
-    ALL_NAMES = Tuple([pkeys...,NAMES...])
-    ARR_TYPES = Tuple{[Array{Float64,1} for _ in 1:N]..., [Array{Union{Missing,TYPE},1} for TYPE in TYPES.parameters]...}
-    empty_arrs = [[Vector{Float64}(undef,init_length) for _ in 1:N]..., [Vector{Union{Missing,TYPE}}(undef, init_length) for TYPE in TYPES.parameters]...]
+    param_names = [name for name in NAMES if typeof(results[name]) <: Union{Missing,Number,Bool,AbstractExecutionClassifications}]
+    param_types = [type for type in TYPES.parameters if type <: Union{Missing,Number,Bool,AbstractExecutionClassifications}]
+    ALL_NAMES = Tuple([pkeys...,param_names...])
+    ARR_TYPES = Tuple{[Array{Float64,1} for _ in 1:N]..., [Array{Union{Missing,TYPE},1} for TYPE in param_types]...}
+    empty_arrs = [[Vector{Float64}(undef,init_length) for _ in 1:N]..., [Vector{Union{Missing,TYPE}}(undef, init_length) for TYPE in param_types]...]
     NamedTuple{ALL_NAMES,ARR_TYPES}(empty_arrs)
 end
 
@@ -66,12 +68,12 @@ function setindex_namedtuple!(tup_arrs::NamedTuple, arr::Vector{<:NamedTuple}, i
 end
 
 function append_namedtuple_arr!(target_tup::NamedTuple, arr::Array{<:NamedTuple, 1})
-    for key in keys(arr[1])
+    for key in keys(target_tup)
         append!(target_tup[key], [nt[key] for nt in arr])
     end
     return target_tup
 end
 
 function init_missing_data(sample_data::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
-     NamedTuple{NAMES}([missing for _ in NAMES])
+     NamedTuple{NAMES}([missing for name in NAMES if typeof(sample_data[name]) <: Union{Missing,Number,Bool,AbstractExecutionClassifications}])
 end

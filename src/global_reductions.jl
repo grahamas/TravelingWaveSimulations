@@ -6,3 +6,18 @@ function reduce_to_wave_properties(sol; classification_kwargs...)
         (wave_properties=ExecutionClassifications(sol; classification_kwargs...),)
     end
 end
+
+
+function reduce_to_min_propagation_cls(sol; kwargs...)
+    if sol.prob.p isa Union{NamedTuple,Dict}
+        (sol.prob.p..., propagation=MinimalPropagationClassification(sol; kwargs...),)
+    else
+        @show sol.prob.p
+        (propagation=MinimalPropagationClassification(sol; kwargs...),)
+    end
+end
+
+export already_reduced_to_min_propagation_cls
+function already_reduced_to_min_propagation_cls(sol)
+    (sol.prob.p..., propagation=MinimalPropagationClassification(sol.prob.p.has_propagation |> only))
+end
