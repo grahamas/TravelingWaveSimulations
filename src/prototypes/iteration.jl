@@ -96,7 +96,7 @@ function iterate_prototype(prototype::Function,
         these_mods = modifications[i]
         new_sim = prototype(; these_mods...)        
         pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
-        remake(prob, p=pkeys_nt, f=convert(ODEFunction{true},make_system_mutator(new_sim)))
+        remake(prob, p=merge(prob.p, pkeys_nt), f=convert(ODEFunction{true},make_system_mutator(new_sim)))
     end
     ensemble_solution = solve(initial_simulation, ensemble_solver; 
                               prob_func=prob_function, 

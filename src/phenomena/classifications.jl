@@ -394,7 +394,7 @@ function reconcile_front!(running_fronts, f2_idx,
         running_fronts[f1_idx] = start_running_front(f1)
         return (rf, f2_idx, running_fronts[f1_idx])
     elseif f1_continues_rf && f2_continues_rf
-        @warn "Ambiguous front continuation! reconciling F"
+        #@warn "Ambiguous front continuation! reconciling F"
         # @show f1, f2, rf
         if abs(predict_location(rf) - _front_loc(f1)) <= abs(predict_location(rf) - _front_loc(f2))
             running_fronts[f1_idx] = extend_running_front(rf, f1)
@@ -463,6 +463,17 @@ end
 # continue_fronts!(running_fronts, frame, return_fn(::RunningFront)::Union{STHG,Nothing})::Union{STHG,Nothing}
 # Not really a classification....
 
+function is_propagated(u, t, integrator)
+    # return true if is_propagated, or is completely flat
+    p = integrator.p
+    propagated = continue_fronts!(p.running_fronts, p.dframe_cache, population(u,1), p.return_fn, p.d1_ghost_op, p.slope_min, p.const_jitter, p.vel_jitter)
+    if propagated
+        integrator.p.has_propagation[1] = true 
+    end
+    flattened = (all(abs.(p.dframe_cache) .< sqrt(eps())) && t > 1.0)  
+    return propagated || flattened
+end
+
 export MinimalPropagationClassification
 struct MinimalPropagationClassification <: AbstractExecutionClassifications
     has_propagation::Bool
@@ -517,3 +528,4 @@ function MinimalPropagationClassification(sol::DiffEqBase.AbstractTimeseriesSolu
     xs = axes_keys(first(l_frames))[1]
     MinimalPropagationClassification(l_frames, xs, true; kwargs...)
 end
+

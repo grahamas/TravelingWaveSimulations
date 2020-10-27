@@ -4,7 +4,8 @@ using Simulation73: population_repeat
 using TravelingWaveSimulations: get_velocities, substantial_fronts, 
     detect_all_fronts, link_persistent_fronts, slope_loc, slope_val,
     ExecutionClassifications, get_prototype, execute_single_modification,
-    Wavefront, MinimalPropagationClassification
+    Wavefront, MinimalPropagationClassification,
+    already_reduced_to_min_propagation_cls
 
 # from NeuralModels/src/nonlinearity.jl
 function _simple_sigmoid_fn(x, a, theta)
@@ -181,7 +182,7 @@ end
         localized_mods = (Aee=40.0,Aei=200.0, Aie=73.0, 
             blocking_θI=25.0,
             θE=6.0,firing_θI=7.0, 
-            other_opts=Dict())
+            other_opts=Dict(), save_on=true)
         (_, localized_exec) = execute_single_modification(line_prototype, merge(general_mods, localized_mods))
 
         # @testset "WaveClassification internals on localized WCM example" begin
@@ -213,7 +214,7 @@ end
         line_prototype = get_prototype(prototype_name)
         expanding_front_mods = (Aee=150.0,Aei=50.0, Aie=73.0, 
             blocking_θI=25.0,
-            θE=6.0,firing_θI=7.0, 
+            θE=6.0,firing_θI=7.0, save_on=true,
             other_opts=Dict())
         (_, expanding_front_exec) = execute_single_modification(line_prototype, merge(general_mods, expanding_front_mods))
 
@@ -228,6 +229,30 @@ end
         end
 
         
+    end
+
+    @testset "MinimalPropagationClassification on-line defaults" begin
+        prototype_name = "ring_blocking"
+        line_prototype = get_prototype(prototype_name)
+        localized_mods = (Aee=40.0,Aei=200.0, Aie=73.0, 
+            blocking_θI=25.0,
+            θE=6.0,firing_θI=7.0, 
+            other_opts=Dict())
+        (_, localized_exec) = execute_single_modification(line_prototype, merge(general_mods, localized_mods))
+
+        localized_min_prop_cls = already_reduced_to_min_propagation_cls(localized_exec.solution)
+        @test localized_min_prop_cls.propagation.has_propagation == false
+
+        prototype_name = "ring_blocking"
+        line_prototype = get_prototype(prototype_name)
+        expanding_front_mods = (Aee=150.0,Aei=50.0, Aie=73.0, 
+            blocking_θI=25.0,
+            θE=6.0,firing_θI=7.0,
+            other_opts=Dict())
+        (_, expanding_front_exec) = execute_single_modification(line_prototype, merge(general_mods, expanding_front_mods))
+
+        expanding_front_min_prop_cls = already_reduced_to_min_propagation_cls(expanding_front_exec.solution)
+        @test expanding_front_min_prop_cls.propagation.has_propagation == true
     end
 
     # # This case is ambiguous

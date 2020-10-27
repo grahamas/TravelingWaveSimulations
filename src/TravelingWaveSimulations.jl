@@ -22,10 +22,12 @@ include("phenomena/waveforms.jl")
 include("phenomena/wavefronts.jl")
 include("phenomena/persistent_waveforms.jl")
 include("phenomena/classifications.jl")
-export ExecutionClassifications
+export ExecutionClassifications, MinimalPropagationClassification
 
 include("callbacks.jl")
-export terminate_when_E_fully_propagates
+export terminate_when_E_fully_propagates, is_propagated
+
+
 export front_array_type, reduce_to_fronts
 include("global_reductions.jl")
 export reduce_to_wave_properties

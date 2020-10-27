@@ -16,3 +16,8 @@ function reduce_to_min_propagation_cls(sol; kwargs...)
         (propagation=MinimalPropagationClassification(sol; kwargs...),)
     end
 end
+
+export already_reduced_to_min_propagation_cls
+function already_reduced_to_min_propagation_cls(sol)
+    (sol.prob.p..., propagation=MinimalPropagationClassification(sol.prob.p.has_propagation |> only))
+end
