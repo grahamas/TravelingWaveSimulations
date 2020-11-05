@@ -43,7 +43,7 @@ function Simulation73.handle_callback(sim::Simulation{T,M,S,IV,ALG,DT,SV_IDX,CB,
     xs = frame_xs(sim)
     d1_ghost_op = make_ghost_op(T, xs, 1, sim.space isa PeriodicLattice)
     dframe_cache = AxisArray(rand(size(xs)...), xs)
-    running_fronts = AxisVector{RF_RFM_NOTHING}(RF_RFM_NOTHING[nothing for _ in xs], collect(xs))
+    running_fronts = AxisVector{RF_possibilities(T)}(RF_possibilities(T)[nothing for _ in xs], collect(xs))
     p = merge((running_fronts=running_fronts, dframe_cache=dframe_cache, return_fn=has_traveled_dist, d1_ghost_op=d1_ghost_op, has_propagation=[false]), nt)
     cb = DiscreteCallback(fn, terminate!)
     return (p, cb)

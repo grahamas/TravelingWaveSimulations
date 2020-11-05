@@ -1,7 +1,6 @@
 
 const DEFAULT_SLOPE_MIN = 1e-4
-const DEFAULT_CONST_JITTER = 10.
-const DEFAULT_VEL_JITTER = 0.5
+const DEFAULT_VEL_JITTER = 1.5
 
 ### Single wave measurements across time ###
 
@@ -243,9 +242,12 @@ struct RunningFront{T_VAL, VEL<:Union{T_VAL,Missing}, T_LOC}
     previous_velocity::VEL
     slope::T_VAL
 end
-const RF = RunningFront{Float64, Float64, Float64}
-const RFM = RunningFront{Float64, Missing, Float64}
-const RF_RFM_NOTHING = Union{RF, RFM, Nothing}
+
+RF_vel_missing(::Type{RunningFront{T1,_,T2}}) where {T1,T2} = RunningFront{T1,Missing,T2}
+RF_possibilities(::Type{RF}) where {T1,V,T2,RF<:RunningFront{T1, V, T2}} = Union{RF,RF_vel_missing(RF), Nothing}
+RF_possibilities(::Type{T}) where {T<:Number} = Union{RunningFront{T,T,T},RunningFront{T,Missing,T},Nothing}
+
+
 _front_loc(front::AxisArray) = axes_keys(front) |> only |> only
 _front_slope(front::AxisArray) = only(front)
 predict_location(rf::RunningFront{T,T}) where T = rf.previous_location + rf.previous_velocity
@@ -331,7 +333,7 @@ function reconcile_running_front!(running_fronts,
                                     rf2::RunningFront,
                                     frame, front_idx::Int,
                                     rf1::RunningFront,
-                                    const_jitter, vel_jitter)::Tuple{Union{RF,RFM,Nothing},Union{Int,Nothing},Union{RF,RFM,Nothing}}
+                                    const_jitter, vel_jitter)#::Tuple{Union{RF,RFM,Nothing},Union{Int,Nothing},Union{RF,RFM,Nothing}}
     # Now we have RF1 F RF2  (actually! could be F RF1 RF2, but works anyway)
     @assert rf1 != rf2
     f = frame[[front_idx]]
@@ -381,7 +383,7 @@ end
 function reconcile_front!(running_fronts, f2_idx, 
         frame, f1_idx::Int, 
         rf::RunningFront, 
-        const_jitter, vel_jitter)::Tuple{RF_RFM_NOTHING,Union{Int,Nothing},Union{RF,RFM}}
+        const_jitter, vel_jitter)#::Tuple{RF_possibilities,Union{Int,Nothing},Union{RF,RFM}}
     @assert f1_idx != f2_idx
     f1 = frame[[f1_idx]]
     f2 = frame[[f2_idx]]
@@ -486,7 +488,7 @@ end
 function MinimalPropagationClassification(l_frames::AbstractArray{<:AxisVector{T}},
         xs::AbstractArray, periodic; 
         slope_min=DEFAULT_SLOPE_MIN,
-        const_jitter=DEFAULT_CONST_JITTER,
+        const_jitter=2abs(xs[2] - xs[1]),  # typically a few dx
         vel_jitter=DEFAULT_VEL_JITTER,
         min_dist_for_propagation
     ) where T
@@ -495,7 +497,7 @@ function MinimalPropagationClassification(l_frames::AbstractArray{<:AxisVector{T
     return_fn = has_traveled_dist
     d1_ghost_op = make_ghost_op(T, xs, 1, periodic)
     dframe_cache = copy(l_frames[1])
-    running_fronts = AxisVector{RF_RFM_NOTHING}(RF_RFM_NOTHING[nothing for _ in xs], collect(xs))
+    running_fronts = AxisVector{RF_possibilities(T)}(RF_possibilities(T)[nothing for _ in xs], collect(xs))
     continue_fronts!(running_fronts, dframe_cache, l_frames[1],
         return_fn, d1_ghost_op, slope_min, const_jitter, vel_jitter)
     for frame in l_frames[begin+1:end]
