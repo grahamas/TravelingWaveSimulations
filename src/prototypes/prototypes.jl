@@ -90,7 +90,31 @@ prototypes_dict["ring_blocking"] = (args...;
                   aE=1.2,
                   nonlinearity = PopulationActionsParameters(
                                      RectifiedSigmoidNonlinearity(a=aE, θ=θE),
-                                     DifferenceOfSigmoids(
+                                     DifferenceOfSigmoidsParameter(
+                                        firing_θ = firing_θI,
+                                        firing_a = firing_aI,
+                                        blocking_θ = blocking_θI,
+                                        blocking_a = blocking_aI
+                                     )
+                  ),
+                  kwargs...) -> begin
+prototypes_dict["ring_monotonic"](args...;
+                                    θE = θE,
+                                    aE = aE,
+                                    nonlinearity=nonlinearity,
+                                    kwargs...)
+end   
+
+prototypes_dict["ring_normed_blocking"] = (args...;
+                  blocking_θI=10.0,
+                  blocking_aI=1.0,
+                  firing_θI=7.0,
+                  firing_aI=1.0,
+                  θE=6.0,
+                  aE=1.2,
+                  nonlinearity = PopulationActionsParameters(
+                                     RectifiedSigmoidNonlinearity(a=aE, θ=θE),
+                                     NormedDifferenceOfSigmoidsParameter(
                                         firing_θ = firing_θI,
                                         firing_a = firing_aI,
                                         blocking_θ = blocking_θI,
@@ -104,6 +128,80 @@ prototypes_dict["ring_monotonic"](args...;
                                     nonlinearity=nonlinearity,
                                     kwargs...)
 end    
+
+prototypes_dict["harris_ermentrout"] = (N_ARR=1,N_CDT=1,P=2; 
+                  stop_time=ABS_STOP,
+                  Aee=1., See=25.0,
+                  Aii=0.25, Sii=27.0,
+                  Aie=1., Sie=25.0,
+                  Aei=1.5, Sei=27.0,
+                  n_lattice=512, x_lattice=1400.0, 
+                  aE=1.0, θE=0.125,
+                  aI=1.0, θI=0.4,
+                  stim_strength=0.5,
+                  stim_radius=14.0,
+                  stim_duration=7.0,
+                  pop_names = ("E", "I"),
+                  min_dist_for_propagation=x_lattice * 0.4,
+                  const_jitter = (x_lattice / n_lattice) * 3,
+                  vel_jitter = 1.5,
+                  slope_min=1e-4,
+                  α = (1.0, 1.0),
+                  β = (1.0, 1.0),
+                  τ = (1.0, 0.4),
+                  nonlinearity = pops(RectifiedSigmoidNonlinearity;
+                      θ = [θE, θI],
+                      a = [aE, aI]
+                  ),
+                  stimulus = pops(CircleStimulusParameter;
+                      strength = [stim_strength, stim_strength],
+                      radius = [stim_radius, stim_radius],
+                      time_windows = [[(0.0, stim_duration)], [(0.0, stim_duration)]],
+                      baseline=[0.0, 0.0]
+                  ),
+                  connectivity = FFTParameter(pops(GaussianConnectivityParameter;
+                      amplitude = [Aee -Aei;
+                                   Aie -Aii],
+                      spread = [(See,) (Sei,);
+                                (Sie,) (Sii,)]
+                     )
+                  ),
+                  space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_lattice,), 
+                                                           extent=(x_lattice,)),
+                  tspan = (0.0,stop_time),
+                  algorithm=Tsit5(),
+                  save_idxs=nothing,
+                  callback = (
+                      is_propagated,
+                    (min_dist_for_propagation=min_dist_for_propagation,
+                     slope_min=slope_min, const_jitter=const_jitter,
+                     vel_jitter=vel_jitter)
+                  ),
+                  global_reduction = already_reduced_to_min_propagation_cls,
+                  save_on=false,
+                  other_opts...
+            ) -> begin
+    Simulation(
+        WCMSpatial{N_CDT,P}(;
+            pop_names = pop_names,
+            α = α,
+            β = β,
+            τ = τ,
+            nonlinearity = nonlinearity,
+            stimulus = stimulus,
+            connectivity = connectivity
+           );
+        space = space,
+        tspan = tspan,
+        dt=dt,
+        algorithm = algorithm,
+        save_idxs = save_idxs,
+        global_reduction = global_reduction,
+        callback = callback,
+        save_on=save_on,
+        other_opts...
+    )
+end
 
 #prototypes_dict["dos_ring_absconn"] = (args...;
 #                  Aee=70.0, See=25.0,
