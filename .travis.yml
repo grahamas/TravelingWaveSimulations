@@ -4,14 +4,14 @@ julia:
 os:
     - linux
 install:
-    git clone https://github.com/grahamas/Simulation73.git
-    git clone https://github.com/grahamas/NeuralModels.git
-    git clone https://github.com/grahamas/WilsonCowanModel.git
-    git clone https://github.com/grahamas/AxisIndices.jl.git
-    git clone https://github.com/SciML/DiffEqOperators.jl.git
-    git -C AxisIndices.jl checkout old_logical_indexing
-    git -C DiffEqOperators.jl checkout a08a6cd8da4561b838a63f919b3fae77a833ed90
-    julia --project -e 'using Pkg; 
+    - git clone https://github.com/grahamas/Simulation73.git
+    - git clone https://github.com/grahamas/NeuralModels.git
+    - git clone https://github.com/grahamas/WilsonCowanModel.git
+    - git clone https://github.com/grahamas/AxisIndices.jl.git
+    - git clone https://github.com/SciML/DiffEqOperators.jl.git
+    - git -C AxisIndices.jl checkout old_logical_indexing
+    - git -C DiffEqOperators.jl checkout a08a6cd8da4561b838a63f919b3fae77a833ed90
+    - julia --project -e 'using Pkg; 
       deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "AxisIndices.jl", "DiffEqOperators.jl"]]; 
       Pkg.develop(deps);
       Pkg.build()'
