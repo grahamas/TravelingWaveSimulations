@@ -7,36 +7,29 @@ install:
     - git clone https://github.com/grahamas/Simulation73.git
     - git clone https://github.com/grahamas/NeuralModels.git
     - git clone https://github.com/grahamas/WilsonCowanModel.git
-    - git clone https://github.com/grahamas/FindPDE.git
     - git clone https://github.com/grahamas/AxisIndices.jl.git
     - git clone https://github.com/SciML/DiffEqOperators.jl.git
     - git -C AxisIndices.jl checkout old_logical_indexing
+    - git -C DiffEqOperators.jl checkout a08a6cd8da4561b838a63f919b3fae77a833ed90
     - julia --project -e 'using Pkg; 
-      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE", "AxisIndices.jl", "DiffEqOperators.jl"]]; 
+      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "AxisIndices.jl", "DiffEqOperators.jl"]]; 
       Pkg.develop(deps);
       Pkg.build()'
 script:
-      travis_wait 30 julia --project -e 'using Pkg; Pkg.test(coverage=true)'
-jobs:
-  include:
-  - stage: Documentation
-    script:
-    - travis_wait 30 julia --project=docs/ -e 'using Pkg; 
-      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["", "Simulation73", "NeuralModels", "WilsonCowanModel", "FindPDE"]]; 
-      Pkg.develop(deps);
-      Pkg.build();
-      include("docs/make.jl")'
-    after_success: skip
+      travis_wait 30 julia --project -e 'using Pkg; Pkg.test( )'
+# jobs:
+#   include:
+#   - stage: Documentation
+#     script:
+#     - travis_wait 30 julia --project=docs/ -e 'using Pkg; 
+#       deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["", "Simulation73", "NeuralModels", "WilsonCowanModel", "AxisIndices.jl", "DiffEqOperators.jl"]]; 
+#       Pkg.develop(deps);
+#       Pkg.build();
+#       include("docs/make.jl")'
+#     after_success: skip
 notifications:
   email: false
   slack:
     secure: ubVOHUzfPu9ksoRobKJigZAxwzevMXFt5QQEHOw5d/XAYICgLdu6tX73XcYGHAXW5kQpTmWnbHOp/VOEVeMjlVez4dD0BrTxdkkiW/emAv7hXZnkeMrtQQRypWMGl+OF1gFr2Bv7u1z8Ld6dNa/VFPfEEDXQR0/lGbXDDmZmhGSu1sZkTBmldBDh913agyazn588BdaQgx88JU8yr0pxNU4sX2Y6Ley3hhOuzURflUG2+PFxSQfpA01cUfW1Bt026D4GiLWZOITij9gOShE3WBOHpH5cy4kTEvaTeS1EbIh0ixMR/gYJQK3xgUYFLlUpRl9gU2ylLCgbPcb1mOPBF2aQEh7SaVQBKjJk2M8IYBnYVbEHKIzTo9H/4n2wukrkMAD8DlelElVw79J8ithCvPRmaAtRa4jqdi3ihnExjjg1rbYKI/Ixp9F5R8qwJ+oCdFRNpk/TDveoObs+uNwFr4jIs/eOhxgH5ShngzdHqU+cD3uAakJKzdoVv/2GN038SDf0Kt4ECGA2eLoI9inSdIuCbGCzDke4PQJPiU1HuatXYSKEvXk1X18x1YJz1/CWNvxVoGFGW9yWffXe7uG8LKGwi4HGjDJqBmyjGkKqFPYin2ppW3rUbE7U6FFId1Iy2lx98/eI/TAaLRzj8H+nNvuEZ+dOKRE/Uhl7XuktLDs=
     neuralmodeling#simulation73:
       secure: W0eUum7L8NZ4ARLoSWXqR+muXUO/SCvA4G82H2CQUsA1Mm6Mh5p4AtWPzBonSn9Suhc7GHR8xukg1kMjJJxUN7613B+hW2+5XeOQ5dxFMkB8x4DU0sDYkNErcJ78MlK29F4HlZfVgbMMyHbr2JiHmNfUGPPjA9826KQjsPXnzb4yp5gVc51XoC9sqK1BAT2bZ5vFo8kIk/CsHGLZ4GRGy0NAtR4t4ss/n3nh4qaW5Gnq6ih3/5YcSPuwk05Rrtv1/fRQl+vEqd+lV+RBN1iQpXdqRMtXwp6TiPIZosksEfGSoIrhkdKQr5B/beWbkfghdbdYTPahVj/9eBfAAeBp/9D2VkM4lHhQZBL5vioQ7vhVF2PwS2kaOx5lx8nSdzvFAb+3j0sCoaANvhS3JKaZ0pyGAzQU+H2JMnsHUG2VyCm/GOSp1Z7X3AAvbm7CppKmS0vDCQh8U8fDrtb3pJBro0qJ8cErZlmiByXUdmkaxnoOEZNeqA4K7GC9xrv6JwKND7RYL++u9PSkr6dDMNM7JxmeL3ipGEKBllHBIYp+zicG6y5c5ySc2pfIyPlo5FBswK5ys1UK7xLf8wKDoQhUThZ+S62QJpFlvDOy1k/JY8vBAsK9XrP2hr7P7n+d0NioDTl3RW00BlRFtpWJi/gQO8MkcpNge+YCLSSyiIOShBQ=
-deploy:
-  provider: pages
-  skip_cleanup: false
-  github_token: $GITHUB_TOKEN  # Set in the settings page of your repository, as a secure variable
-  keep_history: false
-  on:
-    branch: master

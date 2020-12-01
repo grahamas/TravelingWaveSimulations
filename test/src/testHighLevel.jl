@@ -9,5 +9,6 @@ using Test, TravelingWaveSimulations
         n_lattice=128, x_lattice=300.0,
         other_opts=Dict())
     (mod_name, exec) = @test_nowarn execute_single_modification(line_prototype, these_mods)
-    wp = @test_nowarn ExecutionClassifications(exec)
+    wp = @test_nowarn ExecutionClassifications(exec; velocity_threshold=1e-4, n_traveling_frames_threshold=50)
+    mp = @test_nowarn MinimalPropagationClassification(exec; min_dist_for_propagation = 30.)
 end

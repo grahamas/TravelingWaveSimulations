@@ -243,7 +243,7 @@ struct RunningFront{T_VAL, VEL<:Union{T_VAL,Missing}, T_LOC}
     slope::T_VAL
 end
 
-RF_vel_missing(::Type{RunningFront{T1,_,T2}}) where {T1,T2} = RunningFront{T1,Missing,T2}
+RF_vel_missing(::Type{RunningFront{T1,IGN,T2}}) where {T1,T2,IGN} = RunningFront{T1,Missing,T2}
 RF_possibilities(::Type{RF}) where {T1,V,T2,RF<:RunningFront{T1, V, T2}} = Union{RF,RF_vel_missing(RF), Nothing}
 RF_possibilities(::Type{T}) where {T<:Number} = Union{RunningFront{T,T,T},RunningFront{T,Missing,T},Nothing}
 

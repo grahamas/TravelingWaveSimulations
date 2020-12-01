@@ -1,10 +1,10 @@
 iterate_prototype("ring_normed_blocking",
-                        ["Aee=40.0:32.0:350.0", "Aei=20.0:32.0:350.0",
+                        ["Aee=40.0:32.0:600.0", "Aei=20.0:32.0:400.0",
                          "Aie=15.0:32.0:250.0", "Aii=1.0:40.0:250.0",
                          "θE=6.0", "firing_θI=7.0",
                          "blocking_θI=9.0:2.0:30.0",
                          "stim_strength=2.0:2.0:20.0",
                          "x_lattice=2800.0", "n_lattice=512"],
-                        experiment_name="wider_strength_depthreshold_A",
+                        experiment_name="evenwider_strength_depthreshold_A",
                         data_root=data_root,
                         max_sims_in_mem=30000)
