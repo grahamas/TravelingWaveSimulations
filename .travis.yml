@@ -10,11 +10,8 @@ install:
     - git clone https://github.com/grahamas/AxisIndices.jl.git
     - git -C AxisIndices.jl checkout old_logical_indexing
     - julia --project -e 'using Pkg; 
-      custom_deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel"]]; 
-      Pkg.dev(custom_deps)
-      version_spec_deps=[PackageSpec(name="JuliaDB", version="0.9"), PackageSpec(name="DiffEqBase", version="6.44.3")];
-      Pkg.add([version_spec_deps]);
-      Pkg.dev(PackageSpec(path=joinpath(pwd(),"AxisIndices.jl")));
+      deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "AxisIndices.jl"]]; 
+      Pkg.develop(deps)
       Pkg.build()'
 script:
       travis_wait 30 julia --project -e 'using Pkg; Pkg.test( )'
