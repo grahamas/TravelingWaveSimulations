@@ -11,7 +11,7 @@ install:
     - git clone https://github.com/SciML/DiffEqOperators.jl.git
     - git -C AxisIndices.jl checkout old_logical_indexing
     - julia --project -e 'using Pkg; 
-      pkg"add JuliaDB@0.9 DiffEqBase@6.44.3"
+      pkg"add JuliaDB@0.9 DiffEqBase@6.44.3";
       deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "AxisIndices.jl", "DiffEqOperators.jl"]]; 
       Pkg.develop(deps);
       Pkg.build()'
