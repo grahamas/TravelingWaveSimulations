@@ -8,8 +8,9 @@ install:
     - git clone https://github.com/grahamas/NeuralModels.git
     - git clone https://github.com/grahamas/WilsonCowanModel.git
     - git clone https://github.com/grahamas/AxisIndices.jl.git
+    - git clone https://github.com/SciML/DiffEqOperators.jl.git
     - git -C AxisIndices.jl checkout old_logical_indexing
-    - git -C DiffEqOperators.jl checkout a08a6cd8da4561b838a63f919b3fae77a833ed90
+    - git -C DiffEqOperators.jl checkout e9f027d82209cb0263eb10ff0fe5de4be90b2065
     - julia --project -e 'using Pkg; 
       deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "AxisIndices.jl"]]; 
       Pkg.develop(deps);
