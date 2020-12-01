@@ -8,12 +8,13 @@ install:
     - git clone https://github.com/grahamas/NeuralModels.git
     - git clone https://github.com/grahamas/WilsonCowanModel.git
     - git clone https://github.com/grahamas/AxisIndices.jl.git
-    - git clone https://github.com/SciML/DiffEqOperators.jl.git
     - git -C AxisIndices.jl checkout old_logical_indexing
     - julia --project -e 'using Pkg; 
-      local_deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel", "AxisIndices.jl", "DiffEqOperators.jl"]]; 
-      version_deps=[PackageSpec(name="JuliaDB", version="0.9"), PackageSpec(name="DiffEqBase", version="6.44.3")];
-      Pkg.add([local_deps, version_deps]);
+      custom_deps=[PackageSpec(path=joinpath(pwd(), x)) for x in ["Simulation73", "NeuralModels", "WilsonCowanModel"]]; 
+      Pkg.dev(custom_deps)
+      version_spec_deps=[PackageSpec(name="JuliaDB", version="0.9"), PackageSpec(name="DiffEqBase", version="6.44.3")];
+      Pkg.add([version_spec_deps]);
+      Pkg.dev(PackageSpec(path=joinpath(pwd(),"AxisIndices.jl")));
       Pkg.build()'
 script:
       travis_wait 30 julia --project -e 'using Pkg; Pkg.test( )'
