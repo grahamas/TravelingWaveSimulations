@@ -28,6 +28,8 @@ WilsonCowanModel = "bdbc91b4-201b-11e9-2b98-89611552dcef"
 
 [compat]
 AxisIndices = ">= 0.4"
+DiffEqBase = "6.44.3"
+JuliaDB = "0.9"
 NeuralModels = "2"
 Simulation73 = "2.1"
 WilsonCowanModel = "2"
