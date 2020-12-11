@@ -27,26 +27,26 @@ function read_modifications_from_data_path(data_path)
         end
         return modifications_dict
     else
-        @warn "DEPRECATED: reading modifications from filename"
+        @warn "DEPRECATED: modifications file not found; reading from filename"
         return parse_modifications_filename(basename(data_path))
     end
 end
 
-function write_modifications!(dir, mods::AbstractVector{<:AbstractString}, unique_id="")
-    open(joinpath(dir, "$(unique_id)modifications.txt"), "w") do io
+function write_modifications!(dir, mods::AbstractVector{<:AbstractString})
+    open(joinpath(dir, modifications_prefix_filename), "w") do io
         println.(Ref(io), mods)
     end
 end
 write_modifications!(dir, mods::Union{Dict,NamedTuple}, args...) = write_modifications!(dir, [string(pair) for pair in pairs(mods)], args...)
 
 
-function init_data_path(modifications; data_root, prototype_name, 
-                                       experiment_name="",
-                                       unique_id="$(Dates.now())_$(gitdescribe())")
-    data_path = joinpath(data_root, prototype_name, experiment_name,
-                               unique_id)
+function init_data_path(modifications; data_root, 
+                prototype_name, 
+                experiment_name="",
+                unique_id="$(Dates.now())_$(gitdescribe())")
+    data_path = joinpath(data_root, prototype_name, experiment_name, unique_id)
     mkpath(data_path)
-    
+    write_modifications!(data_path, modifications)
     return data_path
 end
 
