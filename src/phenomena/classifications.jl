@@ -39,57 +39,6 @@ function WaveClassifications(pf::Persistent; kwargs...)
     WaveClassifications(measurements; kwargs...)
 end
 
-last_quartile_dxs(fin) = ((3*fin)÷4):fin
-
-function WaveClassifications(measurements::SpatiotemporalWaveMeasurements; 
-                                 velocity_threshold,
-                                 n_traveling_frames_threshold)
-    if length(measurements.maxes) < 4
-        # not long enough to be classified
-        return WaveClassifications(false, false, false, false, false, false, false)
-    end
-    traveling = is_traveling(measurements.velocities, velocity_threshold, n_traveling_frames_threshold)
-    unidirectional_travel = all(measurements.velocities .>= 0) || all(measurements.velocities .<= 0)
-    decaying = is_decaying(measurements.maxes)
-    growing = is_growing(measurements.maxes)
-    oscillating = is_oscillating(measurements.maxes)
-    positive_slope = measurements.slopes[1] > 0
-
-    WaveClassifications(
-        traveling,
-        traveling && all(measurements.velocities .> 0),
-        decaying,
-        growing, 
-        oscillating,
-        positive_slope,
-        unidirectional_travel #Are there other assumptions?
-    )
-end
-
-function is_traveling(velocities::Vector{<:AbstractFloat}, 
-                                 velocity_threshold,
-                                 n_traveling_frames_threshold)
-    sum(abs.(velocities) .> velocity_threshold) > n_traveling_frames_threshold
-end
-function is_decaying(maxes::Vector{<:AbstractFloat})
-    fin = length(maxes)
-    all(diff(maxes[last_quartile_dxs(fin)]) .<= -1e-8)
-end
-function is_growing(maxes::Vector{<:AbstractFloat})
-    fin = length(maxes)
-    all(diff(maxes[last_quartile_dxs(fin)]) .>= 1e-8)
-end
-function is_oscillating(maxes::Vector{<:AbstractFloat})
-    # Checks if, within the second half, at least a third
-    # are increasing, and a third decreasing
-    fin = length(maxes)
-    second_half = fin÷2:fin
-    abs_eps = 1e-10
-    just_increasing = maxes[second_half] .>= abs_eps
-    just_decreasing = maxes[second_half] .<= -abs_eps
-    min_num = length(second_half) ÷ 3
-    sum(just_increasing) > min_num && sum(just_decreasing) > min_num
-end
 
 ######################################
 ### Whole execution classification ###
@@ -109,127 +58,6 @@ function Base.show(io::IO, ec::ExecutionClassifications)
     nt = NamedTuple{Tuple(names)}(values)
     Base.show(io, nt)
 end
-function ExecutionClassifications(wavefronts::WS, 
-                                 ts::TS,
-                                 xs::XS,
-                                 final_frame::AbstractArray{T};
-                                 max_resting=5e-2,
-                                 origin_radius=20.0,
-                                 velocity_threshold,
-                                 n_traveling_frames_threshold) where {T,
-                                    WS <: AbstractVector{<:AbstractVector{<:Wavefront}},
-                                    TS <: AbstractVector{T},
-                                    XS <: AbstractVector{T}
-                                 }
-    @assert origin_radius < xs[end]
-    persistent_fronts = link_persistent_fronts(wavefronts, ts)
-    all_fronts_velocities = get_velocities.(persistent_fronts)
-    all_fronts_is_traveling = is_traveling.(all_fronts_velocities, velocity_threshold, n_traveling_frames_threshold)
-    has_propagation = any(all_fronts_is_traveling)
-
-    # pf_measurements = SpatiotemporalWaveMeasurements.(persistent_fronts)
-    # pf_classifications = WaveClassifications.(pf_measurements; wave_kwargs...)
-
-    # # TODO calculate first four bools with regard to propagation
-    # has_propagation = any(map((cls) -> cls.traveling, pf_classifications))
-    # has_oscillation = any(map((cls) -> cls.oscillating, pf_classifications))
-    # farthest_propagation_is_decaying, farthest_propagation_is_oscillating = if has_propagation
-    #     _, max_dx = findmax(map(x -> abs(x.distance), pf_measurements))
-    #     (pf_classifications[max_dx].decaying, pf_classifications[max_dx].oscillating)
-    # else
-    #     (false, false)
-    # end
-    # persistently_active_near_origin = check_has_activity_near_origin(population(final_frame, 1),
-    #                                                            #FIXME: E population assumption
-    #                                                            max_resting,
-    #                                                            xs,
-    #                                                           origin_radius)
-    # reaches_steady_state = if length(wavefronts[end]) == 0
-    #     true 
-    #     #FIXME: invalid if moving plateau... but that's fundamentally a steady state
-    #     # could also check ts... if it ends before cutoff, then it had to have reached
-    #     # steady state
-    # else
-    #     length(wavefronts[end]) == length(wavefronts[end-1]) && all(wavefronts[end] .== wavefronts[end-1]) 
-    # end
-    # ExecutionClassifications(
-    #     has_propagation,
-    #     has_oscillation,
-    #     farthest_propagation_is_decaying,
-    #     farthest_propagation_is_oscillating,
-    #     persistently_active_near_origin,
-    #     reaches_steady_state
-    # )
-    ExecutionClassifications(
-        has_propagation,
-        false,
-        false,
-        false,
-        false,
-        false
-    )
-end
-
-function implies_origin_activity(wavefront, max_resting, radius)
-    left, slope, right = points = left(wavefront), slope(wavefront), right(wavefront)
-    active_point_near_origin = any(map(points) do point
-        _val(point) > max_resting && (-radius <= _loc(point) <= radius)
-    end)
-    elevated_spanning_front = _loc(left) < -radius && _loc(right) > radius && _val(left) > max_resting && _val(right) > max_resting
-    return active_point_near_origin || elevated_spanning_front
-end
-
-
-function check_has_activity_near_origin(wavefronts::AbstractVector{<:Wavefront}, max_resting, xs, radius)
-    return any(implies_origin_activity.(wavefronts, Ref(max_resting), Ref(radius)))
-end
-
-function check_has_activity_near_origin(frame::AbstractVector{T}, max_resting, xs, radius) where {T <: Number}
-    left_dx = findfirst(xs .>= -radius)
-    right_dx = findfirst(xs .>= radius)
-    return any(frame[left_dx:right_dx] .> max_resting)
-end
-
-function ExecutionClassifications(exec::Execution; slope_min=DEFAULT_SLOPE_MIN, periodic=true, kwargs...)
-    @warn "should dispatch to solution"
-    l_frames = exec.solution.u
-    ts = timepoints(exec)
-    xs = frame_xs(exec)
-    l_frame_fronts = Vector{<:Wavefront{Float64}}[substantial_fronts(frame, periodic, slope_min) for frame in l_frames] #arr of arrs of fronts
-    final_frame = l_frames[end]
-    ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
-end
-
-# Handle case where already reduced to fronts
-function ExecutionClassifications(exec::AugmentedExecution{T,W}; kwargs...) where {T, W <: AbstractArray{<:Wavefront}}
-    @warn "should dispatch to solution"
-    @assert exec.solution.t[end] > 0.0 # Needs solution to have final frame
-    l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
-    xs = frame_xs(exec)
-    ExecutionClassifications(l_frame_fronts, exec.saved_values.t, xs, exec.solution.u[end]; kwargs...)
-end
-
-function ExecutionClassifications(exec::ReducedExecution{T,W}; kwargs...) where {T, W <: AbstractArray{<:Wavefront}}
-    @warn "should dispatch to solution"
-    error("Needs final frame, but given ReducedExecution with no frames")
-    @assert exec.solution.t[end] > 0.0 # Needs solution to have final frame
-    l_frame_fronts = exec.saved_values.saveval #arr of arrs of fronts
-    ExecutionClassifications(l_frame_fronts, exec.saved_values.t, exec.solution.u[end]; kwargs...)
-end
-
-using DiffEqBase
-function ExecutionClassifications(sol::DiffEqBase.AbstractTimeseriesSolution; slope_min=DEFAULT_SLOPE_MIN, periodic=true, kwargs...)
-    l_frames = sol.u
-    @assert l_frames[1] isa AxisArray
-    ts = sol.t
-    xs = keys.(axes(l_frames[1]))
-    @assert length(xs) == 2
-    xs = xs[1]
-    l_frame_fronts = Vector{<:Wavefront{Float64}}[substantial_fronts(frame, periodic, slope_min) for frame in l_frames]
-    final_frame = l_frames[end]
-    ExecutionClassifications(l_frame_fronts, ts, xs, final_frame; kwargs...)
-end
-
 
 
 ##################################
@@ -239,6 +67,7 @@ end
 struct RunningFront{T_VAL, VEL<:Union{T_VAL,Missing}, T_LOC}
     starting_location::T_LOC
     previous_location::T_LOC
+    previous_time::T_LOC
     previous_velocity::VEL
     slope::T_VAL
 end
@@ -250,30 +79,31 @@ RF_possibilities(::Type{T}) where {T<:Number} = Union{RunningFront{T,T,T},Runnin
 
 _front_loc(front::AxisArray) = axes_keys(front) |> only |> only
 _front_slope(front::AxisArray) = only(front)
-predict_location(rf::RunningFront{T,T}) where T = rf.previous_location + rf.previous_velocity
-predict_location(rf::RunningFront{T,Missing}) where T = rf.previous_location
-calc_jitter(rf::RunningFront{T,T}, const_jitter, vel_jitter) where T = const_jitter + abs(rf.previous_velocity) * vel_jitter
-calc_jitter(rf::RunningFront{T,Missing}, const_jitter, vel_jitter) where T = const_jitter
-function start_running_front(front::AxisArray)
+predict_location(rf::RunningFront{T,T}, current_time::T) where T = rf.previous_location + rf.previous_velocity * (current_time - rf.previous_time)
+predict_location(rf::RunningFront{T,Missing}, current_time) where T = rf.previous_location
+calc_jitter(rf::RunningFront{T,T}, current_time::T, const_jitter, vel_jitter) where T = const_jitter + abs(rf.previous_velocity * (current_time - rf.previous_time)) * vel_jitter
+calc_jitter(rf::RunningFront{T,Missing}, current_time, const_jitter, vel_jitter) where T = const_jitter
+function start_running_front(front::AxisArray, current_time)
     # Must be axisarray with only the slope at its location
     loc = _front_loc(front)
     val = _front_slope(front)
     #@info "Start at $loc"
-    RunningFront(loc, loc, missing, val)
+    RunningFront(loc, loc, current_time, missing, val)
 end
-function extend_running_front(rf::RunningFront, front::AxisArray)
+function extend_running_front(rf::RunningFront, front::AxisArray, current_time) 
     loc = _front_loc(front)
     val = _front_slope(front)
     #@info "Continue to $(loc): dist of $(rf.starting_location - loc)"
     RunningFront(
         rf.starting_location,
         loc,
-        loc - rf.previous_location,
+        current_time,
+        (loc - rf.previous_location) / (current_time - rf.previous_time),
         val
     )
 end
 
-function front_continues_rf(front, running_front, const_jitter, vel_jitter)
+function front_continues_rf(front, running_front, current_time, const_jitter, vel_jitter)
     """Return true if front can continue running_front.
         Needs:
             1. slope has same sign
@@ -286,8 +116,8 @@ function front_continues_rf(front, running_front, const_jitter, vel_jitter)
     end
 
     loc = _front_loc(front)
-    predicted_loc = predict_location(running_front)
-    jitter = calc_jitter(running_front, const_jitter, vel_jitter)
+    predicted_loc = predict_location(running_front, current_time)
+    jitter = calc_jitter(running_front, current_time, const_jitter, vel_jitter)
     if !(predicted_loc - jitter <= loc <= predicted_loc + jitter)
         return false
     end
@@ -308,6 +138,7 @@ end
 function reconcile_running_front!(running_fronts, new_running_front::Nothing,
                                     frame, unresolved_front_idx,
                                     preceding_running_front,
+                                    current_time,
                                     const_jitter, vel_jitter)
     # haven't come across RF2
     return (preceding_running_front, unresolved_front_idx, nothing)    
@@ -316,6 +147,7 @@ function reconcile_running_front!(running_fronts,
                                   new_running_front::RunningFront,
                                   frame, unresolved_front_idx,
                                   preceding_running_front::Nothing,
+                                  current_time,
                                   const_jitter, vel_jitter)
     # there's no RF1
     return (new_running_front, unresolved_front_idx, nothing)
@@ -324,6 +156,7 @@ function reconcile_running_front!(running_fronts,
                                     new_running_front::RunningFront,
                                     frame, unresolved_front_idx::Nothing,
                                     preceding_running_front::RunningFront,
+                                    current_time,
                                     const_jitter, vel_jitter)
     # There's no F in RF1 F RF2, so just set RF2 as the new preceding front.
     # (also note there can't be F RF1 RF2... RF1 is just orphaned)
@@ -333,29 +166,30 @@ function reconcile_running_front!(running_fronts,
                                     rf2::RunningFront,
                                     frame, front_idx::Int,
                                     rf1::RunningFront,
+                                    current_time,
                                     const_jitter, vel_jitter)#::Tuple{Union{RF,RFM,Nothing},Union{Int,Nothing},Union{RF,RFM,Nothing}}
     # Now we have RF1 F RF2  (actually! could be F RF1 RF2, but works anyway)
     @assert rf1 != rf2
     f = frame[[front_idx]]
-    f_continues_rf1 = front_continues_rf(f, rf1, const_jitter, vel_jitter)
-    f_continues_rf2 = front_continues_rf(f, rf2, const_jitter, vel_jitter)
+    f_continues_rf1 = front_continues_rf(f, rf1, current_time, const_jitter, vel_jitter)
+    f_continues_rf2 = front_continues_rf(f, rf2, current_time, const_jitter, vel_jitter)
     if f_continues_rf1 && !f_continues_rf2
-        running_fronts[front_idx] = extend_running_front(rf1, f)
+        running_fronts[front_idx] = extend_running_front(rf1, f, current_time)
         return (rf2, nothing, running_fronts[front_idx])
     elseif !f_continues_rf1 && f_continues_rf2
         return (rf2, front_idx, nothing)
     elseif f_continues_rf1 && f_continues_rf2
         # @warn "Ambiguous front continuation! reconciling RF"
         # @show rf1, rf2, f
-        if abs(predict_location(rf1) - _front_loc(f)) <= abs(predict_location(rf2) - _front_loc(f))
-            running_fronts[front_idx] = extend_running_front(rf1, f)
+        if abs(predict_location(rf1, current_time) - _front_loc(f)) <= abs(predict_location(rf2, current_time) - _front_loc(f))
+            running_fronts[front_idx] = extend_running_front(rf1, f, current_time)
             return (rf2, nothing, running_fronts[front_idx])
         else
-            running_fronts[front_idx] = extend_running_front(rf2, f)
+            running_fronts[front_idx] = extend_running_front(rf2, f, current_time)
             return (nothing, nothing, running_fronts[front_idx])
         end
     else
-        running_fronts[front_idx] = start_running_front(f)
+        running_fronts[front_idx] = start_running_front(f, current_time)
         return (rf2, nothing, running_fronts[front_idx])
     end
 end
@@ -368,6 +202,7 @@ end
 function reconcile_front!(running_fronts, front_idx, 
             frame, unresolved_front_idx::Nothing, 
             preceding_running_front, 
+            current_time,
             const_jitter, vel_jitter)
     # don't have F1, so just set unresolved_front_idx to be that next time
     return (preceding_running_front, front_idx, nothing)
@@ -375,39 +210,41 @@ end
 function reconcile_front!(running_fronts, front_idx, 
         frame, unresolved_front_idx::Int, 
         preceding_running_front::Nothing, 
+        current_time,
         const_jitter, vel_jitter)
     # have F1 but no RF, so F1 is orphaned.
-    running_fronts[unresolved_front_idx] = start_running_front(frame[[unresolved_front_idx]])
+    running_fronts[unresolved_front_idx] = start_running_front(frame[[unresolved_front_idx]], current_time)
     return (preceding_running_front, front_idx, running_fronts[unresolved_front_idx])
 end
 function reconcile_front!(running_fronts, f2_idx, 
         frame, f1_idx::Int, 
         rf::RunningFront, 
+        current_time,
         const_jitter, vel_jitter)#::Tuple{RF_possibilities,Union{Int,Nothing},Union{RF,RFM}}
     @assert f1_idx != f2_idx
     f1 = frame[[f1_idx]]
     f2 = frame[[f2_idx]]
-    f1_continues_rf = front_continues_rf(f1, rf, const_jitter, vel_jitter)
-    f2_continues_rf = front_continues_rf(f2, rf, const_jitter, vel_jitter)
+    f1_continues_rf = front_continues_rf(f1, rf, current_time, const_jitter, vel_jitter)
+    f2_continues_rf = front_continues_rf(f2, rf, current_time, const_jitter, vel_jitter)
     if f1_continues_rf && !f2_continues_rf
-        running_fronts[f1_idx] = extend_running_front(rf, f1)
+        running_fronts[f1_idx] = extend_running_front(rf, f1, current_time)
         return (nothing, f2_idx, running_fronts[f1_idx])
     elseif !f1_continues_rf && f2_continues_rf
-        running_fronts[f1_idx] = start_running_front(f1)
+        running_fronts[f1_idx] = start_running_front(f1, current_time)
         return (rf, f2_idx, running_fronts[f1_idx])
     elseif f1_continues_rf && f2_continues_rf
         #@warn "Ambiguous front continuation! reconciling F"
         # @show f1, f2, rf
-        if abs(predict_location(rf) - _front_loc(f1)) <= abs(predict_location(rf) - _front_loc(f2))
-            running_fronts[f1_idx] = extend_running_front(rf, f1)
+        if abs(predict_location(rf, current_time) - _front_loc(f1)) <= abs(predict_location(rf, current_time) - _front_loc(f2))
+            running_fronts[f1_idx] = extend_running_front(rf, f1, current_time)
             return (nothing, f2_idx, running_fronts[f1_idx])
         else
-            running_fronts[f1_idx] = start_running_front(f1)
-            running_fronts[f2_idx] = extend_running_front(rf, f2)
+            running_fronts[f1_idx] = start_running_front(f1, current_time)
+            running_fronts[f2_idx] = extend_running_front(rf, f2, current_time)
             return (nothing, nothing, running_fronts[f2_idx])
         end
     else
-        running_fronts[f1_idx] = start_running_front(f1)
+        running_fronts[f1_idx] = start_running_front(f1, current_time)
         return (nothing, f2_idx, running_fronts[f1_idx])
     end
 end
@@ -415,6 +252,7 @@ end
 
 
 function continue_fronts!(running_fronts::AxisVector, 
+        current_time,
         dframe::AxisVector,
         frame::AxisVector, 
         return_fn::Function, 
@@ -430,7 +268,7 @@ function continue_fronts!(running_fronts::AxisVector,
         running_fronts[idx] = nothing
         preceding_running_front, unresolved_front_idx, new_rf = reconcile_running_front!(running_fronts, this_running_front, 
                  dframe, unresolved_front_idx, 
-                 preceding_running_front, const_jitter, vel_jitter)
+                 preceding_running_front, current_time, const_jitter, vel_jitter)
         return_fn(new_rf) && return true
         p2_slope, prev_slope, slope, next_slope, n2_slope = dframe[idx-2:idx+2]
         if abs(slope) > slope_min &&
@@ -439,6 +277,7 @@ function continue_fronts!(running_fronts::AxisVector,
             preceding_running_front, unresolved_front_idx, new_rf = reconcile_front!(running_fronts, idx, 
                     dframe, unresolved_front_idx,
                     preceding_running_front, 
+                    current_time,
                     const_jitter, vel_jitter
                 )
             return_fn(new_rf) && return true
@@ -446,10 +285,10 @@ function continue_fronts!(running_fronts::AxisVector,
     end
     if !isnothing(unresolved_front_idx)
         if !isnothing(preceding_running_front) &&
-            front_continues_rf(dframe[[unresolved_front_idx]], preceding_running_front, const_jitter, vel_jitter)
-            running_fronts[unresolved_front_idx] = extend_running_front( preceding_running_front, dframe[[unresolved_front_idx]])
+            front_continues_rf(dframe[[unresolved_front_idx]], preceding_running_front, current_time, const_jitter, vel_jitter)
+            running_fronts[unresolved_front_idx] = extend_running_front( preceding_running_front, dframe[[unresolved_front_idx]], current_time)
         else
-            running_fronts[unresolved_front_idx] = start_running_front(dframe[[unresolved_front_idx]])
+            running_fronts[unresolved_front_idx] = start_running_front(dframe[[unresolved_front_idx]], current_time)
         end
         return return_fn(running_fronts[unresolved_front_idx])
     end
@@ -462,13 +301,13 @@ end
 ##     front first, and 2) dt is sufficiently small
 ##     explicitly, a front can't move further than the distance between two fronts.
 ##  thus, a front in one frame must either appear de novo or come from an adjacent front
-# continue_fronts!(running_fronts, frame, return_fn(::RunningFront)::Union{STHG,Nothing})::Union{STHG,Nothing}
+# continue_fronts!(running_fronts, current_time, frame, return_fn(::RunningFront)::Union{STHG,Nothing})::Union{STHG,Nothing}
 # Not really a classification....
 
 function is_propagated(u, t, integrator)
     # return true if is_propagated, or is completely flat
     p = integrator.p
-    propagated = continue_fronts!(p.running_fronts, p.dframe_cache, population(u,1), p.return_fn, p.d1_ghost_op, p.slope_min, p.const_jitter, p.vel_jitter)
+    propagated = continue_fronts!(p.running_fronts, t, p.dframe_cache, population(u,1), p.return_fn, p.d1_ghost_op, p.slope_min, p.const_jitter, p.vel_jitter)
     if propagated
         integrator.p.has_propagation[1] = true 
     end
@@ -485,8 +324,11 @@ function MinimalPropagationClassification(exec::AbstractExecution{T,SIM}) where 
     # callback saved propagation
     return MinimalPropagationClassification(exec.solution.p.has_propagation[1])
 end
-function MinimalPropagationClassification(l_frames::AbstractArray{<:AxisVector{T}},
-        xs::AbstractArray, periodic; 
+function MinimalPropagationClassification(
+        l_frames::AbstractArray{<:AxisVector{T}}, 
+        ts,
+        xs, 
+        periodic::Bool; 
         slope_min=DEFAULT_SLOPE_MIN,
         const_jitter=2abs(xs[2] - xs[1]),  # typically a few dx
         vel_jitter=DEFAULT_VEL_JITTER,
@@ -498,10 +340,10 @@ function MinimalPropagationClassification(l_frames::AbstractArray{<:AxisVector{T
     d1_ghost_op = make_ghost_op(T, xs, 1, periodic)
     dframe_cache = copy(l_frames[1])
     running_fronts = AxisVector{RF_possibilities(T)}(RF_possibilities(T)[nothing for _ in xs], collect(xs))
-    continue_fronts!(running_fronts, dframe_cache, l_frames[1],
+    continue_fronts!(running_fronts, ts[begin], dframe_cache, l_frames[1],
         return_fn, d1_ghost_op, slope_min, const_jitter, vel_jitter)
-    for frame in l_frames[begin+1:end]
-        if continue_fronts!(running_fronts, dframe_cache, 
+    for (t, frame) in zip(ts[begin+1:end], l_frames[begin+1:end])
+        if continue_fronts!(running_fronts, t, dframe_cache, 
                 frame, return_fn, d1_ghost_op, slope_min, const_jitter, vel_jitter) 
             return MinimalPropagationClassification(true)
         end
@@ -514,20 +356,26 @@ function MinimalPropagationClassification(l_frames::AbstractArray{<:AxisVector{T
     #   if continue_fronts returns true, then return MinimalPropagationClassification(true)
     # return MinimalPropagationClassification(false)
 end
-function MinimalPropagationClassification(l_frames::AbstractArray{<:AbstractMatrix}, multipop_xs, args...; kwargs...)
-    MinimalPropagationClassification([population(multipop_frame,1) for multipop_frame in l_frames], multipop_xs, args...; kwargs...)
+function MinimalPropagationClassification(l_frames::AbstractArray{<:AbstractMatrix}, ts, multipop_xs, args...; kwargs...)
+    MinimalPropagationClassification(
+            [population(multipop_frame,1) for multipop_frame in l_frames], 
+            ts, 
+            multipop_xs, 
+            args...; kwargs...)
 end
 
 function MinimalPropagationClassification(exec::Execution; kwargs...)
     l_frames::AbstractArray{<:AxisArray} = exec.solution.u
+    ts = exec.solution.t
     multipop_xs = frame_xs(exec)
     periodic = exec.simulation.space isa AbstractPeriodicLattice
-    MinimalPropagationClassification(l_frames, multipop_xs, periodic; kwargs...)
+    MinimalPropagationClassification(l_frames, ts, multipop_xs, periodic; kwargs...)
 end
 
 function MinimalPropagationClassification(sol::DiffEqBase.AbstractTimeseriesSolution; kwargs...)
     l_frames = sol.u
+    ts = sol.t
     xs = axes_keys(first(l_frames))[1]
-    MinimalPropagationClassification(l_frames, xs, true; kwargs...)
+    MinimalPropagationClassification(l_frames, ts, xs, true; kwargs...)
 end
 

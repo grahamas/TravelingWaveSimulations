@@ -3,7 +3,7 @@ using Test, AxisIndices, Statistics
 using Simulation73: population_repeat
 using TravelingWaveSimulations: get_velocities, substantial_fronts, 
     detect_all_fronts, link_persistent_fronts, slope_loc, slope_val,
-    ExecutionClassifications, get_prototype, execute_single_modification,
+    get_prototype, execute_single_modification,
     Wavefront, MinimalPropagationClassification,
     already_reduced_to_min_propagation_cls
 
@@ -117,7 +117,7 @@ end
     motionless_pair = [population_repeat(AxisArray(traveling_pair_fn.(xs, 0.0), xs), 2) for t in ts]
 
     @testset "MinimalPropagationClassification" begin
-        minprop(wavefront) = MinimalPropagationClassification(wavefront,
+        minprop(wavefront) = MinimalPropagationClassification(wavefront, ts,
                             xs, true;  min_dist_for_propagation = 10.).has_propagation
         
         @test minprop(traveling_increasing_wavefront) == true
@@ -127,39 +127,6 @@ end
         @test minprop(motionless_pair) == false
     end
 
-    @testset "ExecutionClassifications (persistent fronts method)" begin
-        traveling_increasing_wavefront_classification = ExecutionClassifications(
-            substantial_fronts.(traveling_increasing_wavefront, false,
-                                detection_slope_min),
-            ts, xs, traveling_increasing_wavefront[end]; 
-            origin_radius=1.0, traveling_parameters...)
-        @test traveling_increasing_wavefront_classification.has_propagation == true
-        
-        traveling_decreasing_wavefront_classification = ExecutionClassifications(
-            substantial_fronts.(traveling_decreasing_wavefront, false, 
-                                detection_slope_min), 
-            ts, xs, traveling_decreasing_wavefront[end];
-            origin_radius=1.0, traveling_parameters...)
-        @test traveling_decreasing_wavefront_classification.has_propagation == true
-        
-        traveling_pair_classification = ExecutionClassifications(
-            substantial_fronts.(traveling_pair, false, detection_slope_min),
-            ts, xs, traveling_pair[end]; 
-            origin_radius=1.0, traveling_parameters...)
-        @test traveling_pair_classification.has_propagation == true
-        
-        motionless_decreasing_classification = ExecutionClassifications(
-            substantial_fronts.(motionless_decreasing_wavefront, false, detection_slope_min),
-            ts, xs, motionless_decreasing_wavefront[end];
-            origin_radius=1.0, traveling_parameters...)
-        @test motionless_decreasing_classification.has_propagation == false
-        
-        motionless_pair_classification = ExecutionClassifications(
-            substantial_fronts.(motionless_pair, false, detection_slope_min),
-            ts, xs, motionless_pair[end]; 
-            origin_radius=1.0, traveling_parameters...)
-        @test motionless_pair_classification.has_propagation == false
-    end
 end
 
 
@@ -185,23 +152,6 @@ end
             other_opts=Dict(), save_on=true)
         (_, localized_exec) = execute_single_modification(line_prototype, merge(general_mods, localized_mods))
 
-        # @testset "WaveClassification internals on localized WCM example" begin
-        #     let exec = localized_exec
-        #         l_frame_fronts = exec.saved_values.saveval
-        #         ts = exec.saved_values.t
-        #         final_frame = exec.solution.u[end]
-        #         xs = axes_keys(final_frame)[1]
-        #         persistent_fronts = link_persistent_fronts(l_frame_fronts, ts)
-        #         pf_measurements = SpatiotemporalWaveMeasurements.(persistent_fronts)
-        #         @show pf_measurements .|> pfm -> pfm.velocities
-        #         @test all(pf_measurements .|> pfm -> all(pfm.velocities .≈ 0.0))
-        #     end
-        # end
-
-        @testset "ExecutionClassifications" begin
-            localized_exec_cls = ExecutionClassifications(localized_exec; traveling_parameters...)
-            @test localized_exec_cls.has_propagation == false
-        end
         @testset "MinimalPropagationClassification" begin
             min_prop_cls = MinimalPropagationClassification(localized_exec; min_prop_parameters...)
             @test min_prop_cls.has_propagation == false
@@ -217,11 +167,6 @@ end
             θE=6.0,firing_θI=7.0, save_on=true,
             other_opts=Dict())
         (_, expanding_front_exec) = execute_single_modification(line_prototype, merge(general_mods, expanding_front_mods))
-
-        @testset "ExecutionClassifications" begin
-            expanding_front_exec_cls = ExecutionClassifications(expanding_front_exec; traveling_parameters...)
-            @test expanding_front_exec_cls.has_propagation == true
-        end
 
         @testset "MinimalPropagationClassification" begin
             expanding_front_min_prop_cls = MinimalPropagationClassification(expanding_front_exec; min_prop_parameters...)
