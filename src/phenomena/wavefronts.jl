@@ -47,7 +47,7 @@ function deriv(arr::AxisVector{T}, deriv_degree::Int, periodic::Bool, deriv_orde
 end
 
 function deriv!(darr::AxisVector, arr::AxisVector, ghost_op::GhostDerivativeOperator)
-    LinearAlgebra.mul!(darr.parent, ghost_op.L, ghost_op.Q * arr.parent)
+    LinearAlgebra.mul!(parent(darr), ghost_op.L, ghost_op.Q * parent(arr))
 end
 
 function detect_all_fronts(arr::AA, periodic) where {T, AA<:AxisVector{T}}
