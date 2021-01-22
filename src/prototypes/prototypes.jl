@@ -136,8 +136,8 @@ prototypes_dict["harris_ermentrout"] = (N_ARR=1,N_CDT=1,P=2;
                   Aie=1., Sie=25.0,
                   Aei=1.5, Sei=27.0,
                   n_lattice=512, x_lattice=1400.0, 
-                  aE=1.0, θE=0.125,
-                  aI=1.0, θI=0.4,
+                  aE=50.0, θE=0.125,
+                  aI=50.0, θI=0.4,
                   stim_strength=0.5,
                   stim_radius=14.0,
                   stim_duration=7.0,
@@ -149,7 +149,7 @@ prototypes_dict["harris_ermentrout"] = (N_ARR=1,N_CDT=1,P=2;
                   α = (1.0, 1.0),
                   β = (1.0, 1.0),
                   τ = (1.0, 0.4),
-                  nonlinearity = pops(RectifiedSigmoidNonlinearity;
+                  nonlinearity = pops(SimpleSigmoidNonlinearity;
                       θ = [θE, θI],
                       a = [aE, aI]
                   ),
@@ -193,7 +193,6 @@ prototypes_dict["harris_ermentrout"] = (N_ARR=1,N_CDT=1,P=2;
            );
         space = space,
         tspan = tspan,
-        dt=dt,
         algorithm = algorithm,
         save_idxs = save_idxs,
         global_reduction = global_reduction,
@@ -203,25 +202,31 @@ prototypes_dict["harris_ermentrout"] = (N_ARR=1,N_CDT=1,P=2;
     )
 end
 
-#prototypes_dict["dos_ring_absconn"] = (args...;
-#                  Aee=70.0, See=25.0,
-#                  Aii=2.0, Sii=27.0,
-#                  Aie=35.0, Sie=25.0,
-#                  Aei=70.0, Sei=27.0,
-#                  connectivity = FFTParameter(pops(ExpAbsSumDecayingConnectivityParameter;
-#                      amplitude = [Aee -Aei;
-#                                   Aie -Aii],
-#                      spread = [(See,) (Sei,);
-#                                (Sie,) (Sii,)]
-#                     )
-#                  ),
-#				 kwargs...) -> prototypes_dict["dos_ring"](args...;
-#				 	Aee=Aee, See=See,
-#					Aii=Aii, Sii=Sii,
-#					Aie=Aie, Sie=Sie,
-#					Aei=Aei, Sei=Sei,
-#					connectivity=connectivity,
-#					kwargs...)
+prototypes_dict["full_dynamics_monotonic"] = (args...;
+            kwargs...) ->
+    prototypes_dict["harris_ermentrout"](args...; kwargs...)
+
+prototypes_dict["full_dynamics_blocking"] = (args...; 
+            blocking_θI=0.6,
+            blocking_aI=50.0,
+            firing_θI=0.4,
+            firing_aI=50.0,
+            aE=50.0, θE=0.125,
+            nonlinearity = PopulationActionsParameters(
+                                RectifiedSigmoidNonlinearity(a=aE, θ=θE),
+                                NormedDifferenceOfSigmoidsParameter(
+                                    firing_θ = firing_θI,
+                                    firing_a = firing_aI,
+                                    blocking_θ = blocking_θI,
+                                    blocking_a = blocking_aI
+                                )
+                ),
+            kwargs...) ->
+    prototypes_dict["harris_ermentrout"](args...; 
+        nonlinearity=nonlinearity, kwargs...)
+
+
+
 					
 
 prototypes_dict["oscillating_pulse_monotonic"] = (
@@ -434,75 +439,15 @@ prototypes_dict["orientation_torus_monotonic"] = (
     )
 end
 
-prototypes_dict["harris_ermentrout_pure_sigmoid"] = (
-                  N_ARR=1,N_CDT=1,P=2; 
-                  SNR_scale=80.0, stop_time=ABS_STOP,
-                  tau=0.68,
-                  sigma=0.8,
-                  Aee=1.0, See=1.0,
-                  Aii=0.25, Sii=sigma,
-                  Aie=1.0, Sie=1.0,
-                  Aei=1.5, Sei=sigma,
-                  n_lattice=512, x_lattice=1400.0, 
-                  firing_θE=6.0,
-                  firing_θI=11.4,
-                  blocking_θE=30.0,
-                  blocking_θI=30.0,
-                  stim_strength=6.0,
-                  stim_radius=14.0,
-                  stim_duration=1.0,
-                  pop_names = ("E", "I"),
-                  α = (1.0, 1.0),
-                  β = (1.0, 1.0),
-                  τ = (1.0, tau),
-                  nonlinearity = pops(SimpleSigmoidNonlinearity;
-                      θ = [0.125, 0.4],
-                      a = [50.0, 50.0],
+prototypes_dict["harris_ermentrout_rectified"] = (
+                  args...;
+                  aE=50.0, θE=0.125,
+                  aI=50.0, θI=0.4,
+                  nonlinearity = pops(RectifiedSigmoidNonlinearity;
+                      θ = [θE, θI],
+                      a = [aE, aI],
                   ),
-                  stimulus = pops(CircleStimulusParameter;
-                      strength = [stim_strength, stim_strength],
-                      radius = [stim_radius, stim_radius],
-                      time_windows = [[(0.0, stim_duration)], [(0.0, stim_duration)]],
-                      baseline=[0.0, 0.0]
-                  ),
-                  connectivity = FFTParameter(pops(ExpAbsSumDecayingConnectivityParameter;
-                      amplitude = [Aee -Aei;
-                                   Aie -Aii],
-                      spread = [(See,) (Sei,);
-                                (Sie,) (Sii,)]
-                     )
-                  ),
-                  space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_lattice,), 
-                                                           extent=(x_lattice,)),
-                  tspan = (0.0,stop_time),
-                  dt=0.1,
-                  algorithm=Tsit5(),
-                  save_idxs=nothing,
-                  step_reduction=(reduce_to_fronts(save_idxs, space), front_array_type),
-                  global_reduction = reduce_to_wave_properties,
-                  callback=terminate_when_E_fully_propagates(save_idxs, 
-                                                             proportion_full=X_PROP, 
-                                                             min_time=0.1), 
-                  other_opts...
+                  kwargs...
             ) -> begin
-    Simulation(
-        WCMSpatial{N_CDT,P}(;
-            pop_names = pop_names,
-            α = α,
-            β = β,
-            τ = τ,
-            nonlinearity = nonlinearity,
-            stimulus = stimulus,
-            connectivity = connectivity
-           );
-        space = space,
-        tspan = tspan,
-        dt=dt,
-        algorithm = algorithm,
-        save_idxs = save_idxs,
-        step_reduction = step_reduction,
-        global_reduction = global_reduction,
-        callback = callback,
-        other_opts...
-    )
+    prototypes_dict["harris_ermentrout"](args...; nonlinearity=nonlinearity, kwargs...)
 end
