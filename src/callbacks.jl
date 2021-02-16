@@ -4,7 +4,7 @@ function terminate_when_E_fully_propagates(save_idxs; proportion_full=0.95, min_
 end
 
 near_zero(u::T, zero_tol::T) where {T <: Number} = abs(u) < zero_tol
-near_zero(u::AbstractArray, zero_tol) = all(near_zero.(u, zero_tol))
+# near_zero(u::AbstractArray, zero_tol) = all(near_zero.(u, zero_tol))
 
 function E_is_fully_propagated(save_idxs, proportion_full, min_time, zero_tol)
     callback = if save_idxs === nothing
@@ -12,7 +12,7 @@ function E_is_fully_propagated(save_idxs, proportion_full, min_time, zero_tol)
             pop = population(u,1)
             fully_propagated_dx = floor(Int, proportion_full * length(pop))
             if t > min_time
-                if (near_zero(pop, zero_tol) || !near_zero(pop[fully_propagated_dx], zero_tol))
+                if (all(near_zero.(pop, zero_tol)) || any(.!near_zero.(pop[fully_propagated_dx:end], zero_tol)))
                     return true
                 end
             end
@@ -23,7 +23,7 @@ function E_is_fully_propagated(save_idxs, proportion_full, min_time, zero_tol)
             pop = population(u[integrator.opts.save_idxs],1)
             fully_propagated_dx = floor(Int, proportion_full * length(pop))
             if t > min_time
-                if (near_zero(pop, zero_tol) || !near_zero(pop[fully_propagated_dx], zero_tol))
+                if (all(near_zero.(pop, zero_tol)) || any(.!near_zero.(pop[fully_propagated_dx:end], zero_tol)))
                     return true
                 end
             end
@@ -33,6 +33,23 @@ function E_is_fully_propagated(save_idxs, proportion_full, min_time, zero_tol)
     return callback
 end
 
+function is_spread(u, t, integrator)
+    save_idxs = integrator.opts.save_idxs
+    pop = save_idxs === nothing ? population(u, 1) : population(u[integrator.opts.save_idxs],1)
+    max_spread_dx = floor(Int, integrator.p.max_spread_proportion * length(pop))
+    if t > integrator.p.min_spread_time
+        if (all(near_zero.(pop, integrator.p.max_spread_value)) || any(.!near_zero.(pop[max_spread_dx:end], integrator.p.max_spread_value)))
+            return true
+        end
+    end
+    return false
+end
+export is_spread
+
+function Simulation73.handle_callback(sim::Simulation{T,M,S,IV,ALG,DT,SV_IDX,CB,GR}) where {T,M,S,IV,ALG,DT,SV_IDX,GR, CB <: Tuple{typeof(is_spread), <:NamedTuple}}
+    fn, nt = sim.callback
+    return (nt, DiscreteCallback(fn, terminate!))
+end
 
 # is_propagated defined in phenomena/classifications
 function Simulation73.handle_callback(sim::Simulation{T,M,S,IV,ALG,DT,SV_IDX,CB,GR}) where {T,M,S,IV,ALG,DT,SV_IDX,GR, CB <: Tuple{typeof(is_propagated), <:NamedTuple}}

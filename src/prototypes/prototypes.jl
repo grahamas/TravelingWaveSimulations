@@ -181,6 +181,88 @@ prototypes_dict["harris_ermentrout"] = (N_ARR=1,N_CDT=1,P=2;
                   save_on=false,
                   other_opts...
             ) -> begin
+    @show α
+    Simulation(
+        HarrisErmentrout2018{N_CDT,P}(;
+            pop_names = pop_names,
+            α = α,
+            β = β,
+            τ = τ,
+            nonlinearity = nonlinearity,
+            stimulus = stimulus,
+            connectivity = connectivity
+           );
+        space = space,
+        tspan = tspan,
+        algorithm = algorithm,
+        save_idxs = save_idxs,
+        global_reduction = global_reduction,
+        callback = callback,
+        save_on=save_on,
+        other_opts...
+    )
+end
+
+prototypes_dict["full_dynamics_monotonic"] = (N_ARR=1,N_CDT=1,P=2; 
+                  stop_time=ABS_STOP,
+                  Aee=1., See=25.0,
+                  Aii=0.25, Sii=27.0,
+                  Aie=1., Sie=25.0,
+                  Aei=1.5, Sei=27.0,
+                  n_lattice=512, x_lattice=1400.0, 
+                  aE=50.0, θE=0.125,
+                  aI=50.0, θI=0.2,
+                  stim_strength=0.5,
+                  stim_radius=14.0,
+                  stim_duration=7.0,
+                  pop_names = ("E", "I"),
+                  min_dist_for_propagation=x_lattice * 0.4,
+                  const_jitter = (x_lattice / n_lattice) * 3,
+                  vel_jitter = 1.5,
+                  slope_min=1e-4,
+                  α=(0.4, 0.7),
+                  β = (1.0, 1.0),
+                  τ = (1.0, 0.4),
+                  nonlinearity = pops(SimpleSigmoidNonlinearity;
+                      θ = [θE, θI],
+                      a = [aE, aI]
+                  ),
+                  stimulus = pops(CircleStimulusParameter;
+                      strength = [stim_strength, stim_strength],
+                      radius = [stim_radius, stim_radius],
+                      time_windows = [[(0.0, stim_duration)], [(0.0, stim_duration)]],
+                      baseline=[0.0, 0.0]
+                  ),
+                  connectivity = FFTParameter(pops(GaussianConnectivityParameter;
+                      amplitude = [Aee -Aei;
+                                   Aie -Aii],
+                      spread = [(See,) (Sei,);
+                                (Sie,) (Sii,)]
+                     )
+                  ),
+                  space = PeriodicLattice{Float64,N_ARR}(; n_points=(n_lattice,), 
+                                                           extent=(x_lattice,)),
+                  tspan = (0.0,stop_time),
+                  algorithm=Tsit5(),
+                  save_idxs=nothing,
+                #   callback = (
+                #       is_propagated,
+                #     (min_dist_for_propagation=min_dist_for_propagation,
+                #      slope_min=slope_min, const_jitter=const_jitter,
+                #      vel_jitter=vel_jitter)
+                #   ),
+                # FIXME use union of is_propagated and is_spread
+                  callback = (
+                      is_spread,
+                      (max_spread_proportion=0.75,
+                      min_spread_time=8,
+                      max_spread_value=1e-3)
+                  ),
+                  global_reduction=identity,
+                  #global_reduction = already_reduced_to_min_propagation_cls,
+                  save_on=false,
+                  other_opts...
+            ) -> begin
     Simulation(
         WCMSpatial{N_CDT,P}(;
             pop_names = pop_names,
@@ -202,14 +284,11 @@ prototypes_dict["harris_ermentrout"] = (N_ARR=1,N_CDT=1,P=2;
     )
 end
 
-prototypes_dict["full_dynamics_monotonic"] = (args...;
-            kwargs...) ->
-    prototypes_dict["harris_ermentrout"](args...; kwargs...)
-
 prototypes_dict["full_dynamics_blocking"] = (args...; 
-            blocking_θI=0.6,
+            α=(0.4, 0.7),
+            blocking_θI=0.5,
             blocking_aI=50.0,
-            firing_θI=0.4,
+            firing_θI=0.2,
             firing_aI=50.0,
             aE=50.0, θE=0.125,
             nonlinearity = PopulationActionsParameters(
@@ -221,9 +300,12 @@ prototypes_dict["full_dynamics_blocking"] = (args...;
                                     blocking_a = blocking_aI
                                 )
                 ),
-            kwargs...) ->
-    prototypes_dict["harris_ermentrout"](args...; 
+            kwargs...) -> begin
+    prototypes_dict["full_dynamics_monotonic"](args...; 
+        α, blocking_aI, blocking_θI, firing_aI, firing_θI,
+        aE, θE,
         nonlinearity=nonlinearity, kwargs...)
+end
 
 
 
