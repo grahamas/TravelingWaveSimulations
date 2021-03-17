@@ -32,3 +32,4 @@ build
 tmp
 
 *.mem
+_research/Project.toml

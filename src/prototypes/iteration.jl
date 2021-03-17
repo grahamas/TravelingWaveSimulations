@@ -106,7 +106,8 @@ function iterate_prototype(prototype::Function,
                               end,
                               u_init=u_init, 
                               trajectories=length(modifications), 
-                              batch_size=batch_size)
+                              batch_size=batch_size
+    )
     (ensemble_solution, savedvals) = if ensemble_solution isa Tuple
         ensemble_solution
     else

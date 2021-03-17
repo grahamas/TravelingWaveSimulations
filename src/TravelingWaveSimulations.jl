@@ -14,8 +14,6 @@ using Statistics, LinearAlgebra
 using AxisIndices
 using Interpolations
 
-using JuliaDB
-
 include("util/axisarray.jl")
 
 include("phenomena/waveforms.jl")
