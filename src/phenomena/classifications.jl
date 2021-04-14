@@ -324,6 +324,7 @@ function MinimalPropagationClassification(exec::AbstractExecution{T,SIM}) where 
     # callback saved propagation
     return MinimalPropagationClassification(exec.solution.p.has_propagation[1])
 end
+MinimalPropagationClassification(::Missing) = missing
 function MinimalPropagationClassification(
         l_frames::AbstractArray{<:AxisVector{T}}, 
         ts,
@@ -332,7 +333,7 @@ function MinimalPropagationClassification(
         slope_min=DEFAULT_SLOPE_MIN,
         const_jitter=2abs(xs[2] - xs[1]),  # typically a few dx
         vel_jitter=DEFAULT_VEL_JITTER,
-        min_dist_for_propagation
+        min_dist_for_propagation=0.4(xs[end] - xs[begin])
     ) where T
     has_traveled_dist(rf::RunningFront) = abs(rf.previous_location - rf.starting_location) >= min_dist_for_propagation
     has_traveled_dist(::Nothing) = false

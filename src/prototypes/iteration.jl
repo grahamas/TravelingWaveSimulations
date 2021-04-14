@@ -41,9 +41,21 @@ end
 function iterate_prototype(prototype::Function, 
                            modifications_specification; 
                            kwargs...)
-    modifications, modification_strs = parse_modifications_argument(modifications_specification)
+    modifications_dicts, modification_strs = parse_modifications_argument(modifications_specification)
+    modifications = get_all_modifications_cases(modifications_dicts)
     iterate_prototype(prototype, modifications, modification_strs; kwargs...)
 end
+
+function iterate_prototype(prototype::Function,
+        modifications_mapping::Union{Dict,NamedTuple},
+        args...; kwargs...
+    )
+    iterate_prototype(prototype, 
+        get_all_modifications_cases(modifications_mapping), 
+        args...; kwargs...
+    )
+end
+
 function iterate_prototype(prototype::Function,
                            modifications::AbstractArray,
                            modification_strs::Vector{<:AbstractString}; 
@@ -51,6 +63,7 @@ function iterate_prototype(prototype::Function,
                            experiment_name="",
                            data_root::AbstractString=datadir(), 
                            max_sims_in_mem::Int=floor(Int,Sys.free_memory() / 2^16),
+                           output_name="ensemble_solution.bson",
                            save=true, 
                            parallelize_if_possible=true,
                            progress=true) 
@@ -58,9 +71,11 @@ function iterate_prototype(prototype::Function,
     @warn "# of mods: $(length(modifications))"
 
     # Initialize saving paths
-    data_path = init_data_path(modification_strs; data_root=data_root, 
-                                                  prototype_name=prototype_name,
-                                                  experiment_name=experiment_name)
+    data_path = init_data_path(modification_strs; 
+        data_root=data_root,
+        prototype_name=prototype_name,
+        experiment_name=experiment_name
+    )
 
     # Initialize prototype
     prototype = get_prototype(prototype_name)
@@ -68,7 +83,7 @@ function iterate_prototype(prototype::Function,
     pkeys = mods_to_pkeys(modifications)
 
     # Run simulation for every modification
-    initial_simulation = prototype()
+    initial_simulation = prototype(; modifications[begin]...)
     sample_execution = execute(initial_simulation)
     sample_data = initial_simulation.global_reduction(sample_execution.solution)
     u_init = init_results_tuple(pkeys, sample_data)
@@ -92,7 +107,7 @@ function iterate_prototype(prototype::Function,
 
     n_batches = ceil(Int, length(modifications) / batch_size)
     function prob_function(prob, i, repeat)
-        i % batch_size == 0 && @info "Batch $(div(i, batch_size)) / $(n_batches) ($i)"
+        progress && i % batch_size == 0 && @info "Batch $(div(i, batch_size)) / $(n_batches) ($i)"
         these_mods = modifications[i]
         new_sim = prototype(; these_mods...)        
         pkeys_nt = NamedTuple{Tuple(pkeys)}([these_mods[key] for key in pkeys])
@@ -113,10 +128,11 @@ function iterate_prototype(prototype::Function,
         (ensemble_solution, nothing)
     end
 
-    # TODO: only works for namedtuple u
     if save == true
-        @warn """saving $(joinpath(data_path, "ensemble_solution.jdb"))""" 
-        JuliaDB.save(table(ensemble_solution.u, pkey=pkeys), joinpath(data_path, "ensemble_solution.jdb"))
+        output_path = joinpath(data_path, output_name)
+        table = Table(ensemble_solution.u)
+        @warn """saving $(output_path)""" 
+        BSON.@save output_path table
     end
     return ensemble_solution
 end

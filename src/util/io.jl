@@ -15,7 +15,7 @@ function read_params_from_data_path(fpath)
     return prototype_name, sim_params
 end
 
-function read_modifications_from_data_path(data_path)
+function read_modifications_file(data_path)
     mod_txt_fn = joinpath(data_path, modifications_prefix_filename) 
     if isfile(mod_txt_fn)
         @info "Found modifications text file"

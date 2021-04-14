@@ -52,14 +52,6 @@ end
 
 function parse_modifications_array(modification_strs::AbstractArray)
     parsed_modifications = parse_modification.(modification_strs)
-    arrays_of_cases = dict_array_from_array_dict.(parsed_modifications)
-    modification_cases = Iterators.product(arrays_of_cases...)
-    modification_cases = map(modification_cases) do cases
-        any_dict = Dict{Symbol,Any}()
-        merge!(any_dict, cases...)
-        return any_dict
-    end
-    return modification_cases
 end
 
 function parse_modifications_argument(modification_strs::Vector{String})
@@ -83,4 +75,19 @@ function parse_modifications_filename(fn::AbstractString)
     return mod_dict
 end
 
+function get_all_modifications_cases(modifications_dicts::AbstractVector{<:Dict})
+    arrays_of_cases = dict_array_from_array_dict.(modifications_dicts)
+    modification_cases = Iterators.product(arrays_of_cases...)
+    modification_cases = map(modification_cases) do cases
+        any_dict = Dict{Symbol,Any}()
+        merge!(any_dict, cases...)
+        return any_dict
+    end
+    return modification_cases
+end
 
+function get_all_modifications_cases(modifications_nt::NamedTuple{NAMES}) where NAMES
+    get_all_modifications_cases(map(zip(NAMES, values(modifications_nt))) do (name, val)
+        Dict(name => val)
+    end)
+end

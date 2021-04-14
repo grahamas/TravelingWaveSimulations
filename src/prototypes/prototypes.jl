@@ -220,7 +220,8 @@ prototypes_dict["full_dynamics_monotonic"] = (N_ARR=1,N_CDT=1,P=2;
                   const_jitter = (x_lattice / n_lattice) * 3,
                   vel_jitter = 1.5,
                   slope_min=1e-4,
-                  α=(0.4, 0.7),
+                  αE = 0.4, αI = 0.7,
+                  α=(αE, αI),
                   β = (1.0, 1.0),
                   τ = (1.0, 0.4),
                   nonlinearity = pops(SimpleSigmoidNonlinearity;
@@ -245,19 +246,18 @@ prototypes_dict["full_dynamics_monotonic"] = (N_ARR=1,N_CDT=1,P=2;
                   tspan = (0.0,stop_time),
                   algorithm=Tsit5(),
                   save_idxs=nothing,
-                #   callback = (
-                #       is_propagated,
-                #     (min_dist_for_propagation=min_dist_for_propagation,
-                #      slope_min=slope_min, const_jitter=const_jitter,
-                #      vel_jitter=vel_jitter)
-                #   ),
-                # FIXME use union of is_propagated and is_spread
-                  callback = (
+                  callback = [(
+                      is_propagated,
+                    (min_dist_for_propagation=min_dist_for_propagation,
+                     slope_min=slope_min, const_jitter=const_jitter,
+                     vel_jitter=vel_jitter)
+                  ),
+                  (
                       is_spread,
                       (max_spread_proportion=0.75,
                       min_spread_time=8,
                       max_spread_value=1e-3)
-                  ),
+                  )],
                   global_reduction=identity,
                   #global_reduction = already_reduced_to_min_propagation_cls,
                   save_on=false,

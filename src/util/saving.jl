@@ -4,6 +4,7 @@ function mods_to_pkeys(modifications)::Array{Symbol,1}
     disallowed_keys = [:algorithm, :u, :x, :t, :n, :n_points, :extent, :save_idxs]
     pkeys = filter((x) -> !(x in disallowed_keys), pkeys)
     pkeys = filter((x) -> !(modifications[1][x] === nothing), pkeys)
+    pkeys = filter((x) -> (modifications[1][x] isa Number), pkeys)
 end
 
 function getkeys(d, keys)
@@ -33,10 +34,10 @@ Base.getindex(nt::NamedTuple, dx::Array{Symbol}) = getindex.(Ref(nt), dx)
 function merge_ddb(::Nothing, tbl)
     return distribute(tbl, nworkers())
 end
-function merge_ddb(ddb::JuliaDB.DNDSparse, tbl::NDSparse)
-    @error "Sparse unsupported"
-    return merge(ddb, tbl)
-end
+# function merge_ddb(ddb::JuliaDB.DNDSparse, tbl::NDSparse)
+#     @error "Sparse unsupported"
+#     return merge(ddb, tbl)
+# end
 
 function push_namedtuple!(::Nothing, mods::NamedTuple{NAMES,TYPES}) where {NAMES,TYPES}
     arrd_TYPES = Tuple{[Array{T,1} for T in TYPES.parameters]...}

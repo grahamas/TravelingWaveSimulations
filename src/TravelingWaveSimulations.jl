@@ -13,8 +13,8 @@ using IterTools
 using Statistics, LinearAlgebra
 using AxisIndices
 using Interpolations
-
-using JuliaDB
+using FileIO, BSON, TypedTables
+# using JuliaDB
 
 include("util/axisarray.jl")
 
@@ -41,8 +41,7 @@ include("util/io.jl")
 export parse_prototype_name_from_mdb_path, write_modifications!
 include("util/saving.jl")
 include("util/loading.jl")
-export DBRowIter, MultiDBRowIter, DBExecIter, MultiDBExecIter, MultiDB, 
-       load_simulation_data_recent, load_simulation_data, get_recent_simulation_data_path
+export load_simulation_data_recent, load_simulation_data, get_recent_simulation_data_path
        load_classifications, load_classifications_recent
 
 include("prototypes/iteration.jl")
