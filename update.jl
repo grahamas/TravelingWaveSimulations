@@ -19,8 +19,5 @@ map(all_paths) do path
     Pkg.update()
 end
 
-Pkg.activate(rel_path("_research"))
-Pkg.update()
-
 Pkg.instantiate()
 Pkg.build()
