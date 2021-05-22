@@ -1,6 +1,6 @@
 
-using Makie, MakieLayout, AbstractPlotting, StatsMakie
+using Makie, StatsMakie
 using TravelingWaveSimulationsPlotting
 using Simulation73Plotting
 
-AbstractPlotting.convert_arguments(P::AbstractPlotting.PointBased, nt::NamedTuple{names}) where names = AbstractPlotting.convert_arguments(P, [names...], [values(nt)...])
+Makie.convert_arguments(P::Makie.PointBased, nt::NamedTuple{names}) where names = Makie.convert_arguments(P, [names...], [values(nt)...])
