@@ -47,13 +47,13 @@ end
 export is_spread
 
 function Simulation73.handle_callback(sim::Simulation, cb::CB) where {CB <: Tuple{typeof(is_spread), <:NamedTuple}}
-    fn, nt = sim.callback
+    fn, nt = cb
     return (nt, DiscreteCallback(fn, terminate!))
 end
 
 # is_propagated defined in phenomena/classifications
-function Simulation73.handle_callback(sim::Simulation, cb::CB) where {CB <: Tuple{typeof(is_propagated), <:NamedTuple}}
-    fn, nt = sim.callback
+function Simulation73.handle_callback(sim::Simulation{T}, cb::CB) where {T,CB <: Tuple{typeof(is_propagated), <:NamedTuple}}
+    fn, nt = cb
     min_dist_for_propagation = nt.min_dist_for_propagation
     has_traveled_dist(rf::RunningFront) = abs(rf.previous_location - rf.starting_location) >= min_dist_for_propagation
     has_traveled_dist(::Nothing) = false
