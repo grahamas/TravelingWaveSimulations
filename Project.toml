@@ -30,11 +30,7 @@ UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 WilsonCowanModel = "bdbc91b4-201b-11e9-2b98-89611552dcef"
 
 [compat]
-AxisIndices = ">= 0.4"
 DiffEqBase = "6.44.3"
-NeuralModels = "2"
-Simulation73 = "2.1"
-WilsonCowanModel = "2"
 julia = "1.5"
 
 [extras]
