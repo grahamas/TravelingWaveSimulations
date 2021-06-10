@@ -8,15 +8,15 @@ using TravelingWaveSimulations: get_velocities, substantial_fronts,
     already_reduced_to_min_propagation_cls
 
 # from NeuralModels/src/nonlinearity.jl
-function _simple_sigmoid_fn(x, a, theta)
+function _simple_sigmoid(x, a, theta)
     1.0 / (1 + exp(-a * (x - theta)))
 end
 
 function wavefront(x, center, steepness, height, increasing::Val{true})
-    height * _simple_sigmoid_fn(x, steepness, center)
+    height * _simple_sigmoid(x, steepness, center)
 end
 function wavefront(x, center, steepness, height, increasing::Val{false})
-    height * (1 - _simple_sigmoid_fn(x, steepness, center))
+    height * (1 - _simple_sigmoid(x, steepness, center))
 end
 
 function make_traveling_wavefront(;velocity, x_0, steepness, height, increasing::Bool=true)
