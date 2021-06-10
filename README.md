@@ -3,7 +3,11 @@ Ensemble simulations of neural activity with analyses of traveling wave behavior
 
 ## Installation
 
-Clone repository and run `setup.jl` in julia, e.g. `julia -e 'include("setup.jl")'` from the command line with working directory at the top level of this repo.
+```julia
+using Pkg
+pkg"registry add https://github.com/grahamas/SmithThesisRegistry.git"
+pkg"add TravelingWaveSimulations"
+```
 
 For visualising the simulations, see [grahamas/TravelingWavePlotting](https://github.com/grahamas/TravelingWaveSimulationsPlotting)
 

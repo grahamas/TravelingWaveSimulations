@@ -31,3 +31,5 @@ build
 tmp
 
 *.mem
+
+Manifest.toml
