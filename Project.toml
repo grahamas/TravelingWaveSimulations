@@ -1,7 +1,7 @@
 name = "TravelingWaveSimulations"
 uuid = "b7a787de-74f3-11e9-2c3d-21bc6dc7d0e1"
 authors = ["Graham Smith <grahamas@gmail.com>"]
-version = "2.1.0"
+version = "2.2.0"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
