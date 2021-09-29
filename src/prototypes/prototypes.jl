@@ -211,7 +211,9 @@ prototypes_dict["full_dynamics_monotonic"] = (N_ARR=1,N_CDT=1,P=2;
                   Aei=1.5, Sei=27.0,
                   n_lattice=512, x_lattice=1400.0, 
                   aE=50.0, θE=0.125,
-                  aI=50.0, θI=0.2,
+                  firing_θI = 0.2,
+                  firing_aI = 0.2,
+                  aI=firing_aI, θI=firing_θI,
                   stim_strength=0.5,
                   stim_radius=14.0,
                   stim_duration=7.0,
@@ -307,6 +309,44 @@ prototypes_dict["full_dynamics_blocking"] = (args...;
         nonlinearity=nonlinearity, kwargs...)
 end
 
+prototypes_dict["full_dynamics_blocking_erf"] = (args...; 
+            α=(0.4, 0.7),
+            blocking_θI=0.5,
+            blocking_aI=50.0,
+            firing_θI=0.2,
+            firing_aI=50.0,
+            aE=50.0, θE=0.125,
+            nonlinearity = PopulationActionsParameters(
+                                ErfNonlinearity(a=aE, θ=θE),
+                                DifferenceOfErfsParameter(
+                                    firing_θ = firing_θI,
+                                    firing_a = firing_aI,
+                                    blocking_θ = blocking_θI,
+                                    blocking_a = blocking_aI
+                                )
+                ),
+            kwargs...) -> begin
+    prototypes_dict["full_dynamics_monotonic"](args...; 
+        α, blocking_aI, blocking_θI, firing_aI, firing_θI,
+        aE, θE,
+        nonlinearity=nonlinearity, kwargs...)
+end
+
+prototypes_dict["full_dynamics_monotonic_erf"] = (args...; 
+            α=(0.4, 0.7),
+            θI=0.2,
+            aI=50.0,
+            aE=50.0, θE=0.125,
+            nonlinearity = pops(ErfNonlinearity;
+                      θ = [θE, θI],
+                      a = [aE, aI]
+                  ),
+            kwargs...) -> begin
+    prototypes_dict["full_dynamics_monotonic"](args...; 
+        α, blocking_aI, blocking_θI, firing_aI, firing_θI,
+        aE, θE,
+        nonlinearity=nonlinearity, kwargs...)
+end
 
 
 					
