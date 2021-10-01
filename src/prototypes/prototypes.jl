@@ -334,8 +334,9 @@ end
 
 prototypes_dict["full_dynamics_monotonic_erf"] = (args...; 
             α=(0.4, 0.7),
-            θI=0.2,
-            aI=50.0,
+            firing_aI=50.0, firing_θI=0.2,
+            θI=firing_θI,
+            aI=firing_aI,
             aE=50.0, θE=0.125,
             nonlinearity = pops(ErfNonlinearity;
                       θ = [θE, θI],
@@ -343,7 +344,7 @@ prototypes_dict["full_dynamics_monotonic_erf"] = (args...;
                   ),
             kwargs...) -> begin
     prototypes_dict["full_dynamics_monotonic"](args...; 
-        α, blocking_aI, blocking_θI, firing_aI, firing_θI,
+        α, aI, θI,
         aE, θE,
         nonlinearity=nonlinearity, kwargs...)
 end
