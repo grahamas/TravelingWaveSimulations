@@ -225,7 +225,8 @@ prototypes_dict["full_dynamics_monotonic"] = (N_ARR=1,N_CDT=1,P=2;
                   αE = 0.4, αI = 0.7,
                   α=(αE, αI),
                   β = (1.0, 1.0),
-                  τ = (1.0, 0.4),
+                  τE = 1.0, τI = 0.4,
+                  τ = (τE, τI),
                   nonlinearity = pops(SimpleSigmoidNonlinearity;
                       θ = [θE, θI],
                       a = [aE, aI]
