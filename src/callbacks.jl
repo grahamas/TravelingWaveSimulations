@@ -52,16 +52,16 @@ function Simulation73.handle_callback(sim::Simulation, cb::CB) where {CB <: Tupl
 end
 
 # is_propagated defined in phenomena/classifications
-function Simulation73.handle_callback(sim::Simulation{T}, cb::CB) where {T,CB <: Tuple{typeof(is_propagated), <:NamedTuple}}
-    fn, nt = cb
-    min_dist_for_propagation = nt.min_dist_for_propagation
-    has_traveled_dist(rf::RunningFront) = abs(rf.previous_location - rf.starting_location) >= min_dist_for_propagation
-    has_traveled_dist(::Nothing) = false
-    xs = frame_xs(sim)
-    d1_ghost_op = make_ghost_op(T, xs, 1, sim.space isa PeriodicLattice)
-    dframe_cache = AxisArray(rand(size(xs)...), xs)
-    running_fronts = AxisVector{RF_possibilities(T)}(RF_possibilities(T)[nothing for _ in xs], collect(xs))
-    p = merge((running_fronts=running_fronts, dframe_cache=dframe_cache, return_fn=has_traveled_dist, d1_ghost_op=d1_ghost_op, has_propagation=Union{Missing,Bool}[missing]), nt)
-    cb = DiscreteCallback(fn, terminate!)
-    return (p, cb)
-end
+# function Simulation73.handle_callback(sim::Simulation{T}, cb::CB) where {T,CB <: Tuple{typeof(is_propagated), <:NamedTuple}}
+#     fn, nt = cb
+#     min_dist_for_propagation = nt.min_dist_for_propagation
+#     has_traveled_dist(rf::RunningFront) = abs(rf.previous_location - rf.starting_location) >= min_dist_for_propagation
+#     has_traveled_dist(::Nothing) = false
+#     xs = frame_xs(sim)
+#     d1_ghost_op = make_ghost_op(T, xs, 1, sim.space isa PeriodicLattice)
+#     dframe_cache = rand(size(xs)...)
+#     running_fronts = RF_possibilities(T)[nothing for _ in xs]
+#     p = merge((running_fronts=running_fronts, dframe_cache=dframe_cache, return_fn=has_traveled_dist, d1_ghost_op=d1_ghost_op, has_propagation=Union{Missing,Bool}[missing]), nt)
+#     cb = DiscreteCallback(fn, terminate!)
+#     return (p, cb)
+# end

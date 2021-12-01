@@ -125,13 +125,18 @@ end
 function load_classifications_recent(prototype_name, offset_from_current=0; data_root = datadir(), kwargs...)
     recent_path = get_recent_simulation_data_path(joinpath(data_root, prototype_name), offset_from_current)
     #sim_name = splitpath(recent_path)[end] # SIM NAME UNHELPFUL FIXME
-    return (load_classifications(recent_path, cls_sym; kwargs...), nothing) 
+    return (load_classifications(recent_path; kwargs...), nothing) 
 end
 
 _is_varying(x::Nothing) = false
 _is_varying(x::AbstractArray) = true
 _is_varying(x::Number) = false
 
+function findfirsts_nt(nt_arrs::NamedTuple{NAMES}, nt_vals::NamedTuple{NAMES}) where NAMES
+    NamedTuple{NAMES}(
+        [findfirst(isapprox.(arr, val, atol=1e-8)) for (arr, val) ∈ zip(nt_arrs, nt_vals)]
+    )
+end
 # FIXME type can be either <:AbstractArray or DataFrame -- should impact return type
 # not sure why it was necessary... never actually implemented
 function load_classifications(data_path; classification_name=:propagation)
@@ -142,7 +147,7 @@ function load_classifications(data_path; classification_name=:propagation)
     fixed_mods = NamedTuple{Tuple(fixed_names)}([mods[key] for key in fixed_names])
     varying_mods = NamedTuple{Tuple(varying_names)}([mods[key] for key in varying_names])
 
-    init_mod_array(T) = NamedAxisArray{keys(varying_mods)}(Array{Union{Bool,Missing}}(undef, length.(values(varying_mods))...), values(varying_mods))
+    init_mod_array(T) = NamedDimsArray{keys(varying_mods)}(Array{Union{Bool,Missing}}(undef, length.(values(varying_mods))...))
     #mod_dict = Dict(name => val for (name, val) in zip(mod_names, mod_values))
     
     first_row::NamedTuple{NAMES} = first(rows(data_table))
@@ -157,7 +162,7 @@ function load_classifications(data_path; classification_name=:propagation)
         exec_classification = row[cls_sym]
         this_mod = mods_from_row(row)
         #A_idx = this_mod[varying_names]
-        A_idx = NamedTuple{Tuple(varying_names)}(this_mod[varying_names])
+        A_idx = findfirsts_nt(varying_mods, this_mod)
         if exec_classification === missing
             for name in classification_names
                 setindex!(classifications_A[name], missing; A_idx...)
@@ -171,12 +176,12 @@ function load_classifications(data_path; classification_name=:propagation)
     return classifications_A
 end
 
-function get_cls_type(example_result::NamedTuple{NAMES}) where NAMES
-    if :wave_properties ∈ NAMES
-        return (:wave_properties, ExecutionClassifications)
-    elseif :propagation ∈ NAMES
-        return (:propagation, MinimalPropagationClassification)
-    else
-        error("Unknown NamedTuple structure for execution classification")
-    end
-end
+# function get_cls_type(example_result::NamedTuple{NAMES}) where NAMES
+#     if :wave_properties ∈ NAMES
+#         return (:wave_properties, ExecutionClassifications)
+#     elseif :propagation ∈ NAMES
+#         return (:propagation, MinimalPropagationClassification)
+#     else
+#         error("Unknown NamedTuple structure for execution classification")
+#     end
+# end

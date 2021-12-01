@@ -1,1 +1,0 @@
-abstract type AbstractWaveform{T,N} end

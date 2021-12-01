@@ -11,26 +11,12 @@ using OrdinaryDiffEq, DiffEqBase, DiffEqOperators
 using ArgParse
 using IterTools
 using Statistics, LinearAlgebra
-using AxisIndices
 using Interpolations
 using FileIO, BSON, TypedTables
 # using JuliaDB
 
-include("util/axisarray.jl")
-
-include("phenomena/waveforms.jl")
-include("phenomena/wavefronts.jl")
-include("phenomena/persistent_waveforms.jl")
-include("phenomena/classifications.jl")
-export ExecutionClassifications, MinimalPropagationClassification
-
 include("callbacks.jl")
-export terminate_when_E_fully_propagates, is_propagated
-
-
-export front_array_type, reduce_to_fronts
-include("global_reductions.jl")
-export reduce_to_wave_properties
+export terminate_when_E_fully_propagates#, is_propagated
 
 include("prototypes/prototypes.jl")
 export get_prototype
