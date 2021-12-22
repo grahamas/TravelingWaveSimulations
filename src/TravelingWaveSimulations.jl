@@ -7,7 +7,7 @@ using Lazy
 using Dates
 using Logging
 using Simulation73, NeuralModels, WilsonCowanModel
-using DiffEqBase, DiffEqOperators
+using DiffEqBase, DiffEqOperators, OrdinaryDiffEq
 using ArgParse
 using IterTools
 using Statistics, LinearAlgebra
