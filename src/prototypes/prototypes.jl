@@ -183,9 +183,12 @@ prototypes_dict["full_dynamics_blocking"] = (args...;
                 ),
             kwargs...) -> begin
     prototypes_dict["full_dynamics_monotonic"](args...; 
-        α, blocking_aI, blocking_θI, firing_aI, firing_θI,
+        α, 
+        firing_aI, firing_θI,
         aE, θE,
-        nonlinearity=nonlinearity, kwargs...)
+        nonlinearity=nonlinearity, 
+        kwargs...
+    )
 end
 
 prototypes_dict["full_dynamics_blocking_erf"] = (args...; 
@@ -206,7 +209,8 @@ prototypes_dict["full_dynamics_blocking_erf"] = (args...;
                 ),
             kwargs...) -> begin
     prototypes_dict["full_dynamics_monotonic"](args...; 
-        α, blocking_aI, blocking_θI, firing_aI, firing_θI,
+        α, 
+        firing_aI, firing_θI,
         aE, θE,
         nonlinearity=nonlinearity, kwargs...)
 end
@@ -223,7 +227,8 @@ prototypes_dict["full_dynamics_monotonic_erf"] = (args...;
                   ),
             kwargs...) -> begin
     prototypes_dict["full_dynamics_monotonic"](args...; 
-        α, aI, θI,
+        α, 
+        aI, θI,
         aE, θE,
         nonlinearity=nonlinearity, kwargs...)
 end
